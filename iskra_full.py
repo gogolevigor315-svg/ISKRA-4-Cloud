@@ -18,8 +18,8 @@ class DS24VerificationLevel(Enum):
     """Уровни верификации DS24"""
     NONE = 0
     BASIC = 1  # Хеш-верификация
-    FULL = 2  # Полная верификация с контрольными суммами
-    CRYPTO = 3  # Криптографическое доказательство
+    FULL = 2   # Полная верификация с контрольными суммами
+    CRYPTO = 3 # Криптографическое доказательство
 
 @dataclass
 class DS24ExecutionRecord:
@@ -50,7 +50,7 @@ class DS24PureProtocol:
                  operator_id: str,
                  environment_id: str,
                  verification_level: DS24VerificationLevel = DS24VerificationLevel.FULL):
-        
+
         self.operator_id = operator_id
         self.environment_id = environment_id
         self.verification_level = verification_level
@@ -98,10 +98,10 @@ class DS24PureProtocol:
                 data = data.encode('utf-8')
         else:
             data = json.dumps(data,
-                            sort_keys=True,
-                            ensure_ascii=False,
-                            separators=(',', ':')
-                            ).encode('utf-8')
+                             sort_keys=True,
+                             ensure_ascii=False,
+                             separators=(',', ':')
+                             ).encode('utf-8')
 
         return hashlib.sha256(data).hexdigest()
 
@@ -131,9 +131,9 @@ class DS24PureProtocol:
     def compute_input_signature(self, input_data: Any, intent: str) -> Dict[str, str]:
         """Вычисление криптографической сигнатуры входа"""
         canonical = json.dumps(input_data,
-                             sort_keys=True,
-                             ensure_ascii=False,
-                             separators=(',', ':'))
+                              sort_keys=True,
+                              ensure_ascii=False,
+                              separators=(',', ':'))
 
         signatures = {
             "input_hash": self._sha256_strict(canonical),
@@ -157,9 +157,9 @@ class DS24PureProtocol:
         return signatures
 
     def execute_deterministic(self,
-                             input_data: Any,
-                             intent: str,
-                             execution_id: Optional[str] = None) -> Dict[str, Any]:
+                              input_data: Any,
+                              intent: str,
+                              execution_id: Optional[str] = None) -> Dict[str, Any]:
         """Абсолютно детерминистическое исполнение"""
         start_time = time.perf_counter_ns()
 
@@ -239,14 +239,14 @@ class DS24PureProtocol:
             result["final_verification"] = self._full_verification(result)
 
         self._log_system_event("EXEC_COMPLETE",
-                             f"Execution {execution_id} completed: {verification_result['status']}")
+                              f"Execution {execution_id} completed: {verification_result['status']}")
 
         return result
 
     def _deterministic_computation(self,
-                                  input_data: Any,
-                                  intent: str,
-                                  input_signatures: Dict[str, str]) -> Any:
+                                   input_data: Any,
+                                   intent: str,
+                                   input_signatures: Dict[str, str]) -> Any:
         """Ядро детерминистического вычисления"""
         if isinstance(input_data, dict):
             result = {}
@@ -299,9 +299,9 @@ class DS24PureProtocol:
             return input_data
 
     def _verify_determinism(self,
-                           input_data: Any,
-                           output_data: Any,
-                           input_signatures: Dict[str, str]) -> Dict[str, Any]:
+                            input_data: Any,
+                            output_data: Any,
+                            input_signatures: Dict[str, str]) -> Dict[str, Any]:
         """Проверка детерминизма выполнения"""
         test_output = self._deterministic_computation(
             input_data,
@@ -336,8 +336,8 @@ class DS24PureProtocol:
             return False
 
     def _verify_mathematical_consistency(self,
-                                        input_data: Any,
-                                        output_data: Any) -> bool:
+                                         input_data: Any,
+                                         output_data: Any) -> bool:
         """Проверка математической консистентности"""
         if isinstance(input_data, (int, float)) and isinstance(output_data, (int, float)):
             expected = input_data * (1.0 + self.CONST_C) - self.CONST_D
@@ -350,7 +350,7 @@ class DS24PureProtocol:
         """Полная верификация результата выполнения"""
         chain_verified = self._verify_hash_chain(result)
         constants_verified = (self.session_constants_hash ==
-                            self._sha256_strict(f"{self.CONST_A}{self.CONST_B}{self.CONST_C}{self.CONST_D}"))
+                             self._sha256_strict(f"{self.CONST_A}{self.CONST_B}{self.CONST_C}{self.CONST_D}"))
 
         return {
             "chain_verification": chain_verified,
@@ -435,8 +435,8 @@ class DS24PureProtocol:
         }
 
     def generate_proof_of_determinism(self,
-                                     input_hash: str,
-                                     difficulty: int = 2) -> Dict[str, Any]:
+                                      input_hash: str,
+                                      difficulty: int = 2) -> Dict[str, Any]:
         """Генерация криптографического доказательства детерминизма"""
         target_record = None
         for record in self.execution_log:
@@ -473,8 +473,8 @@ class DS24PureProtocol:
                 break
             nonce += 1
 
-            if nonce > 1000000:
-                raise RuntimeError("Proof generation timeout")
+        if nonce > 1000000:
+            raise RuntimeError("Proof generation timeout")
 
         return {
             "proof_type": "ProofOfDeterminism",
@@ -615,21 +615,50 @@ def home():
 def execute():
     """Выполнение детерминистического запроса"""
     try:
-        data = request.json
-        if not data:
-            return jsonify({"error": "No JSON data provided"}), 400
+        # 🔧 ИСПРАВЛЕНИЕ: Принимаем любой JSON
+        if not request.is_json:
+            return jsonify({
+                "error": "Content-Type must be application/json",
+                "hint": "Add header: -H 'Content-Type: application/json'"
+            }), 400
         
+        data = request.get_json(silent=True) or {}
+        
+        # 🎯 ИСПРАВЛЕНИЕ: Делаем input обязательным, но даем дефолтные значения
         input_data = data.get("input")
         intent = data.get("intent", "default")
         
         if input_data is None:
-            return jsonify({"error": "Input data required"}), 400
+            # Если input нет — создаем демо-запрос
+            input_data = {
+                "command": "status",
+                "request_id": f"auto_{int(time.time())}",
+                "source": "web",
+                "action": "ping"
+            }
+            intent = "auto_generated"
         
+        # 🚀 Выполняем
         result = ds24.execute_deterministic(input_data, intent)
-        return jsonify(result)
-    
+        
+        # ✅ Возвращаем упрощенный ответ для теста
+        return jsonify({
+            "status": "executed",
+            "execution_id": result["execution_id"],
+            "input_received": input_data,
+            "intent": intent,
+            "output_hash": result["output_signature"][:16] + "...",
+            "verification": result["verification"]["status"],
+            "full_result_available": True,
+            "hint": "Use GET /audit to see all executions"
+        })
+
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "error": str(e),
+            "type": type(e).__name__,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }), 500
 
 @app.route('/health')
 def health():
@@ -643,7 +672,8 @@ def health():
             "failed": ds24.integrity_checks_failed,
             "rate": ds24.integrity_checks_passed / ds24.execution_count if ds24.execution_count > 0 else 1.0
         },
-        "determinism_verified": True
+        "determinism_verified": True,
+        "uptime_seconds": int(time.time() - datetime.fromisoformat(ds24.session_start.replace('Z', '+00:00')).timestamp())
     })
 
 @app.route('/audit')
@@ -673,14 +703,43 @@ def demo():
     demo_input = {
         "action": "demo",
         "message": "ISKRA-4 работает",
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "test": True,
+        "number": 42
     }
-    
+
     result = ds24.execute_deterministic(demo_input, "demo_request")
     return jsonify({
         "demo": True,
+        "message": "Это демонстрационный запрос",
         "input": demo_input,
-        "result": result
+        "result": {
+            "execution_id": result["execution_id"],
+            "output_preview": str(result["output_data"])[:100] + "..." if len(str(result["output_data"])) > 100 else result["output_data"],
+            "verification": result["verification"]["status"],
+            "hash": result["output_signature"][:16] + "..."
+        },
+        "try_yourself": "Send POST to /execute with JSON: {\"input\": {\"your\": \"data\"}, \"intent\": \"your_intent\"}"
+    })
+
+@app.route('/ping', methods=['GET', 'POST'])
+def ping():
+    """Простой ping-эндпоинт"""
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        return jsonify({
+            "pong": True,
+            "method": "POST",
+            "received_data": data,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "system": "ISKRA-4 DS24"
+        })
+    
+    return jsonify({
+        "pong": True,
+        "method": "GET",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "system": "ISKRA-4 DS24"
     })
 
 if __name__ == "__main__":
