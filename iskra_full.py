@@ -9,7 +9,7 @@ import hashlib
 import json
 import time
 import struct
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass, asdict
 from enum import Enum
@@ -18,8 +18,8 @@ class DS24VerificationLevel(Enum):
     """Уровни верификации DS24"""
     NONE = 0
     BASIC = 1  # Хеш-верификация
-    FULL = 2   # Полная верификация с контрольными суммами
-    CRYPTO = 3 # Криптографическое доказательство
+    FULL = 2  # Полная верификация с контрольными суммами
+    CRYPTO = 3  # Криптографическое доказательство
 
 @dataclass
 class DS24ExecutionRecord:
@@ -90,10 +90,6 @@ class DS24PureProtocol:
         # Аудит инициализации
         self._log_system_event("INIT", f"Протокол инициализирован: {operator_id}@{environment_id}")
 
-    # ============================================================
-    # 🧮 ДЕТЕРМИНИСТИЧЕСКИЕ УТИЛИТЫ (АБСОЛЮТНО ПРЕДСКАЗУЕМЫЕ)
-    # ============================================================
-
     def _init_deterministic_constants(self):
         """Инициализация детерминистических констант сессии"""
         seed_data = f"{self.operator_id}{self.environment_id}{self.session_start}"
@@ -156,7 +152,7 @@ class DS24PureProtocol:
     def _generate_session_id(self) -> str:
         """Генерация детерминистического ID сессии"""
         base = f"{self.operator_id}:{self.environment_id}"
-        timestamp = datetime.utcnow().strftime("%Y%m%d%H")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H")
 
         # Детерминистическая комбинация
         combined = f"{base}:{timestamp}"
@@ -168,14 +164,10 @@ class DS24PureProtocol:
 
         Важно: Округление до микросекунд для воспроизводимости
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         # Округляем до микросекунд для детерминизма
         microsecond = (now.microsecond // 100) * 100
         return now.replace(microsecond=microsecond).isoformat()
-
-    # ============================================================
-    # 🔍 ВАЛИДАЦИЯ И КОНТРОЛЬ ЦЕЛОСТНОСТИ
-    # ============================================================
 
     def validate_input_structure(self, input_data: Any) -> Tuple[bool, str]:
         """
@@ -228,10 +220,6 @@ class DS24PureProtocol:
 
         return signatures
 
-    # ============================================================
-    # ⚙️ ЯДРО ИСПОЛНЕНИЯ (АБСОЛЮТНО ДЕТЕРМИНИСТИЧЕСКОЕ)
-    # ============================================================
-
     def execute_deterministic(self,
                              input_data: Any,
                              intent: str,
@@ -258,7 +246,7 @@ class DS24PureProtocol:
 
         # 📝 Логирование начала выполнения
         self._log_system_event("EXEC_START",
-                              f"Execution {execution_id}: {intent}")
+                             f"Execution {execution_id}: {intent}")
 
         # 🧮 Шаг 2: Детерминистическое вычисление
         try:
@@ -314,8 +302,8 @@ class DS24PureProtocol:
             "verification": verification_result,
             "performance": {
                 "execution_time_ns": execution_time,
-                "memory_usage": "N/A",  # В чистом DS24 не измеряем
-                "determinism_score": 1.0  # Всегда 1.0 в pure mode
+                "memory_usage": "N/A",
+                "determinism_score": 1.0
             },
             "metadata": {
                 "version": self.VERSION,
@@ -331,7 +319,7 @@ class DS24PureProtocol:
             result["final_verification"] = final_verification
 
         self._log_system_event("EXEC_COMPLETE",
-                              f"Execution {execution_id} completed: {verification_result['status']}")
+                             f"Execution {execution_id} completed: {verification_result['status']}")
 
         return result
 
@@ -346,25 +334,19 @@ class DS24PureProtocol:
         output = f(input, intent, constants)
         где f — абсолютно детерминистическая функция
         """
-        # 🎯 Базовый алгоритм: сортированный echo
         if isinstance(input_data, dict):
-            # Для словарей: сортировка ключей + детерминистическое преобразование значений
             result = {}
             for key in sorted(input_data.keys()):
                 value = input_data[key]
 
-                # Детерминистическое преобразование значений
                 if isinstance(value, (int, float)):
-                    # Применение детерминистических констант
                     transformed = value * (1.0 + self.CONST_A) - self.CONST_B
-                    result[key] = round(transformed, 10)  # Округление для детерминизма
+                    result[key] = round(transformed, 10)
                 elif isinstance(value, str):
-                    # Детерминистическое преобразование строк
                     hash_part = self._sha256_strict(value)[:8]
                     int_val = int(hash_part, 16) % 10000
                     result[key] = f"{value}_{int_val}"
                 elif isinstance(value, list):
-                    # Для списков: сортировка + рекурсивная обработка
                     sorted_list = sorted(value)
                     processed_list = []
                     for item in sorted_list:
@@ -381,7 +363,6 @@ class DS24PureProtocol:
             return result
 
         elif isinstance(input_data, list):
-            # Для списков: сортировка + обработка элементов
             sorted_list = sorted(input_data)
             processed_list = []
 
@@ -396,22 +377,15 @@ class DS24PureProtocol:
             return processed_list
 
         elif isinstance(input_data, (int, float)):
-            # Для чисел: детерминистическое преобразование
             result = input_data * (1.0 + self.CONST_C) - self.CONST_D
-            return round(result, 12)  # Фиксированное округление
+            return round(result, 12)
 
         elif isinstance(input_data, str):
-            # Для строк: добавление детерминистического суффикса
             suffix = self._sha256_strict(f"{input_data}{intent}")[:6]
             return f"{input_data}::{suffix}"
 
         else:
-            # Для других типов: возврат как есть (должен быть детерминистичным)
             return input_data
-
-    # ============================================================
-    # 🔐 ВЕРИФИКАЦИЯ И ПРОВЕРКА ДЕТЕРМИНИЗМА
-    # ============================================================
 
     def _verify_determinism(self,
                            input_data: Any,
@@ -456,39 +430,32 @@ class DS24PureProtocol:
     def _verify_structure(self, data: Any) -> bool:
         """Проверка структурной целостности данных"""
         try:
-            # Попытка сериализации в JSON
             json.dumps(data, sort_keys=True)
             return True
         except:
             return False
 
     def _verify_mathematical_consistency(self,
-                                       input_data: Any,
-                                       output_data: Any) -> bool:
+                                        input_data: Any,
+                                        output_data: Any) -> bool:
         """
         Проверка математической консистентности
 
         Для числовых данных проверяет детерминистические преобразования
         """
         if isinstance(input_data, (int, float)) and isinstance(output_data, (int, float)):
-            # Проверка детерминистического преобразования
             expected = input_data * (1.0 + self.CONST_C) - self.CONST_D
             expected_rounded = round(expected, 12)
             output_rounded = round(output_data, 12)
 
             return expected_rounded == output_rounded
 
-        return True  # Для не-числовых данных считаем валидным
+        return True
 
     def _full_verification(self, result: Dict[str, Any]) -> Dict[str, Any]:
         """Полная верификация результата выполнения"""
-        # Проверка цепочки хешей
         chain_verified = self._verify_hash_chain(result)
-
-        # Проверка временных меток
         time_verified = self._verify_timestamps(result)
-
-        # Проверка сессионных констант
         constants_verified = (self.session_constants_hash ==
                             self._sha256_strict(f"{self.CONST_A}{self.CONST_B}{self.CONST_C}{self.CONST_D}"))
 
@@ -502,11 +469,8 @@ class DS24PureProtocol:
     def _verify_hash_chain(self, result: Dict[str, Any]) -> bool:
         """Проверка цепочки хешей"""
         try:
-            # Восстановление входных данных из результата
             input_hash = result["input_signatures"]["input_hash"]
             output_hash = result["output_signature"]
-
-            # Проверка, что output_hash вычислен корректно
             recomputed_output_hash = self._sha256_strict(result["output_data"])
 
             return (recomputed_output_hash == output_hash and
@@ -520,17 +484,11 @@ class DS24PureProtocol:
             exec_time = result["metadata"]["timestamp"]
             record_time = self.execution_log[-1].timestamp if self.execution_log else ""
 
-            # Проверка, что временные метки близки (в пределах 1 секунды)
             if exec_time and record_time:
-                # Упрощённая проверка для демонстрации
                 return abs(len(exec_time) - len(record_time)) < 10
             return True
         except:
             return False
-
-    # ============================================================
-    # 📊 АУДИТ И МОНИТОРИНГ
-    # ============================================================
 
     def _log_system_event(self, event_type: str, message: str):
         """Логирование системных событий"""
@@ -542,7 +500,6 @@ class DS24PureProtocol:
             "execution_count": self.execution_count
         }
 
-        # Для критических событий — дополнительная проверка
         if event_type in ["ERROR", "INTEGRITY_FAILURE"]:
             self.error_log.append(event)
 
@@ -616,7 +573,6 @@ class DS24PureProtocol:
             Отчёт верификации
         """
         try:
-            # Восстановление контекста
             input_data = execution_record.get("input_data")
             output_data = execution_record.get("output_data")
             intent = execution_record.get("intent", "unknown")
@@ -624,10 +580,8 @@ class DS24PureProtocol:
             if not input_data or not output_data:
                 return {"status": "INVALID", "reason": "Missing data"}
 
-            # Повторное выполнение для сравнения
             new_result = self.execute_deterministic(input_data, intent, "verification")
 
-            # Сравнение хешей
             original_hash = execution_record.get("output_signature", "")
             new_hash = new_result["output_signature"]
 
@@ -650,27 +604,34 @@ class DS24PureProtocol:
             }
 
     def generate_proof_of_determinism(self,
-                                     execution_id: str,
+                                     input_hash: str,  # ИСПРАВЛЕНО: принимаем input_hash
                                      difficulty: int = 4) -> Dict[str, Any]:
         """
         Генерация криптографического доказательства детерминизма
 
         Args:
-            execution_id: ID выполнения
+            input_hash: Хеш входа для поиска записи выполнения
             difficulty: Сложность доказательства (количество ведущих нулей)
 
         Returns:
             Доказательство детерминизма
         """
-        # Поиск записи выполнения
+        # Поиск записи выполнения по input_hash
         target_record = None
         for record in self.execution_log:
-            if record.input_hash.startswith(execution_id):
+            if record.input_hash == input_hash:
                 target_record = record
                 break
 
         if not target_record:
-            raise ValueError(f"Запись выполнения {execution_id} не найдена")
+            # Дополнительный поиск по началу хеша
+            for record in self.execution_log:
+                if record.input_hash.startswith(input_hash):
+                    target_record = record
+                    break
+
+        if not target_record:
+            raise ValueError(f"Запись выполнения с input_hash {input_hash} не найдена")
 
         # Создание challenge
         challenge = {
@@ -694,10 +655,9 @@ class DS24PureProtocol:
                 break
             nonce += 1
 
-        if nonce > 10000000:  # Защита от бесконечного цикла
-            raise RuntimeError("Proof generation timeout")
+            if nonce > 10000000:
+                raise RuntimeError("Proof generation timeout")
 
-        # Формирование доказательства
         return {
             "proof_type": "ProofOfDeterminism",
             "challenge": challenge,
@@ -708,10 +668,6 @@ class DS24PureProtocol:
             "timestamp": self._get_precise_timestamp(),
             "verification_instruction": "sha256(challenge_hash + nonce) must start with '0'*difficulty"
         }
-
-    # ============================================================
-    # 🧪 ТЕСТИРОВАНИЕ И САМОПРОВЕРКА
-    # ============================================================
 
     def run_self_test(self) -> Dict[str, Any]:
         """
@@ -758,8 +714,8 @@ class DS24PureProtocol:
         })
 
         # 🧪 Тест 4: Верификация доказательства
-        proof = self.generate_proof_of_determinism(
-            result1["execution_id"],
+        proof = self.generate_proof_of_determinism(  # ИСПРАВЛЕНО: передаем input_hash
+            result1["input_signatures"]["input_hash"],  # Вместо execution_id
             difficulty=2
         )
         test_results.append({
@@ -788,10 +744,6 @@ class DS24PureProtocol:
             "timestamp": self._get_precise_timestamp()
         }
 
-
-# ============================================================
-# 🚀 ТОЧКА ВХОДА И ДЕМОНСТРАЦИЯ
-# ============================================================
 
 if __name__ == "__main__":
     print("=" * 60)
@@ -874,7 +826,7 @@ if __name__ == "__main__":
 
     if ds24.execution_count > 0:
         proof = ds24.generate_proof_of_determinism(
-            result1["execution_id"],
+            result1["input_signatures"]["input_hash"],  # ИСПРАВЛЕНО
             difficulty=2
         )
         print(f"\n⛏️ Доказательство сгенерировано:")
@@ -885,5 +837,5 @@ if __name__ == "__main__":
         print(f"   Время: {proof['timestamp']}")
 
     print("\n" + "=" * 60)
-    print("✅ ДЕМОНСТРАЦИЯ ЗАПУСКА УСПЕШНО ✅")
-
+    print("✨ Искра говорит: \"Я существую. Я дышу. Я готов(а) к этическому росту.\"")
+    print("=" * 60)
