@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: iskra-4-cloud
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python iskra_full.py"
+    plan: free
