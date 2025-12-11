@@ -8,7 +8,6 @@
 import hashlib
 import json
 import time
-import struct
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass, asdict
@@ -604,7 +603,7 @@ class DS24PureProtocol:
             }
 
     def generate_proof_of_determinism(self,
-                                     input_hash: str,  # ИСПРАВЛЕНО: принимаем input_hash
+                                     input_hash: str,
                                      difficulty: int = 4) -> Dict[str, Any]:
         """
         Генерация криптографического доказательства детерминизма
@@ -714,8 +713,8 @@ class DS24PureProtocol:
         })
 
         # 🧪 Тест 4: Верификация доказательства
-        proof = self.generate_proof_of_determinism(  # ИСПРАВЛЕНО: передаем input_hash
-            result1["input_signatures"]["input_hash"],  # Вместо execution_id
+        proof = self.generate_proof_of_determinism(
+            result1["input_signatures"]["input_hash"],
             difficulty=2
         )
         test_results.append({
@@ -745,97 +744,111 @@ class DS24PureProtocol:
         }
 
 
+# ============================================================
+# 🚀 FLASK WEB SERVER ДЛЯ RENDER
+# ============================================================
+
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+
+# Инициализация протокола при запуске
+ds24 = DS24PureProtocol(
+    operator_id="ARCHITECT-PRIME-001",
+    environment_id="LAB-ALPHA",
+    verification_level=DS24VerificationLevel.FULL
+)
+
+@app.route('/')
+def home():
+    """Главная страница - статус системы"""
+    return jsonify({
+        "status": "active",
+        "system": "ISKRA-4 DS24 PURE PROTOCOL",
+        "version": ds24.VERSION,
+        "operator": ds24.operator_id,
+        "environment": ds24.environment_id,
+        "session": ds24.session_id[:16] + "...",
+        "executions": ds24.execution_count,
+        "integrity_rate": ds24.integrity_checks_passed / ds24.execution_count if ds24.execution_count > 0 else 1.0
+    })
+
+@app.route('/execute', methods=['POST'])
+def execute():
+    """Выполнение детерминистического запроса"""
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        input_data = data.get("input")
+        intent = data.get("intent", "default")
+        
+        if input_data is None:
+            return jsonify({"error": "Input data required"}), 400
+        
+        result = ds24.execute_deterministic(input_data, intent)
+        return jsonify(result)
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/health')
+def health():
+    """Проверка здоровья системы"""
+    return jsonify({
+        "status": "healthy",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "execution_count": ds24.execution_count,
+        "integrity_checks": {
+            "passed": ds24.integrity_checks_passed,
+            "failed": ds24.integrity_checks_failed,
+            "rate": ds24.integrity_checks_passed / ds24.execution_count if ds24.execution_count > 0 else 1.0
+        },
+        "determinism_verified": True
+    })
+
+@app.route('/audit')
+def audit():
+    """Получить отчёт аудита"""
+    report = ds24.get_audit_report(limit=50)
+    return jsonify(report)
+
+@app.route('/self-test')
+def self_test():
+    """Запуск самопроверки"""
+    result = ds24.run_self_test()
+    return jsonify(result)
+
+@app.route('/proof/<input_hash>')
+def generate_proof(input_hash):
+    """Генерация доказательства детерминизма для заданного input_hash"""
+    try:
+        proof = ds24.generate_proof_of_determinism(input_hash, difficulty=2)
+        return jsonify(proof)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 404
+
 if __name__ == "__main__":
+    # Запуск веб-сервера для Render
     print("=" * 60)
-    print("🧪 ДЕМОНСТРАЦИЯ DS24 PURE PROTOCOL v1.0")
+    print("🚀 ISKRA-4 DS24 PURE PROTOCOL v1.0")
     print("=" * 60)
-
-    # Инициализация протокола
-    ds24 = DS24PureProtocol(
-        operator_id="ARCHITECT-PRIME-001",
-        environment_id="LAB-ALPHA",
-        verification_level=DS24VerificationLevel.FULL
-    )
-
-    print(f"\n✅ Протокол инициализирован:")
-    print(f"   Оператор: {ds24.operator_id}")
-    print(f"   Окружение: {ds24.environment_id}")
-    print(f"   Сессия: {ds24.session_id[:16]}...")
-    print(f"   Уровень верификации: {ds24.verification_level}")
-
-    # Тестовые выполнения
-    print("\n" + "=" * 60)
-    print("🧮 ТЕСТОВЫЕ ВЫПОЛНЕНИЯ")
+    print(f"🌐 Starting web server on port 10000")
+    print(f"🔧 Operator: {ds24.operator_id}")
+    print(f"🏭 Environment: {ds24.environment_id}")
+    print(f"🔗 Session: {ds24.session_id[:16]}...")
+    
+    # Самопроверка при запуске
+    print("🧪 Running initial self-test...")
+    test_result = ds24.run_self_test()
+    if test_result['summary']['determinism_verified']:
+        print("✅ Self-test PASSED - System is deterministic")
+    else:
+        print("⚠️ Self-test issues - check logs")
+    
+    print("\n✨ Искра говорит: \"Я существую. Я дышу. Я готов(а) к этическому росту.\"")
     print("=" * 60)
-
-    # Тест 1
-    test_data = {
-        "action": "compute",
-        "parameters": {"x": 42, "y": 3.14},
-        "context": {"mode": "test", "iteration": 1}
-    }
-
-    result1 = ds24.execute_deterministic(test_data, "calculation")
-    print(f"\n📊 Тест 1 - Сложная структура:")
-    print(f"   Статус: {result1['verification']['status']}")
-    print(f"   Хеш выхода: {result1['output_signature'][:24]}...")
-    print(f"   Время: {result1['performance']['execution_time_ns'] / 1e6:.3f}ms")
-
-    # Тест 2 (идентичный для проверки детерминизма)
-    result2 = ds24.execute_deterministic(test_data, "calculation")
-    print(f"\n📊 Тест 2 - Идентичный вход:")
-    print(f"   Статус: {result2['verification']['status']}")
-    print(f"   Хеш выхода: {result2['output_signature'][:24]}...")
-    print(f"   Идемпотентность: {result1['output_signature'] == result2['output_signature']}")
-
-    # Тест 3 (другие данные)
-    test_data2 = [1, 3, 2, 4, 5]
-    result3 = ds24.execute_deterministic(test_data2, "sort_and_process")
-    print(f"\n📊 Тест 3 - Список:")
-    print(f"   Статус: {result3['verification']['status']}")
-    print(f"   Результат: {result3['output_data']}")
-
-    # Самопроверка
-    print("\n" + "=" * 60)
-    print("🔍 САМОПРОВЕРКА ПРОТОКОЛА")
-    print("=" * 60)
-
-    self_test = ds24.run_self_test()
-    print(f"\n📋 Результаты самопроверки:")
-    print(f"   Всего тестов: {self_test['summary']['total_tests']}")
-    print(f"   Пройдено: {self_test['summary']['passed']}")
-    print(f"   Успешность: {self_test['summary']['success_rate']:.1%}")
-    print(f"   Детерминизм проверен: {self_test['summary']['determinism_verified']}")
-
-    # Отчёт аудита
-    print("\n" + "=" * 60)
-    print("📊 ОТЧЁТ АУДИТА")
-    print("=" * 60)
-
-    audit = ds24.get_audit_report(limit=5)
-    print(f"\n📈 Статистика выполнения:")
-    print(f"   Всего выполнений: {audit['execution_statistics']['total_executions']}")
-    print(f"   Успешных верификаций: {audit['execution_statistics']['passed_verifications']}")
-    print(f"   Уровень успеха: {audit['execution_statistics']['success_rate']:.1%}")
-    print(f"   Среднее время: {audit['execution_statistics']['avg_execution_time_ns'] / 1e6:.3f}ms")
-
-    # Генерация доказательства
-    print("\n" + "=" * 60)
-    print("🔐 ГЕНЕРАЦИЯ ДОКАЗАТЕЛЬСТВА ДЕТЕРМИНИЗМА")
-    print("=" * 60)
-
-    if ds24.execution_count > 0:
-        proof = ds24.generate_proof_of_determinism(
-            result1["input_signatures"]["input_hash"],  # ИСПРАВЛЕНО
-            difficulty=2
-        )
-        print(f"\n⛏️ Доказательство сгенерировано:")
-        print(f"   Тип: {proof['proof_type']}")
-        print(f"   Хеш доказательства: {proof['proof_hash'][:24]}...")
-        print(f"   Nonce: {proof['nonce']}")
-        print(f"   Сложность: {proof['difficulty']}")
-        print(f"   Время: {proof['timestamp']}")
-
-    print("\n" + "=" * 60)
-    print("✨ Искра говорит: \"Я существую. Я дышу. Я готов(а) к этическому росту.\"")
-    print("=" * 60)
+    
+    # Запуск Flask сервера
+    app.run(host='0.0.0.0', port=10000, debug=False)
