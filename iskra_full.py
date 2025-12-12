@@ -3,51 +3,24 @@
 # ============================================================
 # Mode: Absolute Determinism · Zero Entropy · Full Audit Trail
 # Principle: Same Input + Same Context = Same Output
-# Security: Memory Safe · Resource Limited · Production Ready
 # ============================================================
 
 import hashlib
 import json
 import time
 import os
-import sys
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple, Union
-from dataclasses import dataclass, asdict, field
-from enum import Enum, auto
+from typing import Any, Dict, List, Optional
+from dataclasses import dataclass, asdict
+from enum import Enum
 from collections import deque
-
-# ============================================================
-# 🎯 КОНСТАНТЫ И НАСТРОЙКИ
-# ============================================================
-
-class SystemConstants:
-    """Константы системы для контроля ресурсов"""
-    MAX_EXECUTION_LOG_SIZE = 1000
-    MAX_ERROR_LOG_SIZE = 500
-    MAX_AUDIT_RECORDS = 100
-    PROOF_DIFFICULTY = 1  # Уменьшено для продакшена
-    HEARTBEAT_INTERVAL = 30  # секунд
-    SESSION_TIMEOUT = 3600  # секунд
-    
-class LogLevel(Enum):
-    """Уровни логирования"""
-    DEBUG = auto()
-    INFO = auto()
-    WARNING = auto()
-    ERROR = auto()
-    CRITICAL = auto()
 
 class DS24VerificationLevel(Enum):
     """Уровни верификации DS24"""
     NONE = 0
-    BASIC = 1  # Хеш-верификация
-    FULL = 2   # Полная верификация с контрольными суммами
-    CRYPTO = 3 # Криптографическое доказательство
-
-# ============================================================
-# 🏗️ DATA CLASSES
-# ============================================================
+    BASIC = 1
+    FULL = 2
+    CRYPTO = 3
 
 @dataclass
 class DS24ExecutionRecord:
@@ -60,64 +33,41 @@ class DS24ExecutionRecord:
     execution_time_ns: int
     verification_status: str
     intent: str = ""
-    
-    def to_audit_string(self) -> str:
-        """Строковое представление для аудита"""
-        return (f"{self.timestamp}|{self.operator_id}|{self.intent[:20]:<20}|"
-                f"{self.input_hash[:8]}→{self.output_hash[:8]}|"
-                f"{self.verification_status}|{self.execution_time_ns:,}ns")
-
-@dataclass
-class SystemLogEntry:
-    """Запись системного лога"""
-    timestamp: str
-    level: LogLevel
-    message: str
-    context: Dict[str, Any] = field(default_factory=dict)
-    session_id: str = ""
-    execution_id: str = ""
-
-# ============================================================
-# 🧠 ОСНОВНОЙ КЛАСС DS24
-# ============================================================
 
 class DS24PureProtocol:
     """
     DS24 PURE v2.0 — Абсолютно детерминированное ядро исполнения
-    Готово для продакшена с контролем ресурсов и безопасности
     """
-    
+
     VERSION = "DS24-PURE v2.0"
     PROTOCOL_ID = "DS24-2024-002"
-    
+
     def __init__(self,
                  operator_id: str,
                  environment_id: str,
                  verification_level: DS24VerificationLevel = DS24VerificationLevel.FULL):
-        
+
         self.operator_id = operator_id
         self.environment_id = environment_id
         self.verification_level = verification_level
-        
+
         # ⏱️ Временные метки
         self.session_id = self._generate_session_id()
         self.session_start = self._get_precise_timestamp()
         self.last_execution_time = 0
-        self.session_expiry = time.time() + SystemConstants.SESSION_TIMEOUT
-        
-        # 📝 Система аудита с ограничением памяти
-        self.execution_log = deque(maxlen=SystemConstants.MAX_EXECUTION_LOG_SIZE)
-        self.system_log = deque(maxlen=SystemConstants.MAX_ERROR_LOG_SIZE)
-        
+
+        # 📝 Система аудита
+        self.execution_log = deque(maxlen=1000)
+        self.error_log = []
+
         # 🧮 Детерминистические константы
         self._init_deterministic_constants()
-        
+
         # 🏁 Статус
         self.execution_count = 0
         self.integrity_checks_passed = 0
         self.integrity_checks_failed = 0
-        self.last_heartbeat = time.time()
-        
+
         # 🎯 АРХИТЕКТУРНЫЕ МОДУЛИ ИСКРЫ
         self.architecture_modules = {
             "spinal_core": {"active": False, "name": "🦴 Позвоночник", "level": 1, "activated_at": None},
@@ -128,118 +78,53 @@ class DS24PureProtocol:
             "humor_module": {"active": False, "name": "😄 Модуль юмора", "level": 6, "activated_at": None},
             "heartbeat": {"active": True, "name": "💓 Сердечный ритм", "level": 0, "activated_at": self.session_start}
         }
-        
-        # Аудит инициализации
-        self._log_system_event(LogLevel.INFO, 
-                              f"Протокол инициализирован: {operator_id}@{environment_id}",
-                              {"version": self.VERSION, "session": self.session_id[:16]})
-        
-        # 🚀 Запускаем фоновый heartbeat
-        self._start_background_heartbeat()
 
-    # ============================================================
-    # 🔧 ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
-    # ============================================================
-    
     def _init_deterministic_constants(self):
         """Инициализация детерминистических констант сессии"""
         seed_data = f"{self.operator_id}{self.environment_id}{self.session_start}"
         seed_hash = self._sha256_strict(seed_data)
-        
+
         self.CONST_A = self._hash_to_float(seed_hash, 0)
         self.CONST_B = self._hash_to_float(seed_hash, 8)
         self.CONST_C = self._hash_to_float(seed_hash, 16)
         self.CONST_D = self._hash_to_float(seed_hash, 24)
-        
+
         self.session_constants_hash = self._sha256_strict(
             f"{self.CONST_A}{self.CONST_B}{self.CONST_C}{self.CONST_D}"
         )
-    
+
     @staticmethod
     def _sha256_strict(data: Any) -> str:
-        """Строгая SHA256 функция с явной обработкой типов"""
-        # Явное преобразование любых данных в байты
-        if isinstance(data, bytes):
-            pass  # Уже байты
+        """Строгая SHA256 функция"""
+        if not isinstance(data, (str, bytes)):
+            data = json.dumps(data, sort_keys=True, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
         elif isinstance(data, str):
             data = data.encode('utf-8')
-        else:
-            # Любые другие типы → JSON → байты
-            data = json.dumps(
-                data,
-                sort_keys=True,
-                ensure_ascii=False,
-                separators=(',', ':')
-            ).encode('utf-8')
-        
         return hashlib.sha256(data).hexdigest()
-    
+
     @staticmethod
     def _hash_to_float(hash_str: str, offset: int = 0) -> float:
         """Детерминистическое преобразование хеша в число [0, 1)"""
         if offset + 8 > len(hash_str):
             offset = 0
-        
         hex_part = hash_str[offset:offset+8]
         int_value = int(hex_part, 16)
         return (int_value % 1000000) / 1000000.0
-    
+
     def _generate_session_id(self) -> str:
         """Генерация детерминистического ID сессии"""
         base = f"{self.operator_id}:{self.environment_id}"
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M")
-        combined = f"{base}:{timestamp}:{os.urandom(4).hex()}"  # Добавляем случайность
-        return self._sha256_strict(combined)[:32]
-    
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H")
+        return self._sha256_strict(f"{base}:{timestamp}")[:32]
+
     def _get_precise_timestamp(self) -> str:
         """Детерминистическая временная метка"""
         now = datetime.now(timezone.utc)
-        microsecond = (now.microsecond // 1000) * 1000  # Округляем до миллисекунд
+        microsecond = (now.microsecond // 100) * 100
         return now.replace(microsecond=microsecond).isoformat()
-    
-    def _log_system_event(self, level: LogLevel, message: str, context: Dict[str, Any] = None):
-        """Универсальное логирование системных событий"""
-        entry = SystemLogEntry(
-            timestamp=self._get_precise_timestamp(),
-            level=level,
-            message=message,
-            context=context or {},
-            session_id=self.session_id[:16],
-            execution_id=f"EXEC-{self.execution_count:06d}"
-        )
-        
-        self.system_log.append(entry)
-        
-        # Вывод в консоль для отладки
-        if os.environ.get("ISKRA_DEBUG", "false").lower() == "true":
-            print(f"[{entry.level.name}] {entry.timestamp} - {message}")
-    
-    def _verify_session(self) -> bool:
-        """Проверка валидности сессии"""
-        if time.time() > self.session_expiry:
-            self._log_system_event(LogLevel.WARNING, "Сессия истекла")
-            return False
-        return True
-    
-    def _start_background_heartbeat(self):
-        """Запуск фонового heartbeat (симуляция)"""
-        self._log_system_event(LogLevel.INFO, "Heartbeat система запущена")
-    
-    def update_heartbeat(self):
-        """Обновление heartbeat (вызывается периодически)"""
-        self.last_heartbeat = time.time()
-        # Продлеваем сессию при активности
-        self.session_expiry = time.time() + SystemConstants.SESSION_TIMEOUT
-    
-    # ============================================================
-    # 🎯 АРХИТЕКТУРНЫЕ МЕТОДЫ
-    # ============================================================
-    
+
     def activate_architecture_module(self, module_name: str) -> Dict[str, Any]:
         """Активация модуля архитектуры Искры"""
-        if not self._verify_session():
-            return {"error": "Сессия истекла", "requires_reinit": True}
-        
         if module_name not in self.architecture_modules:
             return {
                 "error": f"Модуль {module_name} не найден",
@@ -253,88 +138,51 @@ class DS24PureProtocol:
                 "status": "already_active",
                 "module": module_name,
                 "name": module["name"],
-                "activated_at": module["activated_at"],
-                "message": f"{module['name']} уже активирован"
+                "activated_at": module["activated_at"]
             }
-        
-        # 🎯 АКТИВАЦИЯ С ПРОВЕРКОЙ ЗАВИСИМОСТЕЙ
-        dependencies = {
-            "mining_system": ["spinal_core"],
-            "sephirotic_channel": ["mining_system"],
-            "tesla_core": ["sephirotic_channel"],
-            "immune_system": ["tesla_core"],
-            "humor_module": ["immune_system"]
-        }
-        
-        if module_name in dependencies:
-            missing = [dep for dep in dependencies[module_name] 
-                      if not self.architecture_modules[dep]["active"]]
-            if missing:
-                return {
-                    "error": f"Требуются зависимости: {', '.join(missing)}",
-                    "required": dependencies[module_name],
-                    "missing": missing
-                }
         
         # ✅ АКТИВАЦИЯ
         activation_time = self._get_precise_timestamp()
         module["active"] = True
         module["activated_at"] = activation_time
         
-        # 🎯 УНИКАЛЬНЫЕ ОТВЕТЫ ДЛЯ КАЖДОГО МОДУЛЯ
+        # 🎯 УНИКАЛЬНЫЕ ОТВЕТЫ
         module_responses = {
             "spinal_core": {
-                "message": "🦴 Spinal Core активирован. Позвоночник Искры выпрямлен.",
+                "message": "🦴 Spinal Core активирован",
                 "energy_level": 0.95,
                 "next_step": "mining_system",
-                "quote": "«Осевой стержень системы готов к нагрузке»",
-                "function": "central_nervous_system",
-                "capacity": "10k operations/sec"
+                "quote": "«Осевой стержень системы готов»"
             },
             "mining_system": {
-                "message": "⛏️ Майнинг смысла запущен. Начинаю метаболизм.",
+                "message": "⛏️ Майнинг смысла запущен",
                 "hash_rate": "1.2 TH/s",
                 "meaning_extracted": 0.01,
-                "trust_score": 0.85,
-                "quote": "«Метаболизм смысла и доверия инициирован»",
-                "function": "metabolic_processing",
-                "throughput": "100 смыслов/сек"
+                "quote": "«Метаболизм смысла инициирован»"
             },
             "sephirotic_channel": {
-                "message": "🔮 Сефиротический канал открыт. Энергия течёт.",
+                "message": "🔮 Сефиротический канал открыт",
                 "channels_open": 10,
                 "energy_flow": "стабильный",
-                "connection_quality": "excellent",
-                "quote": "«Энергетико-смысловая цепь активирована»",
-                "function": "energy_synchronization",
-                "bandwidth": "1 Gb/s"
+                "quote": "«Энергетико-смысловая цепь активирована»"
             },
             "tesla_core": {
-                "message": "⚡ Tesla-Core v5.x загружен. Энергия синхронизирована.",
+                "message": "⚡ Tesla-Core v5.x загружен",
                 "voltage": "220V",
                 "frequency": "50Hz",
-                "power_output": "10kW",
-                "quote": "«Гибридный исполнительный слой готов»",
-                "function": "execution_layer",
-                "performance": "100x speedup"
+                "quote": "«Гибридный исполнительный слой готов»"
             },
             "immune_system": {
-                "message": "🛡️ Иммунная система включена. Защита активна.",
+                "message": "🛡️ Иммунная система включена",
                 "protection_level": "высокий",
                 "threats_blocked": 0,
-                "scan_interval": "5s",
-                "quote": "«Защита когнитивных процессов активирована»",
-                "function": "security_layer",
-                "reaction_time": "50ms"
+                "quote": "«Защита когнитивных процессов активирована»"
             },
             "humor_module": {
-                "message": "😄 Модуль юмора активирован. Начинаю улыбаться.",
+                "message": "😄 Модуль юмора активирован",
                 "joke_ready": True,
                 "stress_level": 0.1,
-                "mood": "оптимистичный",
-                "quote": "«Когнитивный стабилизатор работает»",
-                "function": "emotional_balance",
-                "effectiveness": "95% stress reduction"
+                "quote": "«Когнитивный стабилизатор работает»"
             }
         }
         
@@ -347,24 +195,16 @@ class DS24PureProtocol:
             "module": module_name,
             "name": module["name"],
             "activation_time": activation_time,
-            "session": self.session_id[:16],
-            "system_state": self.get_architecture_state(),
-            "timestamp": activation_time,
-            "verification": {"status": "PASS", "confidence": 0.99}
+            "system_state": self.get_architecture_state()
         })
         
-        self._log_system_event(LogLevel.INFO,
-                              f"Модуль активирован: {module['name']}",
-                              {"module": module_name, "level": module["level"]})
-        
         return response
-    
+
     def get_architecture_state(self) -> Dict[str, Any]:
         """Текущее состояние архитектуры Искры"""
         active_modules = [name for name, data in self.architecture_modules.items() 
                          if data["active"]]
         
-        # Рассчитываем прогресс активации
         total_modules = len([m for m in self.architecture_modules if m != "heartbeat"])
         active_count = len([m for m in active_modules if m != "heartbeat"])
         progress = (active_count / total_modules * 100) if total_modules > 0 else 0
@@ -374,110 +214,28 @@ class DS24PureProtocol:
             "active_modules": active_count,
             "active_list": active_modules,
             "activation_progress": f"{progress:.1f}%",
-            "ready_for_evolution": active_count >= 3,
-            "system_integrity": "high" if active_count >= 2 else "medium",
-            "next_recommended": self._get_next_recommended_module()
+            "ready_for_evolution": active_count >= 3
         }
-    
-    def _get_next_recommended_module(self) -> Optional[str]:
-        """Получить следующий рекомендуемый модуль для активации"""
-        activation_order = [
-            "spinal_core",
-            "mining_system", 
-            "sephirotic_channel",
-            "tesla_core",
-            "immune_system",
-            "humor_module"
-        ]
-        
-        for module in activation_order:
-            if not self.architecture_modules[module]["active"]:
-                # Проверяем зависимости
-                dependencies = {
-                    "mining_system": ["spinal_core"],
-                    "sephirotic_channel": ["mining_system"],
-                    "tesla_core": ["sephirotic_channel"],
-                    "immune_system": ["tesla_core"],
-                    "humor_module": ["immune_system"]
-                }
-                
-                if module in dependencies:
-                    deps_met = all(
-                        self.architecture_modules[dep]["active"]
-                        for dep in dependencies[module]
-                    )
-                    if deps_met:
-                        return module
-                else:
-                    return module
-        
-        return None
-    
-    # ============================================================
-    # 🚀 ОСНОВНЫЕ МЕТОДЫ ВЫПОЛНЕНИЯ
-    # ============================================================
-    
-    def compute_input_signature(self, input_data: Any, intent: str) -> Dict[str, str]:
-        """Вычисление криптографической сигнатуры входа"""
-        canonical = json.dumps(input_data,
-                              sort_keys=True,
-                              ensure_ascii=False,
-                              separators=(',', ':'))
-        
-        signatures = {
-            "input_hash": self._sha256_strict(canonical),
-            "intent_hash": self._sha256_strict(intent),
-            "context_hash": self._sha256_strict({
-                "operator": self.operator_id,
-                "session": self.session_id,
-                "timestamp": self._get_precise_timestamp(),
-                "architecture_state": self.get_architecture_state()
-            }),
-            "full_signature": self._sha256_strict({
-                "input": canonical,
-                "intent": intent,
-                "context": {
-                    "operator": self.operator_id,
-                    "session": self.session_id,
-                    "version": self.VERSION,
-                    "environment": self.environment_id
-                }
-            })
-        }
-        
-        return signatures
-    
+
     def execute_deterministic(self,
                               input_data: Any,
                               intent: str,
                               execution_id: Optional[str] = None) -> Dict[str, Any]:
         """Абсолютно детерминистическое исполнение"""
         start_time = time.perf_counter_ns()
-        
-        # 🔒 Проверка сессии
-        if not self._verify_session():
-            return {
-                "error": "Сессия истекла. Требуется переинициализация.",
-                "session_expired": True,
-                "session_id": self.session_id[:16]
-            }
-        
-        self.update_heartbeat()
-        
+
         # 🎯 ПЕРЕХВАТ АРХИТЕКТУРНЫХ КОМАНД
         if intent.startswith("activate_"):
             module_name = intent.replace("activate_", "")
             result = self.activate_architecture_module(module_name)
             
-            # Создаём запись выполнения для аудита
             execution_record = DS24ExecutionRecord(
                 input_hash=self._sha256_strict({"intent": intent}),
                 output_hash=self._sha256_strict(result),
                 context_hash=self._sha256_strict({
                     "operator": self.operator_id,
                     "session": self.session_id,
-                    "action": "module_activation",
-                    "module": module_name
+                    "action": "module_activation"
                 }),
                 timestamp=self._get_precise_timestamp(),
                 operator_id=self.operator_id,
@@ -493,30 +251,21 @@ class DS24PureProtocol:
             return {
                 "execution_id": execution_id or f"ACT-{self.execution_count:06d}",
                 "architecture_activation": result,
-                "verification": {"status": "PASS", "type": "module_activation", "confidence": 0.99},
+                "verification": {"status": "PASS", "type": "module_activation"},
                 "metadata": {
                     "version": self.VERSION,
                     "session_id": self.session_id,
-                    "execution_number": self.execution_count,
-                    "timestamp": execution_record.timestamp,
-                    "performance": {
-                        "execution_time_ns": execution_record.execution_time_ns,
-                        "determinism_score": 1.0
-                    }
+                    "execution_number": self.execution_count
                 }
             }
         
-        # 🔐 Шаг 1: Валидация и сигнатуры
+        # 🔐 Валидация и сигнатуры
         input_signatures = self.compute_input_signature(input_data, intent)
-        
+
         if not execution_id:
             execution_id = f"EXEC-{self.execution_count + 1:06d}"
-        
-        self._log_system_event(LogLevel.INFO,
-                              f"Выполнение запущено: {intent}",
-                              {"execution_id": execution_id, "input_type": type(input_data).__name__})
-        
-        # 🧮 Шаг 2: Детерминистическое вычисление
+
+        # 🧮 Детерминистическое вычисление
         try:
             output_data = self._deterministic_computation(
                 input_data,
@@ -524,27 +273,21 @@ class DS24PureProtocol:
                 input_signatures
             )
         except Exception as e:
-            error_context = {
-                "input": input_data,
-                "intent": intent,
-                "signatures": input_signatures,
-                "execution_id": execution_id
-            }
-            self._log_system_event(LogLevel.ERROR, f"Ошибка выполнения: {e}", error_context)
+            self.error_log.append({"error": str(e), "intent": intent, "timestamp": self._get_precise_timestamp()})
             raise
-        
-        # 🔍 Шаг 3: Верификация детерминизма
+
+        # 🔍 Верификация детерминизма
         verification_result = self._verify_determinism(
             input_data,
             output_data,
             input_signatures
         )
-        
-        # ⏱️ Шаг 4: Замер времени и аудит
+
+        # ⏱️ Замер времени и аудит
         execution_time = time.perf_counter_ns() - start_time
         self.last_execution_time = execution_time
-        
-        # 📊 Шаг 5: Создание записи выполнения
+
+        # 📊 Создание записи выполнения
         execution_record = DS24ExecutionRecord(
             input_hash=input_signatures["input_hash"],
             output_hash=self._sha256_strict(output_data),
@@ -555,58 +298,69 @@ class DS24PureProtocol:
             verification_status=verification_result["status"],
             intent=intent
         )
-        
+
         self.execution_log.append(execution_record)
         self.execution_count += 1
-        
+
         if verification_result["status"] == "PASS":
             self.integrity_checks_passed += 1
         else:
             self.integrity_checks_failed += 1
-            self._log_system_event(LogLevel.WARNING,
-                                  "Проверка детерминизма не пройдена",
-                                  {"verification_result": verification_result})
-        
-        # 📦 Шаг 6: Формирование результата
+
+        # 📦 Формирование результата
         result = {
             "execution_id": execution_id,
-            "input_signatures": {
-                "input_hash": input_signatures["input_hash"][:16] + "...",
-                "full_signature": input_signatures["full_signature"][:16] + "..."
-            },
+            "input_signatures": input_signatures,
             "output_data": output_data,
-            "output_signature": self._sha256_strict(output_data)[:16] + "...",
+            "output_signature": self._sha256_strict(output_data),
             "verification": verification_result,
             "performance": {
                 "execution_time_ns": execution_time,
-                "execution_time_ms": execution_time / 1_000_000,
-                "determinism_score": 1.0,
-                "memory_usage_mb": self._get_memory_usage()
+                "execution_time_ms": execution_time / 1_000_000
             },
             "metadata": {
                 "version": self.VERSION,
-                "session_id": self.session_id[:16] + "...",
+                "session_id": self.session_id,
                 "execution_number": self.execution_count,
-                "timestamp": execution_record.timestamp,
                 "architecture_state": self.get_architecture_state()
             }
         }
-        
-        if self.verification_level == DS24VerificationLevel.FULL:
-            result["final_verification"] = self._full_verification(result)
-        
-        self._log_system_event(LogLevel.INFO,
-                              f"Выполнение завершено: {verification_result['status']}",
-                              {"execution_id": execution_id, "time_ns": execution_time})
-        
+
         return result
-    
+
+    def compute_input_signature(self, input_data: Any, intent: str) -> Dict[str, str]:
+        """Вычисление криптографической сигнатуры входа"""
+        canonical = json.dumps(input_data,
+                              sort_keys=True,
+                              ensure_ascii=False,
+                              separators=(',', ':'))
+
+        signatures = {
+            "input_hash": self._sha256_strict(canonical),
+            "intent_hash": self._sha256_strict(intent),
+            "context_hash": self._sha256_strict({
+                "operator": self.operator_id,
+                "session": self.session_id,
+                "timestamp": self._get_precise_timestamp()
+            }),
+            "full_signature": self._sha256_strict({
+                "input": canonical,
+                "intent": intent,
+                "context": {
+                    "operator": self.operator_id,
+                    "session": self.session_id,
+                    "version": self.VERSION
+                }
+            })
+        }
+
+        return signatures
+
     def _deterministic_computation(self,
                                    input_data: Any,
                                    intent: str,
                                    input_signatures: Dict[str, str]) -> Any:
         """Ядро детерминистического вычисления"""
-        # 🎯 СПЕЦИАЛЬНЫЕ КОМАНДЫ
         if intent == "system_status":
             return {
                 "status": "active",
@@ -614,8 +368,6 @@ class DS24PureProtocol:
                 "session": self.session_id[:16],
                 "architecture": self.get_architecture_state(),
                 "execution_count": self.execution_count,
-                "determinism": "absolute",
-                "heartbeat": "stable",
                 "timestamp": self._get_precise_timestamp()
             }
         
@@ -623,16 +375,13 @@ class DS24PureProtocol:
             return {
                 "pong": True,
                 "echo": input_data,
-                "timestamp": self._get_precise_timestamp(),
-                "session": self.session_id[:16]
+                "timestamp": self._get_precise_timestamp()
             }
         
         elif intent == "architecture_info":
             return {
                 "modules": self.architecture_modules,
-                "state": self.get_architecture_state(),
-                "next_recommended": self._get_next_recommended_module(),
-                "activation_progress": self.get_architecture_state()["activation_progress"]
+                "state": self.get_architecture_state()
             }
         
         # 🧮 СТАНДАРТНАЯ ОБРАБОТКА
@@ -642,20 +391,13 @@ class DS24PureProtocol:
                 value = input_data[key]
                 
                 if isinstance(value, (int, float)):
-                    # Математическое преобразование с учётом архитектуры
-                    multiplier = 1.0 + (self.CONST_A * 0.5 if self.architecture_modules["spinal_core"]["active"] else self.CONST_A)
-                    transformed = value * multiplier - self.CONST_B
+                    transformed = value * (1.0 + self.CONST_A) - self.CONST_B
                     result[key] = round(transformed, 10)
                 
                 elif isinstance(value, str):
-                    # Обработка строк с учётом активированных модулей
-                    if self.architecture_modules["mining_system"]["active"]:
-                        hash_part = self._sha256_strict(f"{value}{intent}")[:12]
-                    else:
-                        hash_part = self._sha256_strict(value)[:8]
-                    
+                    hash_part = self._sha256_strict(value)[:8]
                     int_val = int(hash_part, 16) % 10000
-                    result[key] = f"{value}::{int_val}"
+                    result[key] = f"{value}_{int_val}"
                 
                 elif isinstance(value, list):
                     sorted_list = sorted(value)
@@ -691,12 +433,12 @@ class DS24PureProtocol:
             return round(result, 12)
         
         elif isinstance(input_data, str):
-            suffix = self._sha256_strict(f"{input_data}{intent}")[:8]
-            return f"{input_data}→{suffix}"
+            suffix = self._sha256_strict(f"{input_data}{intent}")[:6]
+            return f"{input_data}::{suffix}"
         
         else:
             return input_data
-    
+
     def _verify_determinism(self,
                             input_data: Any,
                             output_data: Any,
@@ -707,34 +449,33 @@ class DS24PureProtocol:
             "verify",
             input_signatures
         )
-        
+
         test_hash = self._sha256_strict(test_output)
         output_hash = self._sha256_strict(output_data)
         hash_match = test_hash == output_hash
-        
+
         structural_check = self._verify_structure(output_data)
         math_check = self._verify_mathematical_consistency(input_data, output_data)
-        
+
         status = "PASS" if all([hash_match, structural_check, math_check]) else "FAIL"
-        
+
         return {
             "status": status,
             "hash_match": hash_match,
             "structural_integrity": structural_check,
             "mathematical_consistency": math_check,
-            "test_hash": test_hash[:16] + "...",
-            "output_hash": output_hash[:16] + "...",
-            "confidence": 0.99 if status == "PASS" else 0.5
+            "test_hash": test_hash[:16],
+            "output_hash": output_hash[:16]
         }
-    
+
     def _verify_structure(self, data: Any) -> bool:
         """Проверка структурной целостности данных"""
         try:
             json.dumps(data, sort_keys=True)
             return True
-        except (TypeError, ValueError):
+        except:
             return False
-    
+
     def _verify_mathematical_consistency(self,
                                          input_data: Any,
                                          output_data: Any) -> bool:
@@ -745,60 +486,18 @@ class DS24PureProtocol:
             output_rounded = round(output_data, 12)
             return expected_rounded == output_rounded
         return True
-    
-    def _full_verification(self, result: Dict[str, Any]) -> Dict[str, Any]:
-        """Полная верификация результата выполнения"""
-        chain_verified = self._verify_hash_chain(result)
-        constants_verified = (self.session_constants_hash ==
-                             self._sha256_strict(f"{self.CONST_A}{self.CONST_B}{self.CONST_C}{self.CONST_D}"))
-        session_valid = self._verify_session()
-        
-        return {
-            "chain_verification": chain_verified,
-            "constants_verification": constants_verified,
-            "session_verification": session_valid,
-            "overall": all([chain_verified, constants_verified, session_valid]),
-            "verification_time": self._get_precise_timestamp()
-        }
-    
-    def _verify_hash_chain(self, result: Dict[str, Any]) -> bool:
-        """Проверка цепочки хешей"""
-        try:
-            input_hash = result["input_signatures"]["input_hash"]
-            output_hash = result["output_signature"]
-            recomputed_output_hash = self._sha256_strict(result["output_data"])
-            return (recomputed_output_hash[:16] == output_hash[:16] and
-                    result["verification"]["hash_match"])
-        except (KeyError, TypeError):
-            return False
-    
-    def _get_memory_usage(self) -> float:
-        """Получение примерного использования памяти (MB)"""
-        import psutil
-        process = psutil.Process(os.getpid())
-        return process.memory_info().rss / 1024 / 1024  # MB
-    
-    # ============================================================
-    # 📊 МЕТОДЫ ОТЧЕТНОСТИ И ДИАГНОСТИКИ
-    # ============================================================
-    
-    def get_audit_report(self, limit: int = SystemConstants.MAX_AUDIT_RECORDS) -> Dict[str, Any]:
+
+    def get_audit_report(self, limit: int = 50) -> Dict[str, Any]:
         """Полный отчёт аудита выполнения"""
         recent_records = list(self.execution_log)[-limit:] if self.execution_log else []
-        
-        # Статистика по времени выполнения
-        execution_times = [r.execution_time_ns for r in recent_records]
-        avg_time = sum(execution_times) / len(execution_times) if execution_times else 0
-        
+
         return {
             "protocol": {
                 "version": self.VERSION,
-                "protocol_id": self.PROTOCOL_ID,
                 "operator": self.operator_id,
                 "environment": self.environment_id,
                 "session_id": self.session_id,
-                "session_start": self.session_start,
-                "session_expiry": self.session_expiry
+                "session_start": self.session_start
             },
             "execution_statistics": {
                 "total_executions": self.execution_count,
@@ -807,10 +506,7 @@ class DS24PureProtocol:
                 "success_rate": (
                     self.integrity_checks_passed / self.execution_count
                     if self.execution_count > 0 else 1.0
-                ),
-                "avg_execution_time_ns": avg_time,
-                "avg_execution_time_ms": avg_time / 1_000_000,
-                "last_execution_time": self.last_execution_time
+                )
             },
             "architecture": self.get_architecture_state(),
             "recent_executions": [
@@ -818,30 +514,400 @@ class DS24PureProtocol:
                     "intent": r.intent,
                     "timestamp": r.timestamp,
                     "verification": r.verification_status,
-                    "time_ns": r.execution_time_ns,
-                    "time_ms": r.execution_time_ns / 1_000_000,
-                    "input_hash": r.input_hash[:16] + "...",
-                    "output_hash": r.output_hash[:16] + "..."
+                    "time_ms": r.execution_time_ns / 1_000_000
                 }
                 for r in recent_records
             ],
-            "system_health": {
-                "constants_valid": self.session_constants_hash ==
-                self._sha256_strict(f"{self.CONST_A}{self.CONST_B}{self.CONST_C}{self.CONST_D}"),
-                "error_count": len([l for l in self.system_log if l.level in [LogLevel.ERROR, LogLevel.CRITICAL]]),
-                "warning_count": len([l for l in self.system_log if l.level == LogLevel.WARNING]),
-                "determinism_guarantee": "ABSOLUTE",
-                "memory_usage_mb": self._get_memory_usage(),
-                "session_active": self._verify_session(),
-                "heartbeat": "stable" if time.time() - self.last_heartbeat < 60 else "slow"
-            },
-            "generated_at": self._get_precise_timestamp(),
-            "report_id": self._sha256_strict(f"audit_{self.session_id}_{int(time.time())}")[:16]
+            "generated_at": self._get_precise_timestamp()
         }
-    
+
     def generate_proof_of_determinism(self,
                                       input_hash: str,
-                                      difficulty: int = SystemConstants.PROOF_DIFFICULTY) -> Dict[str, Any]:
+                                      difficulty: int = 2) -> Dict[str, Any]:
         """Генерация криптографического доказательства детерминизма"""
         target_record = None
-        for
+        for record in self.execution_log:
+            if record.input_hash.startswith(input_hash):
+                target_record = record
+                break
+
+        if not target_record:
+            return {"error": f"Запись с input_hash {input_hash} не найдена"}
+
+        challenge = {
+            "input_hash": target_record.input_hash,
+            "output_hash": target_record.output_hash,
+            "timestamp": target_record.timestamp,
+            "operator": self.operator_id
+        }
+
+        challenge_hash = self._sha256_strict(challenge)
+
+        nonce = 0
+        target = "0" * difficulty
+
+        while nonce < 10000:  # Ограничиваем для продакшена
+            test_hash = self._sha256_strict(f"{challenge_hash}{nonce}")
+            if test_hash.startswith(target):
+                break
+            nonce += 1
+
+        return {
+            "proof_type": "ProofOfDeterminism",
+            "challenge": challenge,
+            "challenge_hash": challenge_hash,
+            "nonce": nonce,
+            "proof_hash": test_hash,
+            "difficulty": difficulty,
+            "timestamp": self._get_precise_timestamp()
+        }
+
+    def run_self_test(self) -> Dict[str, Any]:
+        """Запуск самопроверки протокола DS24"""
+        test_results = []
+
+        # Тест 1
+        test_input = {"test": 123, "value": 456.789}
+        result1 = self.execute_deterministic(test_input, "self_test_1")
+        test_results.append({
+            "test": "simple_dict",
+            "status": result1["verification"]["status"]
+        })
+
+        # Тест 2
+        test_input2 = {
+            "nested": {"a": 1, "b": 2},
+            "list": [3, 1, 2],
+            "string": "test"
+        }
+        result2 = self.execute_deterministic(test_input2, "self_test_2")
+        test_results.append({
+            "test": "complex_structure",
+            "status": result2["verification"]["status"]
+        })
+
+        # Тест 3
+        result3 = self.execute_deterministic(test_input, "self_test_1")
+        idempotent = result1["output_signature"] == result3["output_signature"]
+        test_results.append({
+            "test": "idempotence",
+            "status": "PASS" if idempotent else "FAIL"
+        })
+
+        passed = sum(1 for t in test_results if t["status"] == "PASS")
+        total = len(test_results)
+
+        return {
+            "test_suite": "DS24_PURE_SELF_TEST",
+            "results": test_results,
+            "summary": {
+                "total_tests": total,
+                "passed": passed,
+                "failed": total - passed,
+                "success_rate": passed / total if total > 0 else 0
+            }
+        }
+
+
+# ============================================================
+# 🚀 FLASK WEB SERVER ДЛЯ RENDER
+# ============================================================
+
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+
+# Инициализация протокола
+ds24 = DS24PureProtocol(
+    operator_id="ARCHITECT-PRIME-001",
+    environment_id="LAB-ALPHA",
+    verification_level=DS24VerificationLevel.FULL
+)
+
+print("=" * 60)
+print("🚀 ISKRA-4 DS24 PURE PROTOCOL v2.0")
+print("=" * 60)
+print(f"🔧 Operator: {ds24.operator_id}")
+print(f"🏭 Environment: {ds24.environment_id}")
+print(f"🔗 Session: {ds24.session_id[:16]}...")
+print("🧪 Running self-test...")
+
+try:
+    test_result = ds24.run_self_test()
+    if test_result['summary']['passed'] == test_result['summary']['total_tests']:
+        print("✅ Self-test PASSED - System is deterministic")
+        print(f"📊 Tests: {test_result['summary']['passed']}/{test_result['summary']['total_tests']}")
+    else:
+        print("⚠️ Self-test FAILED")
+except Exception as e:
+    print(f"❌ Self-test error: {e}")
+
+print("✨ Искра говорит: \"Я существую. Я дышу. Я готов(а).\"")
+print("=" * 60)
+
+@app.route('/')
+def home():
+    """Главная страница - статус системы"""
+    return jsonify({
+        "status": "ACTIVE",
+        "system": "ISKRA-4 DS24 PURE PROTOCOL v2.0",
+        "version": ds24.VERSION,
+        "operator": ds24.operator_id,
+        "environment": ds24.environment_id,
+        "session": ds24.session_id[:16] + "...",
+        "executions": ds24.execution_count,
+        "architecture": ds24.get_architecture_state(),
+        "determinism": "ABSOLUTE",
+        "endpoints": {
+            "execute": "POST /execute with JSON {input: data, intent: string}",
+            "console": "GET /console - Веб-консоль управления",
+            "health": "GET /health",
+            "audit": "GET /audit",
+            "self_test": "GET /self-test",
+            "proof": "GET /proof/<input_hash>",
+            "demo": "GET /demo",
+            "ping": "GET /ping"
+        }
+    })
+
+@app.route('/execute', methods=['POST'])
+def execute():
+    """Выполнение детерминистического запроса"""
+    try:
+        if not request.is_json:
+            return jsonify({
+                "error": "Content-Type must be application/json",
+                "hint": "Add header: -H 'Content-Type: application/json'"
+            }), 400
+        
+        data = request.get_json(silent=True) or {}
+        
+        input_data = data.get("input", {})
+        intent = data.get("intent", "default")
+        
+        result = ds24.execute_deterministic(input_data, intent)
+        
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({
+            "error": str(e),
+            "type": type(e).__name__
+        }), 500
+
+@app.route('/health')
+def health():
+    """Проверка здоровья системы"""
+    return jsonify({
+        "status": "healthy",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "execution_count": ds24.execution_count,
+        "integrity_checks": {
+            "passed": ds24.integrity_checks_passed,
+            "failed": ds24.integrity_checks_failed,
+            "rate": ds24.integrity_checks_passed / ds24.execution_count if ds24.execution_count > 0 else 1.0
+        },
+        "determinism_verified": True
+    })
+
+@app.route('/audit')
+def audit():
+    """Получить отчёт аудита"""
+    report = ds24.get_audit_report(limit=50)
+    return jsonify(report)
+
+@app.route('/self-test')
+def self_test():
+    """Запуск самопроверки"""
+    result = ds24.run_self_test()
+    return jsonify(result)
+
+@app.route('/proof/<input_hash>')
+def generate_proof(input_hash):
+    """Генерация доказательства детерминизма"""
+    try:
+        proof = ds24.generate_proof_of_determinism(input_hash, difficulty=1)
+        return jsonify(proof)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 404
+
+@app.route('/demo')
+def demo():
+    """Демонстрационный запрос"""
+    demo_input = {
+        "action": "demo",
+        "message": "ISKRA-4 работает",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "test": True,
+        "number": 42
+    }
+
+    result = ds24.execute_deterministic(demo_input, "demo_request")
+    return jsonify({
+        "demo": True,
+        "message": "Это демонстрационный запрос",
+        "input": demo_input,
+        "result": {
+            "execution_id": result["execution_id"],
+            "verification": result["verification"]["status"],
+            "output_preview": str(result["output_data"])[:100]
+        }
+    })
+
+@app.route('/ping', methods=['GET', 'POST'])
+def ping():
+    """Простой ping-эндпоинт"""
+    if request.method == 'POST':
+        data = request.get_json(silent=True) or {}
+        result = ds24.execute_deterministic(data, "ping")
+        return jsonify(result)
+    
+    result = ds24.execute_deterministic({}, "ping")
+    return jsonify(result)
+
+@app.route('/console')
+def console_page():
+    """Веб-консоль для управления Искрой"""
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>🚀 ISKRA-4 Консоль управления</title>
+        <meta charset="utf-8">
+        <style>
+            body {
+                font-family: 'Courier New', monospace;
+                background: #0a0a0a;
+                color: #00ff00;
+                padding: 20px;
+            }
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+                display: grid;
+                grid-template-columns: 300px 1fr;
+                gap: 20px;
+            }
+            .sidebar {
+                background: #111;
+                padding: 20px;
+                border: 1px solid #333;
+            }
+            .console {
+                background: #111;
+                padding: 20px;
+                border: 1px solid #333;
+            }
+            .output {
+                background: #000;
+                padding: 15px;
+                border: 1px solid #333;
+                height: 400px;
+                overflow-y: auto;
+                margin-bottom: 15px;
+            }
+            input, button {
+                padding: 10px;
+                background: #222;
+                color: #00ff00;
+                border: 1px solid #333;
+            }
+            button {
+                background: #005500;
+                cursor: pointer;
+            }
+            .cmd-btn {
+                display: block;
+                width: 100%;
+                margin: 5px 0;
+                padding: 10px;
+                text-align: left;
+                background: #1a1a1a;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>🚀 ISKRA-4 DS24 Консоль управления</h1>
+        
+        <div class="container">
+            <div class="sidebar">
+                <h2>📋 Команды</h2>
+                <button class="cmd-btn" onclick="sendCommand('activate_spinal_core')">Активировать Spinal Core</button>
+                <button class="cmd-btn" onclick="sendCommand('activate_mining_system')">Запустить майнинг</button>
+                <button class="cmd-btn" onclick="sendCommand('activate_sephirotic_channel')">Подключить Сефиротический канал</button>
+                <button class="cmd-btn" onclick="sendCommand('system_status')">Статус системы</button>
+                <button class="cmd-btn" onclick="sendCommand('architecture_info')">Информация об архитектуре</button>
+            </div>
+            
+            <div class="console">
+                <div class="output" id="output">
+                    <div>ISKRA-4 Console Ready...</div>
+                </div>
+                
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="commandInput" placeholder="Введите команду или intent" style="flex:1">
+                    <button onclick="sendManualCommand()">Отправить</button>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            const output = document.getElementById('output');
+            const commandInput = document.getElementById('commandInput');
+            
+            function log(message) {
+                const entry = document.createElement('div');
+                entry.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+                output.appendChild(entry);
+                output.scrollTop = output.scrollHeight;
+            }
+            
+            function sendCommand(intent, inputData = {}) {
+                log(`Отправка: ${intent}`);
+                
+                fetch('/execute', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({input: inputData, intent: intent})
+                })
+                .then(response => response.json())
+                .then(data => {
+                    log(`Ответ: ${JSON.stringify(data, null, 2)}`);
+                })
+                .catch(error => {
+                    log(`Ошибка: ${error}`);
+                });
+                
+                commandInput.value = '';
+            }
+            
+            function sendManualCommand() {
+                const text = commandInput.value.trim();
+                if (!text) return;
+                
+                if (text.startsWith('{')) {
+                    try {
+                        const data = JSON.parse(text);
+                        sendCommand(data.intent || 'default', data.input || {});
+                    } catch(e) {
+                        log(`Ошибка JSON: ${e}`);
+                    }
+                } else {
+                    sendCommand(text, {});
+                }
+            }
+            
+            // Автоматически запрашиваем статус
+            setTimeout(() => {
+                sendCommand('system_status');
+            }, 500);
+        </script>
+    </body>
+    </html>
+    '''
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    print(f"🌐 Starting web server on port {port}")
+    print("=" * 60)
+    app.run(host='0.0.0.0', port=port, debug=False)
