@@ -210,8 +210,8 @@ class TrustMesh:
         # Топология сети
         self.network_topology = {
             'nodes': set(),
-            'edges': Dict[Tuple[str, str], Dict] = {},
-            'communities': List[Set[str]] = []
+            'edges': {},
+            'communities': []
         }
         
         # Метрики состояния
@@ -806,4 +806,5 @@ class TrustMesh:
         # Веса в зависимости от типа доверия
         weights = {
             TrustType.EMPATHIC_FLOW: {'duration': 0.2, 'depth': 0.4, 'reciprocity': 0.2, 
-                                      'emotional_charge': 0.2
+                                      'emotional_charge': 0.2, 'sephirotic_alignment': 0.0},
+            Trust
