@@ -3,28 +3,21 @@
 # DS24 · ISKRA-4 CLOUD · FULL INTEGRATION v2.2
 # ================================================================
 # Domain: DS24-SPINE / Architecture: Sephirotic Vertical
-# With DS24 PURE PROTOCOL v2.0 + EMOTIONAL WEAVE v3.2 + AUTO MODULE LOADER
+# With DS24 PURE PROTOCOL v2.0 + AUTO MODULE LOADER
 # ================================================================
 
 import hashlib
 import json
 import time
 import os
-import math
-import re
 import importlib
-import pkgutil
 import sys
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from enum import Enum
 from collections import deque
-from functools import lru_cache
-from flask import Flask, request, jsonify, render_template, send_from_directory
-from flask_cors import CORS
-from flask_socketio import SocketIO, emit
-import threading
+from flask import Flask, request, jsonify
 
 # ================================================================
 # АВТОМАТИЧЕСКАЯ ЗАГРУЗКА МОДУЛЕЙ
@@ -911,4 +904,12 @@ class DS24PureProtocol:
         result3 = self.execute_deterministic(test_input, "self_test_1")
         idempotent = result1["output_signature"] == result3["output_signature"]
         test_results.append({
-            "test
+            "test": "idempotence",
+            "status": "PASS" if idempotent else "FAIL"
+        })
+
+        passed = sum(1 for t in test_results if t["status"] == "PASS")
+        total = len(test_results)
+
+        return {
+            "test_suite": "DS24_PURE_SELF_TEST
