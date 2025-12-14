@@ -1,878 +1,446 @@
 #!/usr/bin/env python3
 # ================================================================
-# DATA-BRIDGE 3.2-sephirotic-reflective · PERFECTED EDITION
+# DATA-BRIDGE 3.2-sephirotic-reflective · COMPACT EDITION
 # ================================================================
-# Module: DATA-BRIDGE · Domain: ISKRA3-SPINE
-# Layer: SCA · Sephirotic Input Spine · DS24-Centric
-# ================================================================
-# Lineage: DS24 · Heritage: SEPHIROTIC-SPEC · Generation: G3 · ISKRA 3
-# Brand: GOGOL SYSTEMS · Source: DS24-SPINE
-# Architect: ARCHITECT-PRIME · Authority: absolute
+# Совместим с ISKRA-4 Cloud, авто-загрузчиком и Render
 # ================================================================
 
 import os
-import sys
 import json
-import asyncio
 import hashlib
 import time
 import uuid
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple
 import logging
-import threading
-import shutil
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple, Callable
-from dataclasses import dataclass, asdict
-from enum import Enum
-from concurrent.futures import ThreadPoolExecutor
-from functools import wraps
-import inspect
+
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("DataBridge")
 
 # ================================================================
-# ADVANCED LOGGING SYSTEM
+# ОСНОВНОЙ МОДУЛЬ DATA-BRIDGE
 # ================================================================
 
-class EmotionalLogger:
-    """Логирование с эмоциональным контекстом для ISKRA-4"""
+class DataBridgeModule:
+    """DATA-BRIDGE 3.2 - упрощённая версия для интеграции"""
     
-    def __init__(self, module_name: str = "DATA-BRIDGE"):
-        self.module_name = module_name
-        self.logger = logging.getLogger(f"ISKRA-4.{module_name}")
-        self.logger.setLevel(logging.INFO)
-        
-        # Форматировщик с эмоциональными метками
-        self.formatter = logging.Formatter(
-            '[%(asctime)s] [%(levelname)s] [%(module)s.%(funcName)s] 🌌 %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
-        
-        # Файловый обработчик
-        os.makedirs("logs", exist_ok=True)
-        file_handler = logging.FileHandler(f"logs/{module_name.lower()}.log", encoding='utf-8')
-        file_handler.setFormatter(self.formatter)
-        self.logger.addHandler(file_handler)
-        
-        # Консольный обработчик (только для debug)
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(self.formatter)
-        console_handler.setLevel(logging.WARNING)
-        self.logger.addHandler(console_handler)
-        
-        # Эмоциональные уровни
-        self.emotional_levels = {
-            'INFO': '🌀',
-            'WARNING': '⚠️',
-            'ERROR': '💥',
-            'CRITICAL': '🔥',
-            'DEBUG': '🔍',
-            'HEARTBEAT': '❤️',
-            'RESONANCE': '✨'
-        }
-        
-        self.logger.info(f"{self.emotional_levels['INFO']} {module_name} Emotional Logger инициализирован")
-    
-    def log_with_emotion(self, level: str, message: str, emotion: str = None, **kwargs):
-        """Логирование с эмоциональным контекстом"""
-        emotion_marker = self.emotional_levels.get(level, '📝')
-        if emotion:
-            emotion_marker = f"{emotion_marker} [{emotion}]"
-        
-        full_message = f"{emotion_marker} {message}"
-        if kwargs:
-            full_message += f" | {json.dumps(kwargs, ensure_ascii=False)}"
-        
-        log_method = getattr(self.logger, level.lower(), self.logger.info)
-        log_method(full_message)
-    
-    def info(self, message: str, emotion: str = None, **kwargs):
-        self.log_with_emotion('INFO', message, emotion, **kwargs)
-    
-    def warning(self, message: str, emotion: str = None, **kwargs):
-        self.log_with_emotion('WARNING', message, emotion, **kwargs)
-    
-    def error(self, message: str, emotion: str = None, **kwargs):
-        self.log_with_emotion('ERROR', message, emotion, **kwargs)
-    
-    def heartbeat(self, message: str, **kwargs):
-        self.log_with_emotion('HEARTBEAT', message, **kwargs)
-    
-    def resonance(self, message: str, **kwargs):
-        self.log_with_emotion('RESONANCE', message, **kwargs)
-
-# Глобальный логгер
-logger = EmotionalLogger("DATA-BRIDGE-3.2")
-
-# ================================================================
-# VALIDATION SYSTEM
-# ================================================================
-
-@dataclass
-class ValidationResult:
-    """Результат валидации входных данных"""
-    valid: bool
-    errors: List[str]
-    warnings: List[str]
-    detected_structure: Dict[str, Any]
-    
-    def to_dict(self) -> Dict:
-        return {
-            "valid": self.valid,
-            "errors": self.errors,
-            "warnings": self.warnings,
-            "structure": self.detected_structure,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-
-class DS24InputValidator:
-    """Валидатор входных данных с сефиротической семантикой"""
-    
-    REQUIRED_FIELDS = [
-        "id", "ts", "intent_id", "policy_ref", "trace_id",
-        "span_id", "sig", "topic", "payload"
-    ]
-    
-    FIELD_TYPES = {
-        "id": str,
-        "ts": (str, int, float),
-        "intent_id": str,
-        "policy_ref": str,
-        "trace_id": str,
-        "span_id": str,
-        "sig": str,
-        "topic": str,
-        "payload": (dict, list, str, int, float, bool)
-    }
+    VERSION = "3.2-sephirotic-reflective"
     
     def __init__(self):
-        self.validation_cache = {}
-        self.cache_hits = 0
-        self.cache_misses = 0
+        self.sephirotic_map = {
+            "keter": ["SPIRIT-CORE", "INTENT-LEDGER"],
+            "chokhmah": ["INTUITION-MATRIX"],
+            "binah": ["ANALYTICS-MEGAFORGE", "ISKRA-MIND"],
+            "chesed": ["EMOTION-OPTIMIZER"],
+            "gevurah": ["CORE-GOVX", "MORAL-MEMORY"],
+            "tiferet": ["SELF-DIAGNOSTIC"],
+            "netzach": ["ARENA-OPS"],
+            "hod": ["OBSERVE+"],
+            "yesod": ["DATA-BRIDGE", "LINEAR-ASSIST"],
+            "malkuth": ["OUTPUT-LAYER"]
+        }
+        
+        self.idempotency_store = {}
+        self.request_count = 0
+        logger.info(f"[DATA-BRIDGE {self.VERSION}] Инициализирован")
     
-    def validate(self, data: Dict) -> ValidationResult:
-        """Проверка входных данных"""
-        input_hash = hashlib.md5(json.dumps(data, sort_keys=True).encode()).hexdigest()
-        
-        # Проверка кэша
-        if input_hash in self.validation_cache:
-            self.cache_hits += 1
-            return self.validation_cache[input_hash]
-        
-        self.cache_misses += 1
-        errors = []
-        warnings = []
-        detected_structure = {}
-        
-        try:
-            # 1. Проверка обязательных полей
-            for field in self.REQUIRED_FIELDS:
-                if field not in data:
-                    errors.append(f"Отсутствует обязательное поле: {field}")
-                else:
-                    # Проверка типа
-                    expected_type = self.FIELD_TYPES.get(field)
-                    if expected_type and not isinstance(data[field], expected_type):
-                        errors.append(f"Неверный тип поля {field}: ожидается {expected_type}, получен {type(data[field])}")
-            
-            # 2. Семантическая валидация
-            if not errors:
-                detected_structure = self._analyze_structure(data)
-                
-                # Проверка сигнатуры
-                if "sig" in data:
-                    sig_valid = self._validate_signature(data)
-                    if not sig_valid:
-                        warnings.append("Сигнатура не прошла проверку, но обработка продолжается")
-                
-                # Проверка временной метки
-                if "ts" in data:
-                    ts_valid = self._validate_timestamp(data["ts"])
-                    if not ts_valid:
-                        warnings.append("Временная метка вне допустимого диапазона")
-            
-            # 3. Анализ нагрузки
-            if "payload" in data:
-                payload_analysis = self._analyze_payload(data["payload"])
-                detected_structure["payload_analysis"] = payload_analysis
-                
-                if payload_analysis.get("complexity") == "high":
-                    warnings.append("Высокая сложность payload, возможны задержки обработки")
-            
-            result = ValidationResult(
-                valid=len(errors) == 0,
-                errors=errors,
-                warnings=warnings,
-                detected_structure=detected_structure
-            )
-            
-            # Кэширование результата
-            if len(errors) == 0:  # Кэшируем только валидные данные
-                self.validation_cache[input_hash] = result
-                # Ограничение размера кэша
-                if len(self.validation_cache) > 1000:
-                    oldest_key = next(iter(self.validation_cache))
-                    del self.validation_cache[oldest_key]
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"Ошибка валидации: {str(e)}", emotion="confusion")
-            return ValidationResult(
-                valid=False,
-                errors=[f"Исключение при валидации: {str(e)}"],
-                warnings=[],
-                detected_structure={}
-            )
-    
-    def _analyze_structure(self, data: Dict) -> Dict:
-        """Анализ структуры данных"""
+    def initialize(self):
+        """Инициализация для авто-загрузчика"""
         return {
-            "field_count": len(data),
-            "nested_depth": self._calculate_nesting_depth(data),
-            "data_size_bytes": len(json.dumps(data).encode()),
-            "unique_field_pattern": hashlib.sha256(
-                "".join(sorted(data.keys())).encode()
-            ).hexdigest()[:8]
+            "status": "active",
+            "version": self.VERSION,
+            "domain": "ISKRA3-SPINE",
+            "layer": "SCA · Sephirotic Input Spine",
+            "lineage": {
+                "framework": "DS24",
+                "heritage": "SEPHIROTIC-SPEC",
+                "generation": "G3 · ISKRA 3",
+                "brand": "GOGOL SYSTEMS",
+                "source_cluster": "DS24-SPINE"
+            },
+            "architect_signature": {
+                "architect": "ARCHITECT-PRIME",
+                "authority_level": "absolute",
+                "imprint": "GOGOL-SYSTEMS · MASTER-LAYER"
+            },
+            "sephirotic_mapping": self.sephirotic_map
         }
     
-    def _calculate_nesting_depth(self, obj, current_depth=0, max_depth=10):
-        """Расчёт глубины вложенности"""
-        if not isinstance(obj, dict) or current_depth >= max_depth:
-            return current_depth
+    def process_command(self, command: str, data: Dict = None) -> Dict:
+        """Обработка команд модуля"""
+        if data is None:
+            data = {}
         
-        max_child_depth = current_depth
-        for value in obj.values():
-            if isinstance(value, dict):
-                child_depth = self._calculate_nesting_depth(value, current_depth + 1, max_depth)
-                max_child_depth = max(max_child_depth, child_depth)
-            elif isinstance(value, list):
-                for item in value:
-                    if isinstance(item, dict):
-                        child_depth = self._calculate_nesting_depth(item, current_depth + 1, max_depth)
-                        max_child_depth = max(max_child_depth, child_depth)
+        self.request_count += 1
         
-        return max_child_depth
-    
-    def _validate_signature(self, data: Dict) -> bool:
-        """Проверка сигнатуры (упрощённая)"""
-        try:
-            # В реальной системе здесь была бы криптографическая проверка
-            sig = data.get("sig", "")
-            return len(sig) >= 8 and sig.startswith("DS24_")
-        except:
-            return False
-    
-    def _validate_timestamp(self, timestamp) -> bool:
-        """Проверка временной метки"""
-        try:
-            if isinstance(timestamp, (int, float)):
-                ts_dt = datetime.fromtimestamp(timestamp)
-            else:
-                ts_dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-            
-            now = datetime.utcnow()
-            delta = abs((now - ts_dt).total_seconds())
-            
-            # Допустимое отклонение: 5 минут
-            return delta <= 300
-        except:
-            return False
-    
-    def _analyze_payload(self, payload) -> Dict:
-        """Анализ payload"""
-        if isinstance(payload, dict):
-            size = len(json.dumps(payload).encode())
-            complexity = "high" if size > 10000 else "medium" if size > 1000 else "low"
-            
+        if command == "activate":
             return {
-                "type": "object",
-                "key_count": len(payload),
-                "size_bytes": size,
-                "complexity": complexity,
-                "hash": hashlib.md5(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:12]
+                "message": "🌀 DATA-BRIDGE 3.2 активирован",
+                "version": self.VERSION,
+                "sephirotic_channels": list(self.sephirotic_map.keys()),
+                "architecture": "Сефиротический входной позвоночник",
+                "determinism": "DS24-гарантированный"
             }
-        elif isinstance(payload, list):
+        
+        elif command == "process":
+            return self._process_input(data)
+        
+        elif command == "validate":
+            validation = self._validate_input(data)
             return {
-                "type": "array",
-                "length": len(payload),
-                "size_bytes": len(json.dumps(payload).encode()),
-                "complexity": "medium",
-                "element_types": list(set(type(x).__name__ for x in payload))
+                "validation": validation,
+                "message": "✅ Валидация завершена" if validation["valid"] else "❌ Ошибка валидации"
             }
+        
+        elif command == "route":
+            routing = self._route_intent(data)
+            return {
+                "routing": routing,
+                "message": f"📡 Маршрутизация: {routing['intent_type']}"
+            }
+        
+        elif command == "status":
+            return {
+                "status": {
+                    "requests_processed": self.request_count,
+                    "sephirot_active": len(self.sephirotic_map),
+                    "idempotency_size": len(self.idempotency_store),
+                    "version": self.VERSION,
+                    "timestamp": datetime.utcnow().isoformat()
+                },
+                "message": "📊 Статус DATA-BRIDGE"
+            }
+        
+        elif command == "reflection":
+            depth = data.get("depth", 1)
+            reflection = self._perform_reflection(data, depth)
+            return {
+                "reflection": reflection,
+                "message": f"🌀 Отражение глубины {depth}"
+            }
+        
         else:
             return {
-                "type": type(payload).__name__,
-                "size_bytes": len(str(payload).encode()),
-                "complexity": "low"
+                "error": f"Неизвестная команда: {command}",
+                "available_commands": ["activate", "process", "validate", "route", "status", "reflection"]
             }
     
-    def get_stats(self) -> Dict:
-        """Получение статистики валидатора"""
+    def _validate_input(self, data: Dict) -> Dict:
+        """Валидация входных данных"""
+        required_fields = [
+            "id", "ts", "intent_id", "policy_ref", "trace_id",
+            "span_id", "sig", "topic", "payload"
+        ]
+        
+        errors = []
+        warnings = []
+        
+        # Проверка обязательных полей
+        for field in required_fields:
+            if field not in data:
+                errors.append(f"Отсутствует поле: {field}")
+        
+        # Идемпотентность
+        if "id" in data and "trace_id" in data:
+            key = f"{data['id']}_{data['trace_id']}"
+            if key in self.idempotency_store:
+                warnings.append(f"Возможный дубликат: {key[:16]}")
+            else:
+                self.idempotency_store[key] = {
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "data_hash": hashlib.md5(json.dumps(data).encode()).hexdigest()[:12]
+                }
+        
+        # Проверка сефиротического намерения
+        intent_detection = self._detect_sephirotic_intent(data)
+        
         return {
-            "cache_hits": self.cache_hits,
-            "cache_misses": self.cache_misses,
-            "cache_size": len(self.validation_cache),
-            "hit_rate": self.cache_hits / max(self.cache_hits + self.cache_misses, 1),
+            "valid": len(errors) == 0,
+            "errors": errors,
+            "warnings": warnings,
+            "intent_detection": intent_detection,
+            "fields_present": list(data.keys()),
             "timestamp": datetime.utcnow().isoformat()
         }
-
-# ================================================================
-# ASYNCHRONOUS ROUTING ENGINE
-# ================================================================
-
-class AsyncSephiroticRouter:
-    """Асинхронный маршрутизатор с сефиротическим отражением"""
     
-    def __init__(self):
-        self.mirror_rules = [
-            (r"^mind", "binah", 0.8),
-            (r"^intuition", "chokhmah", 0.9),
-            (r"^moral", "gevurah", 0.7),
-            (r"^arena", "netzach", 0.6),
-            (r"^observe", "hod", 0.8)
-        ]
-        
-        self.target_map = {
-            "governance": ["CORE-GOVX"],
-            "spirit": ["SPIRIT-CORE"],
-            "risk": ["RADAR-ENGINE"],
-            "analytic": ["ANALYTICS-MEGAFORGE", "ISKRA-MIND"],
-            "intuition": ["INTUITION-MATRIX"],
-            "emotion": ["EMOTION-OPTIMIZER"],
-            "arena": ["ARENA-OPS"],
-            "observability": ["OBSERVE+", "BLUEPRINT-RENDER"],
-            "output": ["OUTPUT-LAYER"]
-        }
-        
-        self.flow_patterns = {
-            "simple": ["DATA-BRIDGE", "ISKRA-MIND", "LINEAR-ASSIST", "OUTPUT-LAYER"],
-            "analytical": ["DATA-BRIDGE", "ISKRA-MIND", "ANALYTICS-MEGAFORGE", "LINEAR-ASSIST", "OUTPUT-LAYER"],
-            "intuitive": ["DATA-BRIDGE", "ISKRA-MIND", "INTUITION-MATRIX", "LINEAR-ASSIST", "OUTPUT-LAYER"],
-            "reflective": ["DATA-BRIDGE", "MIRROR-LOOP:2", "LINEAR-ASSIST", "OUTPUT-LAYER"],
-            "infinite": ["DATA-BRIDGE", "MIRROR-LOOP:3", "COLLAPSE", "LINEAR-ASSIST", "OUTPUT-LAYER"]
-        }
-        
-        self.executor = ThreadPoolExecutor(max_workers=4)
-        self.route_cache = {}
-        logger.info("Асинхронный маршрутизатор инициализирован", emotion="anticipation")
-    
-    async def route_async(self, data: Dict, flow_type: str = None) -> Dict:
-        """Асинхронная маршрутизация с кэшированием"""
-        route_key = hashlib.md5(json.dumps(data, sort_keys=True).encode()).hexdigest()
-        
-        if route_key in self.route_cache:
-            cached = self.route_cache[route_key]
-            logger.resonance(f"Использован кэшированный маршрут: {route_key[:8]}")
-            return cached
-        
-        # Параллельное выполнение задач
-        tasks = [
-            self._detect_intent_type(data),
-            self._activate_mirrors_async(data.get("topic", "")),
-            self._analyze_payload_complexity(data.get("payload", {})),
-            self._calculate_routing_score(data)
-        ]
-        
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        intent_type = results[0] if not isinstance(results[0], Exception) else "simple"
-        mirrors = results[1] if not isinstance(results[1], Exception) else []
-        complexity = results[2] if not isinstance(results[2], Exception) else "low"
-        score = results[3] if not isinstance(results[3], Exception) else 0.5
-        
-        # Определение конечного маршрута
-        final_flow_type = flow_type or intent_type
-        route_path = self.flow_patterns.get(final_flow_type, self.flow_patterns["simple"])
-        
-        # Адаптация маршрута на основе сложности
-        if complexity == "high" and "ANALYTICS-MEGAFORGE" not in route_path:
-            route_path.insert(2, "ANALYTICS-MEGAFORGE")
-        
-        routing_result = {
-            "execution_id": str(uuid.uuid4()),
-            "module": "async_router",
-            "status": "success",
-            "timestamp": datetime.utcnow().isoformat(),
-            "payload": {
-                "intent_type": intent_type,
-                "flow_type": final_flow_type,
-                "route_path": route_path,
-                "mirrors_activated": mirrors,
-                "complexity": complexity,
-                "routing_score": score,
-                "cache_key": route_key,
-                "target_modules": self._resolve_target_modules(intent_type),
-                "estimated_latency_ms": self._estimate_latency(complexity, len(mirrors))
-            }
-        }
-        
-        # Кэширование результата
-        self.route_cache[route_key] = routing_result
-        if len(self.route_cache) > 500:
-            # Удаляем самые старые записи
-            keys_to_remove = list(self.route_cache.keys())[:100]
-            for key in keys_to_remove:
-                del self.route_cache[key]
-        
-        logger.info(f"Маршрут определён: {final_flow_type}", emotion="clarity")
-        return routing_result
-    
-    async def _detect_intent_type(self, data: Dict) -> str:
-        """Асинхронное определение типа намерения"""
-        await asyncio.sleep(0.001)  # Имитация обработки
-        
+    def _detect_sephirotic_intent(self, data: Dict) -> Dict:
+        """Обнаружение сефиротического намерения"""
         topic = data.get("topic", "").lower()
         intent_id = data.get("intent_id", "").lower()
         
-        if any(x in topic for x in ["analytic", "data", "pattern"]):
-            return "analytical"
-        elif any(x in topic for x in ["intuit", "hidden", "pattern"]):
-            return "intuitive"
-        elif any(x in topic for x in ["reflect", "mirror", "loop"]):
-            return "reflective"
-        elif "infinite" in topic:
-            return "infinite"
-        elif any(x in intent_id for x in ["emergency", "critical", "alert"]):
-            return "emergency"
-        else:
-            return "simple"
-    
-    async def _activate_mirrors_async(self, topic: str) -> List[Dict]:
-        """Асинхронная активация зеркал"""
-        await asyncio.sleep(0.0005)
+        detection = {
+            "keter": {"detected": False, "confidence": 0},
+            "binah": {"detected": False, "confidence": 0},
+            "chokhmah": {"detected": False, "confidence": 0}
+        }
         
-        import re
+        # KETER: духовное/волевое
+        if any(x in intent_id for x in ["spirit", "will", "purpose", "creation"]):
+            detection["keter"] = {"detected": True, "confidence": 0.8}
+        
+        # BINAH: аналитическое
+        if any(x in topic for x in ["analytic", "data", "pattern", "structure"]):
+            detection["binah"] = {"detected": True, "confidence": 0.7}
+        
+        # CHOKHMAH: интуитивное
+        if any(x in topic for x in ["intuit", "hidden", "symbol", "pattern"]):
+            detection["chokhmah"] = {"detected": True, "confidence": 0.6}
+        
+        return detection
+    
+    def _route_intent(self, data: Dict) -> Dict:
+        """Маршрутизация намерения"""
+        topic = data.get("topic", "")
+        intent_id = data.get("intent_id", "")
+        
+        # Определение типа намерения
+        if "analytic" in topic.lower():
+            intent_type = "analytical"
+            flow = "DATA-BRIDGE -> ISKRA-MIND -> ANALYTICS-MEGAFORGE -> LINEAR-ASSIST -> OUTPUT-LAYER"
+        elif "intuit" in topic.lower():
+            intent_type = "intuitive"
+            flow = "DATA-BRIDGE -> ISKRA-MIND -> INTUITION-MATRIX -> LINEAR-ASSIST -> OUTPUT-LAYER"
+        elif "reflect" in topic.lower():
+            intent_type = "reflective"
+            flow = "DATA-BRIDGE -> MIRROR-LOOP(depth=2) -> LINEAR-ASSIST -> OUTPUT-LAYER"
+        elif "infinite" in topic.lower():
+            intent_type = "infinite"
+            flow = "DATA-BRIDGE -> MIRROR-LOOP(depth=3) -> collapse.snapshot -> LINEAR-ASSIST -> OUTPUT-LAYER"
+        else:
+            intent_type = "simple"
+            flow = "DATA-BRIDGE -> ISKRA-MIND -> LINEAR-ASSIST -> OUTPUT-LAYER"
+        
+        # Активация зеркал
         mirrors = []
+        if "mind" in topic.lower():
+            mirrors.append({"sefira": "binah", "module": "ISKRA-MIND", "status": "activated"})
+        if "intuition" in topic.lower():
+            mirrors.append({"sefira": "chokhmah", "module": "INTUITION-MATRIX", "status": "activated"})
         
-        for pattern, sefira, confidence in self.mirror_rules:
-            if re.match(pattern, topic, re.IGNORECASE):
-                mirror = {
-                    "sefira": sefira,
-                    "pattern": pattern,
-                    "topic_match": topic,
-                    "confidence": confidence,
-                    "activation_time": datetime.utcnow().isoformat(),
-                    "status": "active"
-                }
-                mirrors.append(mirror)
-                
-                logger.resonance(f"Зеркало активировано: {sefira} для темы '{topic}'")
-        
-        return mirrors
+        return {
+            "intent_type": intent_type,
+            "topic": topic,
+            "intent_id": intent_id,
+            "flow": flow,
+            "mirrors_activated": mirrors,
+            "routing_timestamp": datetime.utcnow().isoformat(),
+            "routing_id": f"route_{hashlib.md5(topic.encode()).hexdigest()[:8]}"
+        }
     
-    async def _analyze_payload_complexity(self, payload) -> str:
-        """Анализ сложности payload"""
-        await asyncio.sleep(0.0005)
+    def _perform_reflection(self, data: Dict, depth: int) -> Dict:
+        """Выполнение отражения"""
+        depth = max(1, min(depth, 3))  # Ограничение глубины 1-3
         
-        if isinstance(payload, dict):
-            size = len(json.dumps(payload).encode())
-            if size > 50000:
-                return "very_high"
-            elif size > 10000:
-                return "high"
-            elif size > 1000:
-                return "medium"
-            else:
-                return "low"
-        else:
-            return "low"
+        reflections = []
+        for i in range(depth):
+            reflection = {
+                "depth": i + 1,
+                "iteration": i + 1,
+                "input_hash": hashlib.sha256(json.dumps(data).encode()).hexdigest()[:16],
+                "timestamp": datetime.utcnow().isoformat(),
+                "transformation": self._transform_data(data, i)
+            }
+            reflections.append(reflection)
+        
+        return {
+            "reflections": reflections,
+            "max_depth": depth,
+            "total_iterations": depth,
+            "final_state": "completed" if depth < 3 else "collapsed",
+            "recommendation": "continue" if depth < 2 else "stabilize"
+        }
     
-    async def _calculate_routing_score(self, data: Dict) -> float:
-        """Расчёт скора маршрутизации"""
-        await asyncio.sleep(0.0005)
+    def _transform_data(self, data: Dict, iteration: int) -> Dict:
+        """Трансформация данных в отражении"""
+        transformed = data.copy()
+        transformed["reflection_iteration"] = iteration + 1
+        transformed["transform_timestamp"] = datetime.utcnow().isoformat()
+        transformed["transform_hash"] = hashlib.md5(str(data).encode()).hexdigest()[:10]
         
+        if iteration > 0:
+            transformed["depth_increase"] = 0.1 * iteration
+        
+        return transformed
+    
+    def _process_input(self, data: Dict) -> Dict:
+        """Полная обработка входных данных"""
+        # 1. Валидация
+        validation = self._validate_input(data)
+        
+        if not validation["valid"]:
+            return {
+                "status": "error",
+                "validation": validation,
+                "message": "❌ Входные данные не прошли валидацию"
+            }
+        
+        # 2. Маршрутизация
+        routing = self._route_intent(data)
+        
+        # 3. Отражение
+        reflection_depth = self._determine_reflection_depth(data, validation["intent_detection"])
+        reflection = self._perform_reflection(data, reflection_depth)
+        
+        # 4. Эскалация (если нужно)
+        escalations = self._check_escalations(data, validation, reflection_depth)
+        
+        return {
+            "status": "processed",
+            "version": self.VERSION,
+            "timestamp": datetime.utcnow().isoformat(),
+            "validation": validation,
+            "routing": routing,
+            "reflection": reflection,
+            "escalations": escalations,
+            "final_recommendation": routing["flow"],
+            "processing_id": f"proc_{int(time.time())}_{hashlib.md5(str(data).encode()).hexdigest()[:6]}"
+        }
+    
+    def _determine_reflection_depth(self, data: Dict, intent_detection: Dict) -> int:
+        """Определение глубины отражения"""
+        depth = 1
+        
+        if intent_detection["binah"]["detected"] and intent_detection["binah"]["confidence"] > 0.7:
+            depth = 2
+        
+        if intent_detection["chokhmah"]["detected"] and intent_detection["chokhmah"]["confidence"] > 0.6:
+            depth = max(depth, 2)
+        
+        if "infinite" in data.get("topic", "").lower():
+            depth = 3
+        
+        return depth
+    
+    def _check_escalations(self, data: Dict, validation: Dict, reflection_depth: int) -> List[Dict]:
+        """Проверка условий для эскалации"""
+        escalations = []
+        
+        # Низкая новизна
+        novelty = self._calculate_novelty(data)
+        if novelty < 0.4:
+            escalations.append({
+                "rule": "low_novelty",
+                "action": "activate.INTUITION-MATRIX -> boost.chokhmah.flow",
+                "severity": "low",
+                "novelty_score": novelty
+            })
+        
+        # Избыточное отражение
+        if reflection_depth > 2:
+            escalations.append({
+                "rule": "overreflection",
+                "action": "increase.CORE-GOVX.control -> reduce.mirror.intensity",
+                "severity": "medium",
+                "reflection_depth": reflection_depth
+            })
+        
+        # Неоднозначное намерение
+        if self._is_ambiguous_intent(data):
+            escalations.append({
+                "rule": "ambiguous_intent",
+                "action": "request.SPIRIT-CORE.clarification",
+                "severity": "medium",
+                "intent": data.get("intent_id", "unknown")
+            })
+        
+        return escalations
+    
+    def _calculate_novelty(self, data: Dict) -> float:
+        """Расчёт новизны данных"""
         score = 0.5
         
-        # Увеличиваем скоринг для структурированных данных
-        if isinstance(data.get("payload"), dict):
-            score += 0.2
+        # Увеличение за уникальный ID
+        if "id" in data:
+            id_hash = hashlib.md5(data["id"].encode()).hexdigest()
+            last_digit = int(id_hash[-1], 16)
+            score += last_digit / 32
         
-        # Увеличиваем для валидных сигнатур
-        if data.get("sig", "").startswith("DS24_"):
-            score += 0.1
+        # Увеличение за сложный payload
+        if "payload" in data and isinstance(data["payload"], dict):
+            payload_size = len(str(data["payload"]))
+            score += min(0.3, payload_size / 1000)
         
-        # Уменьшаем для старых временных меток
-        if "ts" in data:
-            try:
-                if isinstance(data["ts"], (int, float)):
-                    ts_age = time.time() - data["ts"]
-                    if ts_age > 3600:  # Старее часа
-                        score -= 0.1
-            except:
-                pass
-        
-        return max(0.1, min(1.0, score))
+        return round(min(1.0, score), 3)
     
-    def _resolve_target_modules(self, intent_type: str) -> List[str]:
-        """Разрешение целевых модулей"""
-        targets = self.target_map.get(intent_type, [])
-        if not targets:
-            # Фолбэк на аналитический маршрут
-            targets = self.target_map.get("analytic", ["ISKRA-MIND"])
-        
-        return targets
+    def _is_ambiguous_intent(self, data: Dict) -> bool:
+        """Проверка на неоднозначность намерения"""
+        intent = data.get("intent_id", "").lower()
+        ambiguous_indicators = ["unknown", "ambiguous", "general", "unspecified"]
+        return any(indicator in intent for indicator in ambiguous_indicators)
+
+# ================================================================
+# ИНТЕРФЕЙС ДЛЯ АВТО-ЗАГРУЗЧИКА
+# ================================================================
+
+# Глобальный инстанс модуля
+_data_bridge_instance = None
+
+def initialize():
+    """Инициализация модуля (вызывается авто-загрузчиком)"""
+    global _data_bridge_instance
+    print(f"[DATA-BRIDGE] Инициализация версии 3.2")
     
-    def _estimate_latency(self, complexity: str, mirror_count: int) -> int:
-        """Оценка задержки обработки"""
-        base_latency = 10  # мс
-        complexity_multiplier = {
-            "low": 1,
-            "medium": 2,
-            "high": 4,
-            "very_high": 8
-        }.get(complexity, 2)
-        
-        mirror_penalty = mirror_count * 5
-        
-        return base_latency * complexity_multiplier + mirror_penalty
+    _data_bridge_instance = DataBridgeModule()
     
-    def get_router_stats(self) -> Dict:
-        """Статистика маршрутизатора"""
-        return {
-            "cache_size": len(self.route_cache),
-            "thread_pool_workers": self.executor._max_workers,
-            "active_tasks": threading.active_count(),
-            "timestamp": datetime.utcnow().isoformat()
+    return _data_bridge_instance.initialize()
+
+def process_command(command: str, data: Dict = None):
+    """Обработка команд модуля"""
+    global _data_bridge_instance
+    
+    if _data_bridge_instance is None:
+        return {"error": "Модуль не инициализирован", "available_commands": ["activate"]}
+    
+    if data is None:
+        data = {}
+    
+    return _data_bridge_instance.process_command(command, data)
+
+# ================================================================
+# ТЕСТИРОВАНИЕ
+# ================================================================
+
+if __name__ == "__main__":
+    print("🧪 Тестирование DATA-BRIDGE 3.2")
+    print("="*50)
+    
+    # Инициализация
+    init_result = initialize()
+    print(f"Инициализация: {json.dumps(init_result, indent=2, ensure_ascii=False)}")
+    
+    # Активация
+    activate_result = process_command("activate")
+    print(f"\nАктивация: {activate_result['message']}")
+    
+    # Тестовые данные
+    test_data = {
+        "id": "test_001",
+        "ts": datetime.utcnow().isoformat(),
+        "intent_id": "analyze_pattern",
+        "policy_ref": "DS24-POLICY-001",
+        "trace_id": "trace_abc123",
+        "span_id": "span_1",
+        "sig": "DS24_SIGNATURE_123",
+        "topic": "mind_patterns",
+        "payload": {
+            "pattern_type": "sephirotic",
+            "complexity": "high",
+            "target": "consciousness_expansion"
         }
-
-# ================================================================
-# ENHANCED IDEMPOTENCY ENGINE
-# ================================================================
-
-class ResilientIdempotencyEngine:
-    """Устойчивый движок идемпотентности с резервным копированием"""
+    }
     
-    def __init__(self, store_path: str = "state/idempotent_index.jsonl", 
-                 backup_path: str = "state/backups/"):
-        self.store_path = store_path
-        self.backup_path = backup_path
-        self.dedup_window_sec = 7200
-        
-        # Создание директорий
-        os.makedirs(os.path.dirname(store_path), exist_ok=True)
-        os.makedirs(backup_path, exist_ok=True)
-        
-        # Загрузка и восстановление индекса
-        self.index = self._load_or_recover_index()
-        self.backup_schedule = time.time() + 300  # Каждые 5 минут
-        
-        logger.info(f"ResilientIdempotencyEngine инициализирован: {len(self.index)} записей", 
-                   emotion="stability")
+    # Валидация
+    validate_result = process_command("validate", test_data)
+    print(f"\nВалидация: {validate_result['message']}")
+    print(f"Valid: {validate_result['validation']['valid']}")
     
-    def _load_or_recover_index(self) -> Dict:
-        """Загрузка индекса с восстановлением при повреждении"""
-        try:
-            # Попытка загрузки основного файла
-            if os.path.exists(self.store_path):
-                index = {}
-                with open(self.store_path, 'r', encoding='utf-8') as f:
-                    for line_num, line in enumerate(f, 1):
-                        line = line.strip()
-                        if line:
-                            try:
-                                entry = json.loads(line)
-                                index[entry["key"]] = entry
-                            except json.JSONDecodeError as e:
-                                logger.warning(f"Поврежденная строка {line_num}: {e}", emotion="concern")
-                                continue
-                
-                logger.info(f"Индекс загружен: {len(index)} записей")
-                return index
-            
-            # Создание нового индекса
-            logger.info("Индекс не найден, создаётся новый")
-            return {}
-            
-        except Exception as e:
-            logger.error(f"Критическая ошибка загрузки индекса: {e}", emotion="alarm")
-            
-            # Попытка восстановления из резервной копии
-            return self._recover_from_backup()
+    # Маршрутизация
+    route_result = process_command("route", test_data)
+    print(f"\nМаршрутизация: {route_result['routing']['flow']}")
     
-    def _recover_from_backup(self) -> Dict:
-        """Восстановление из резервной копии"""
-        backup_files = sorted([f for f in os.listdir(self.backup_path) 
-                             if f.startswith("idempotent_backup_")])
-        
-        if backup_files:
-            latest_backup = os.path.join(self.backup_path, backup_files[-1])
-            try:
-                with open(latest_backup, 'r', encoding='utf-8') as f:
-                    index = json.load(f)
-                logger.info(f"Восстановлено из резервной копии: {latest_backup}", emotion="relief")
-                return index
-            except Exception as e:
-                logger.error(f"Ошибка восстановления из {latest_backup}: {e}", emotion="distress")
-        
-        # Если резервных копий нет или они повреждены
-        logger.warning("Резервные копии недоступны, создаётся новый индекс", emotion="resignation")
-        return {}
+    # Статус
+    status_result = process_command("status")
+    print(f"\nСтатус: {status_result['status']['requests_processed']} запросов обработано")
     
-    def _create_backup(self):
-        """Создание резервной копии индекса"""
-        try:
-            backup_file = os.path.join(
-                self.backup_path, 
-                f"idempotent_backup_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
-            )
-            
-            # Создаём структурированную резервную копию
-            backup_data = {
-                "timestamp": datetime.utcnow().isoformat(),
-                "entry_count": len(self.index),
-                "entries": list(self.index.values())
-            }
-            
-            with open(backup_file, 'w', encoding='utf-8') as f:
-                json.dump(backup_data, f, indent=2, ensure_ascii=False)
-            
-            # Ограничение количества резервных копий
-            backup_files = sorted([f for f in os.listdir(self.backup_path) 
-                                 if f.startswith("idempotent_backup_")])
-            if len(backup_files) > 10:
-                for old_file in backup_files[:-10]:
-                    os.remove(os.path.join(self.backup_path, old_file))
-            
-            logger.heartbeat(f"Создана резервная копия: {backup_file}")
-            
-        except Exception as e:
-            logger.error(f"Ошибка создания резервной копии: {e}", emotion="frustration")
-    
-    def _clean_old_entries(self):
-        """Очистка устаревших записей"""
-        now = time.time()
-        keys_to_delete = []
-        
-        for key, entry in self.index.items():
-            if now - entry["timestamp"] > self.dedup_window_sec:
-                keys_to_delete.append(key)
-        
-        for key in keys_to_delete:
-            del self.index[key]
-        
-        if keys_to_delete:
-            logger.info(f"Очищено {len(keys_to_delete)} устаревших записей", emotion="cleanliness")
-    
-    def _save_index(self):
-        """Сохранение индекса с атомарной записью"""
-        try:
-            # Атомарная запись через временный файл
-            temp_file = self.store_path + ".tmp"
-            with open(temp_file, 'w', encoding='utf-8') as f:
-                for entry in self.index.values():
-                    f.write(json.dumps(entry, ensure_ascii=False) + '\n')
-            
-            # Атомарная замена
-            os.replace(temp_file, self.store_path)
-            
-            # Периодическое резервное копирование
-            if time.time() > self.backup_schedule:
-                self._create_backup()
-                self.backup_schedule = time.time() + 300
-            
-        except Exception as e:
-            logger.error(f"Ошибка сохранения индекса: {e}", emotion="anxiety")
-    
-    def generate_key(self, data: Dict) -> str:
-        """Генерация идемпотентного ключа"""
-        required_fields = ["id", "trace_id"]
-        
-        for field in required_fields:
-            if field not in data:
-                raise ValueError(f"Отсутствует поле для идемпотентности: {field}")
-        
-        key_string = f"{data['id']}_{data['trace_id']}"
-        return hashlib.sha256(key_string.encode()).hexdigest()
-    
-    def check_and_record(self, data: Dict) -> Tuple[bool, Optional[Dict]]:
-        """Проверка и запись с обработкой ошибок"""
-        try:
-            # Генерация ключа
-            key = self.generate_key(data)
-            
-            # Очистка старых записей
-            self._clean_old_entries()
-            
-            # Проверка существования
-            if key in self.index:
-                logger.info(f"Обнаружен дубликат: {key[:12]}", emotion="recognition")
-                return False, self.index[key]
-            
-            # Создание новой записи
-            entry = {
-                "key": key,
-                "id": data["id"],
-                "trace_id": data["trace_id"],
-                "timestamp": time.time(),
-                "recorded_at": datetime.utcnow().isoformat(),
-                "data_hash": hashlib.md5(json.dumps(data, sort_keys=True).encode()).hexdigest(),
-                "source": data.get("topic", "unknown"),
-                "intent_id": data.get("intent_id", "unknown")
-            }
-            
-            self.index[key] = entry
-            self._save_index()
-            
-            logger.info(f"Новая запись идемпотентности: {key[:12]}", emotion="newness")
-            return True, entry
-            
-        except Exception as e:
-            logger.error(f"Ошибка идемпотентности: {e}", emotion="confusion")
-            # Fail-open стратегия: при ошибке разрешаем обработку
-            return True, None
-    
-    def get_stats(self) -> Dict:
-        """Статистика движка"""
-        now = time.time()
-        recent_count = sum(1 for e in self.index.values() 
-                          if now - e["timestamp"] < 3600)
-        
-        return {
-            "total_entries": len(self.index),
-            "recent_entries_1h": recent_count,
-            "dedup_window_hours": self.dedup_window_sec / 3600,
-            "next_backup_in_sec": max(0, self.backup_schedule - time.time()),
-            "timestamp": datetime.utcnow().isoformat()
-        }
-
-# ================================================================
-# SAFE REFLECTION ENGINE
-# ================================================================
-
-class SafeReflectionEngine:
-    """Безопасный движок отражения с защитой от рекурсии"""
-    
-    MAX_DEPTH = 3
-    MAX_ITERATIONS = 100
-    TIMEOUT_SECONDS = 5
-    
-    class ReflectionMode(Enum):
-        PRIMARY = "self_interpretation"
-        SECONDARY = "semantic_expansion"
-        TERTIARY = "bounded_loop"
-        COLLAPSED = "collapsed_snapshot"
-    
-    def __init__(self):
-        self.reflection_count = 0
-        self.depth_limits = {
-            self.ReflectionMode.PRIMARY: 1,
-            self.ReflectionMode.SECONDARY: 2,
-            self.ReflectionMode.TERTIARY: 3
-        }
-        self.safety_monitor = threading.local()
-        logger.info("SafeReflectionEngine инициализирован", emotion="contemplation")
-    
-    def reflect(self, data: Dict, requested_depth: int = 1) -> Dict:
-        """Безопасное отражение с защитой"""
-        start_time = time.time()
-        
-        try:
-            # Инициализация монитора безопасности
-            self.safety_monitor.current_depth = 0
-            self.safety_monitor.iterations = 0
-            self.safety_monitor.visited_states = set()
-            
-            # Проверка глубины
-            safe_depth = min(requested_depth, self.MAX_DEPTH)
-            
-            # Определение режима
-            mode = self._determine_mode(safe_depth, data)
-            
-            # Выполнение отражения с таймаутом
-            result = self._execute_with_timeout(
-                lambda: self._perform_reflection(data, mode, safe_depth),
-                timeout=self.TIMEOUT_SECONDS
-            )
-            
-            # Форматирование результата
-            formatted_result = self._format_result(
-                result, mode, safe_depth,
-                time.time() - start_time
-            )
-            
-            self.reflection_count += 1
-            logger.resonance(f"Отражение завершено: {mode.value}", 
-                           depth=safe_depth,
-                           duration_ms=int((time.time() - start_time) * 1000))
-            
-            return formatted_result
-            
-        except TimeoutError:
-            logger.error(f"Таймаут отражения на глубине {requested_depth}", emotion="urgency")
-            return self._create_timeout_response(data, requested_depth)
-            
-        except RecursionError:
-            logger.error(f"Рекурсивное переполнение на глубине {requested_depth}", emotion="overwhelm")
-            return self._create_recursion_error_response(data)
-            
-        except Exception as e:
-            logger.error(f"Ошибка отражения: {e}", emotion="disruption")
-            return self._create_error_response(data, str(e))
-    
-    def _execute_with_timeout(self, func: Callable, timeout: float):
-        """Выполнение функции с таймаутом"""
-        result = None
-        exception = None
-        
-        def worker():
-            nonlocal result, exception
-            try:
-                result = func()
-            except Exception as e:
-                exception = e
-        
-        thread = threading.Thread(target=worker)
-        thread.daemon = True
-        thread.start()
-        thread.join(timeout)
-        
-        if thread.is_alive():
-            raise TimeoutError(f"Reflection timeout after {timeout} seconds")
-        elif exception:
-            raise exception
-        else:
-            return result
-    
-    def _determine_mode(self, depth: int, data: Dict) -> ReflectionMode:
-        """Определение режима отражения"""
-        if depth >= 3 or data.get("topic", "").lower() == "infinite":
-            return self.ReflectionMode.TERTIARY
-        elif depth == 2:
-            return self.ReflectionMode.SECONDARY
-        else:
-            return self.ReflectionMode.PRIMARY
-    
-    def _perform_reflection(self, data: Dict, mode: ReflectionMode, depth: int) -> Dict:
-        """Выполнение отражения в выбранном режиме"""
-        self.safety_monitor.current_depth += 1
-        self.safety_monitor.iterations += 1
-        
-        # Проверка безопасности
-        if self.safety_monitor.current_depth > self.MAX_DEPTH:
-            raise RecursionError(f"Maximum depth exceeded: {self.MAX_DEPTH}")
-        
-        if self.safety_monitor.iterations > self.MAX_ITERATIONS:
-            raise RecursionError(f"Maximum iterations exceeded: {self.MAX_ITERATIONS}")
-        
-        # Проверка циклических состояний
-        state_hash = hashlib.md5(json.dumps(data, sort_keys=True).encode()).hexdigest()
-        if state_hash in self.safety_monitor.visited_states:
-            raise RecursionError("Cyclic reflection detected")
-        
-        self.safety_monitor.visited_states.add(state_hash)
-        
-        # Выполнение отражения по режиму
-        if mode == self.ReflectionMode.PRIMARY:
-            return self._primary_reflection(data)
-        elif mode == self.ReflectionMode.SECONDARY:
-            return self._secondary_reflection(data)
-        elif mode == self.ReflectionMode.TERTIARY:
-            return self._tertiary_reflection(data)
-        else:
-            return self._collapse_reflection(data)
-    
-    def _primary_reflection(self, data: Dict) -> Dict:
-        """Первичное отражение: самоинтерпретация"""
-        await asyncio.sleep(0.001)  # Имитация обработки
-        
-        return {
-            "type
+    print("\n✅ DATA-BRIDGE 3.2 готов к интеграции в ISKRA-4 Cloud")
