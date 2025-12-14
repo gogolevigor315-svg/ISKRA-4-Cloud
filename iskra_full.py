@@ -909,4 +909,6 @@ class DS24PureProtocol:
 
         # Тест 3: Идемпотентность
         result3 = self.execute_deterministic(test_input, "self_test_1")
-        idempotent = result1["output_sign
+        idempotent = result1["output_signature"] == result3["output_signature"]
+        test_results.append({
+            "test
