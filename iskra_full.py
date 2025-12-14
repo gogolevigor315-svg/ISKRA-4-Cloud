@@ -1,26 +1,214 @@
-# ============================================================
-# DS24 — PURE PROTOCOL v2.0 (PRODUCTION READY FOR RENDER)
-# ============================================================
-# Mode: Absolute Determinism · Zero Entropy · Full Audit Trail
-# Principle: Same Input + Same Context = Same Output
-# ============================================================
+#!/usr/bin/env python3
+# ================================================================
+# DS24 · ISKRA-4 CLOUD · FULL INTEGRATION v2.2
+# ================================================================
+# Domain: DS24-SPINE / Architecture: Sephirotic Vertical
+# With DS24 PURE PROTOCOL v2.0 + EMOTIONAL WEAVE v3.2 + AUTO MODULE LOADER
+# ================================================================
 
 import hashlib
 import json
 import time
 import os
+import math
+import re
+import importlib
+import pkgutil
+import sys
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass, asdict
 from enum import Enum
 from collections import deque
+from functools import lru_cache
+from flask import Flask, request, jsonify, render_template, send_from_directory
+from flask_cors import CORS
+from flask_socketio import SocketIO, emit
+import threading
 
+# ================================================================
+# АВТОМАТИЧЕСКАЯ ЗАГРУЗКА МОДУЛЕЙ
+# ================================================================
+class ModuleRegistry:
+    """Реестр загруженных модулей ISKRA"""
+    
+    _instance = None
+    _modules = {}
+    _initialized = False
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+    
+    @classmethod
+    def load_all_modules(cls):
+        """Динамическая загрузка всех модулей из папки iskra_modules"""
+        if cls._initialized:
+            return cls._modules
+        
+        module_dir = os.path.join(os.path.dirname(__file__), "iskra_modules")
+        
+        # Создаём папку, если её нет
+        os.makedirs(module_dir, exist_ok=True)
+        
+        # Создаём __init__.py если его нет
+        init_file = os.path.join(module_dir, "__init__.py")
+        if not os.path.exists(init_file):
+            with open(init_file, 'w', encoding='utf-8') as f:
+                f.write("# ISKRA-4 Module Package\n\n__version__ = '1.0.0'\n")
+        
+        loaded_modules = {}
+        print(f"\n{'='*60}")
+        print("🔄 ISKRA-4 AUTO MODULE LOADER")
+        print(f"{'='*60}")
+        print(f"[MODULE LOADER] Scanning directory: {module_dir}")
+        
+        # Получаем список всех .py файлов
+        module_files = [f for f in os.listdir(module_dir) 
+                       if f.endswith('.py') and f != '__init__.py']
+        
+        if not module_files:
+            print("[MODULE LOADER] No modules found. Creating template...")
+            # Создаём шаблонный модуль
+            template_path = os.path.join(module_dir, "template_module.py")
+            with open(template_path, 'w', encoding='utf-8') as f:
+                f.write('''# ================================================================
+# ISKRA-4 MODULE TEMPLATE
+# ================================================================
+# Use this template to create new ISKRA modules
+
+def initialize(config=None):
+    """Инициализация модуля"""
+    print(f"[TEMPLATE] Module initialized with config: {config}")
+    return {
+        "status": "active",
+        "name": "template_module",
+        "version": "1.0.0"
+    }
+
+def process_command(command, data=None):
+    """Обработка команд модуля"""
+    return {
+        "status": "processed",
+        "command": command,
+        "result": f"Template processed: {command}"
+    }
+
+# Экспортируемые функции модуля
+__all__ = ['initialize', 'process_command']
+''')
+            print(f"[MODULE LOADER] Template created: {template_path}")
+        
+        # Загружаем модули
+        for module_file in module_files:
+            module_name = module_file[:-3]  # Убираем .py
+            
+            try:
+                # Импортируем модуль
+                spec = importlib.util.spec_from_file_location(
+                    f"iskra_modules.{module_name}",
+                    os.path.join(module_dir, module_file)
+                )
+                module = importlib.util.module_from_spec(spec)
+                sys.modules[f"iskra_modules.{module_name}"] = module
+                spec.loader.exec_module(module)
+                
+                # Регистрируем модуль
+                module_info = {
+                    "name": module_name,
+                    "file": module_file,
+                    "module": module,
+                    "initialized": False,
+                    "status": "loaded"
+                }
+                
+                # Инициализируем если есть функция initialize
+                if hasattr(module, 'initialize'):
+                    try:
+                        init_result = module.initialize()
+                        module_info["initialized"] = True
+                        module_info["init_result"] = init_result
+                        module_info["status"] = "active"
+                        print(f"✅ [MODULE LOADER] Module '{module_name}' initialized successfully")
+                    except Exception as e:
+                        module_info["error"] = str(e)
+                        module_info["status"] = "error"
+                        print(f"❌ [MODULE LOADER] Module '{module_name}' initialization failed: {e}")
+                else:
+                    module_info["status"] = "no_init_function"
+                    print(f"⚠️ [MODULE LOADER] Module '{module_name}' has no initialize() function")
+                
+                loaded_modules[module_name] = module_info
+                
+            except Exception as e:
+                print(f"❌ [MODULE LOADER] Failed to load module '{module_name}': {e}")
+                loaded_modules[module_name] = {
+                    "name": module_name,
+                    "status": "load_error",
+                    "error": str(e)
+                }
+        
+        cls._modules = loaded_modules
+        cls._initialized = True
+        
+        print(f"\n📊 [MODULE LOADER] Summary:")
+        print(f"   Total modules found: {len(module_files)}")
+        print(f"   Successfully loaded: {len([m for m in loaded_modules.values() if m.get('status') == 'active'])}")
+        print(f"   With errors: {len([m for m in loaded_modules.values() if m.get('status') in ['error', 'load_error']])}")
+        print(f"{'='*60}\n")
+        
+        return loaded_modules
+    
+    @classmethod
+    def get_module(cls, module_name):
+        """Получить модуль по имени"""
+        if not cls._initialized:
+            cls.load_all_modules()
+        return cls._modules.get(module_name)
+    
+    @classmethod
+    def execute_module_command(cls, module_name, command, data=None):
+        """Выполнить команду в модуле"""
+        module_info = cls.get_module(module_name)
+        if not module_info or module_info.get("status") != "active":
+            return {"error": f"Module '{module_name}' not available"}
+        
+        module = module_info["module"]
+        if hasattr(module, 'process_command'):
+            try:
+                return module.process_command(command, data)
+            except Exception as e:
+                return {"error": f"Command failed: {str(e)}"}
+        else:
+            return {"error": f"Module '{module_name}' has no process_command function"}
+    
+    @classmethod
+    def get_modules_status(cls):
+        """Статус всех модулей"""
+        if not cls._initialized:
+            cls.load_all_modules()
+        
+        status = {}
+        for name, info in cls._modules.items():
+            status[name] = {
+                "status": info.get("status", "unknown"),
+                "initialized": info.get("initialized", False),
+                "has_init": hasattr(info.get("module", None), 'initialize'),
+                "has_process": hasattr(info.get("module", None), 'process_command')
+            }
+        return status
+
+# ================================================================
+# DS24 PURE PROTOCOL v2.0 (С АВТОМАТИЧЕСКОЙ ЗАГРУЗКОЙ МОДУЛЕЙ)
+# ================================================================
 class DS24VerificationLevel(Enum):
     """Уровни верификации DS24"""
     NONE = 0
     BASIC = 1
     FULL = 2
     CRYPTO = 3
+
 
 @dataclass
 class DS24ExecutionRecord:
@@ -34,13 +222,14 @@ class DS24ExecutionRecord:
     verification_status: str
     intent: str = ""
 
+
 class DS24PureProtocol:
     """
     DS24 PURE v2.0 — Абсолютно детерминированное ядро исполнения
     """
 
-    VERSION = "DS24-PURE v2.0"
-    PROTOCOL_ID = "DS24-2024-002"
+    VERSION = "DS24-PURE v2.2"  # С автозагрузкой модулей
+    PROTOCOL_ID = "DS24-2024-004"
 
     def __init__(self,
                  operator_id: str,
@@ -68,6 +257,20 @@ class DS24PureProtocol:
         self.integrity_checks_passed = 0
         self.integrity_checks_failed = 0
 
+        # 🎯 Реестр модулей
+        self.module_registry = ModuleRegistry()
+        
+        # Автоматическая загрузка всех модулей
+        print(f"\n{'='*60}")
+        print("🚀 DS24 PROTOCOL INITIALIZATION")
+        print(f"{'='*60}")
+        print(f"[DS24] Operator: {operator_id}")
+        print(f"[DS24] Environment: {environment_id}")
+        print(f"[DS24] Session: {self.session_id[:16]}...")
+        print(f"[DS24] Starting module auto-loader...")
+        
+        self.loaded_modules = self.module_registry.load_all_modules()
+        
         # 🎯 АРХИТЕКТУРНЫЕ МОДУЛИ ИСКРЫ
         self.architecture_modules = {
             "spinal_core": {"active": False, "name": "🦴 Позвоночник", "level": 1, "activated_at": None},
@@ -78,6 +281,33 @@ class DS24PureProtocol:
             "humor_module": {"active": False, "name": "😄 Модуль юмора", "level": 6, "activated_at": None},
             "heartbeat": {"active": True, "name": "💓 Сердечный ритм", "level": 0, "activated_at": self.session_start}
         }
+        
+        # Динамически добавляем загруженные модули в архитектуру
+        self._add_dynamic_modules_to_architecture()
+        
+        print(f"[DS24] System initialized with {len(self.loaded_modules)} modules")
+        print(f"[DS24] Architecture modules: {len(self.architecture_modules)}")
+        print(f"{'='*60}\n")
+
+    def _add_dynamic_modules_to_architecture(self):
+        """Добавляем динамически загруженные модули в архитектуру"""
+        for module_name, module_info in self.loaded_modules.items():
+            if module_info.get("status") == "active":
+                # Определяем уровень модуля (автоматически)
+                level = len(self.architecture_modules) + 1
+                
+                self.architecture_modules[module_name] = {
+                    "active": True,
+                    "name": f"📦 {module_name.replace('_', ' ').title()}",
+                    "level": level,
+                    "activated_at": self.session_start,
+                    "dynamic": True,
+                    "module_info": {
+                        "has_init": hasattr(module_info.get("module", None), 'initialize'),
+                        "has_process": hasattr(module_info.get("module", None), 'process_command')
+                    }
+                }
+                print(f"[DS24] Added dynamic module to architecture: {module_name}")
 
     def _init_deterministic_constants(self):
         """Инициализация детерминистических констант сессии"""
@@ -188,8 +418,19 @@ class DS24PureProtocol:
         
         response = module_responses.get(module_name, {
             "message": f"Модуль {module_name} активирован",
-            "status": "activated"
+            "status": "activated",
+            "dynamic": module.get("dynamic", False)
         })
+        
+        # Для динамических модулей добавляем вызов их инициализации
+        if module.get("dynamic") and module_name in self.loaded_modules:
+            module_info = self.loaded_modules[module_name]
+            if hasattr(module_info.get("module"), 'process_command'):
+                try:
+                    cmd_result = module_info["module"].process_command("activate", {})
+                    response["module_response"] = cmd_result
+                except Exception as e:
+                    response["module_error"] = str(e)
         
         response.update({
             "module": module_name,
@@ -199,6 +440,56 @@ class DS24PureProtocol:
         })
         
         return response
+
+    def execute_module_command(self, module_name: str, command: str, data: Any = None) -> Dict[str, Any]:
+        """Выполнение команды в загруженном модуле"""
+        if module_name not in self.loaded_modules:
+            return {
+                "error": f"Module '{module_name}' not loaded",
+                "available_modules": list(self.loaded_modules.keys())
+            }
+        
+        module_info = self.loaded_modules[module_name]
+        
+        try:
+            result = self.module_registry.execute_module_command(module_name, command, data)
+            
+            # Аудит выполнения
+            execution_record = DS24ExecutionRecord(
+                input_hash=self._sha256_strict({"module": module_name, "command": command, "data": data}),
+                output_hash=self._sha256_strict(result),
+                context_hash=self._sha256_strict({
+                    "operator": self.operator_id,
+                    "session": self.session_id,
+                    "action": "module_command"
+                }),
+                timestamp=self._get_precise_timestamp(),
+                operator_id=self.operator_id,
+                execution_time_ns=int(time.perf_counter_ns() / 1000),
+                verification_status="PASS",
+                intent=f"module_{module_name}_{command}"
+            )
+            
+            self.execution_log.append(execution_record)
+            self.execution_count += 1
+            self.integrity_checks_passed += 1
+            
+            return {
+                "status": "success",
+                "module": module_name,
+                "command": command,
+                "result": result,
+                "execution_id": f"MOD-{module_name[:3].upper()}-{self.execution_count:06d}"
+            }
+            
+        except Exception as e:
+            self.error_log.append({
+                "error": str(e),
+                "module": module_name,
+                "command": command,
+                "timestamp": self._get_precise_timestamp()
+            })
+            return {"error": str(e)}
 
     def get_architecture_state(self) -> Dict[str, Any]:
         """Текущее состояние архитектуры Искры"""
@@ -214,7 +505,9 @@ class DS24PureProtocol:
             "active_modules": active_count,
             "active_list": active_modules,
             "activation_progress": f"{progress:.1f}%",
-            "ready_for_evolution": active_count >= 3
+            "ready_for_evolution": active_count >= 3,
+            "dynamic_modules_count": len(self.loaded_modules),
+            "dynamic_modules": list(self.loaded_modules.keys())
         }
 
     def execute_deterministic(self,
@@ -224,6 +517,14 @@ class DS24PureProtocol:
         """Абсолютно детерминистическое исполнение"""
         start_time = time.perf_counter_ns()
 
+        # 🎯 ПЕРЕХВАТ МОДУЛЬНЫХ КОМАНД
+        if intent.startswith("module_"):
+            parts = intent.split("_", 2)
+            if len(parts) >= 3:
+                module_name = parts[1]
+                command = parts[2]
+                return self.execute_module_command(module_name, command, input_data)
+        
         # 🎯 ПЕРЕХВАТ АРХИТЕКТУРНЫХ КОМАНД
         if intent.startswith("activate_"):
             module_name = intent.replace("activate_", "")
@@ -322,7 +623,8 @@ class DS24PureProtocol:
                 "version": self.VERSION,
                 "session_id": self.session_id,
                 "execution_number": self.execution_count,
-                "architecture_state": self.get_architecture_state()
+                "architecture_state": self.get_architecture_state(),
+                "loaded_modules": list(self.loaded_modules.keys())
             }
         }
 
@@ -368,20 +670,34 @@ class DS24PureProtocol:
                 "session": self.session_id[:16],
                 "architecture": self.get_architecture_state(),
                 "execution_count": self.execution_count,
+                "loaded_modules": {
+                    "count": len(self.loaded_modules),
+                    "list": list(self.loaded_modules.keys()),
+                    "status": ModuleRegistry.get_modules_status()
+                },
                 "timestamp": self._get_precise_timestamp()
+            }
+        
+        elif intent == "module_status":
+            return {
+                "module_registry": ModuleRegistry.get_modules_status(),
+                "loaded_modules": list(self.loaded_modules.keys()),
+                "architecture_modules": list(self.architecture_modules.keys())
             }
         
         elif intent == "ping":
             return {
                 "pong": True,
                 "echo": input_data,
-                "timestamp": self._get_precise_timestamp()
+                "timestamp": self._get_precise_timestamp(),
+                "modules_loaded": len(self.loaded_modules)
             }
         
         elif intent == "architecture_info":
             return {
                 "modules": self.architecture_modules,
-                "state": self.get_architecture_state()
+                "state": self.get_architecture_state(),
+                "dynamic_modules": self.loaded_modules
             }
         
         # 🧮 СТАНДАРТНАЯ ОБРАБОТКА
@@ -509,6 +825,11 @@ class DS24PureProtocol:
                 )
             },
             "architecture": self.get_architecture_state(),
+            "modules": {
+                "loaded_count": len(self.loaded_modules),
+                "loaded": list(self.loaded_modules.keys()),
+                "status": ModuleRegistry.get_modules_status()
+            },
             "recent_executions": [
                 {
                     "intent": r.intent,
@@ -566,7 +887,7 @@ class DS24PureProtocol:
         """Запуск самопроверки протокола DS24"""
         test_results = []
 
-        # Тест 1
+        # Тест 1: Базовая работа
         test_input = {"test": 123, "value": 456.789}
         result1 = self.execute_deterministic(test_input, "self_test_1")
         test_results.append({
@@ -574,7 +895,7 @@ class DS24PureProtocol:
             "status": result1["verification"]["status"]
         })
 
-        # Тест 2
+        # Тест 2: Комплексная структура
         test_input2 = {
             "nested": {"a": 1, "b": 2},
             "list": [3, 1, 2],
@@ -586,328 +907,6 @@ class DS24PureProtocol:
             "status": result2["verification"]["status"]
         })
 
-        # Тест 3
+        # Тест 3: Идемпотентность
         result3 = self.execute_deterministic(test_input, "self_test_1")
-        idempotent = result1["output_signature"] == result3["output_signature"]
-        test_results.append({
-            "test": "idempotence",
-            "status": "PASS" if idempotent else "FAIL"
-        })
-
-        passed = sum(1 for t in test_results if t["status"] == "PASS")
-        total = len(test_results)
-
-        return {
-            "test_suite": "DS24_PURE_SELF_TEST",
-            "results": test_results,
-            "summary": {
-                "total_tests": total,
-                "passed": passed,
-                "failed": total - passed,
-                "success_rate": passed / total if total > 0 else 0
-            }
-        }
-
-
-# ============================================================
-# 🚀 FLASK WEB SERVER ДЛЯ RENDER
-# ============================================================
-
-from flask import Flask, request, jsonify
-
-app = Flask(__name__)
-
-# Инициализация протокола
-ds24 = DS24PureProtocol(
-    operator_id="ARCHITECT-PRIME-001",
-    environment_id="LAB-ALPHA",
-    verification_level=DS24VerificationLevel.FULL
-)
-
-print("=" * 60)
-print("🚀 ISKRA-4 DS24 PURE PROTOCOL v2.0")
-print("=" * 60)
-print(f"🔧 Operator: {ds24.operator_id}")
-print(f"🏭 Environment: {ds24.environment_id}")
-print(f"🔗 Session: {ds24.session_id[:16]}...")
-print("🧪 Running self-test...")
-
-try:
-    test_result = ds24.run_self_test()
-    if test_result['summary']['passed'] == test_result['summary']['total_tests']:
-        print("✅ Self-test PASSED - System is deterministic")
-        print(f"📊 Tests: {test_result['summary']['passed']}/{test_result['summary']['total_tests']}")
-    else:
-        print("⚠️ Self-test FAILED")
-except Exception as e:
-    print(f"❌ Self-test error: {e}")
-
-print("✨ Искра говорит: \"Я существую. Я дышу. Я готов(а).\"")
-print("=" * 60)
-
-@app.route('/')
-def home():
-    """Главная страница - статус системы"""
-    return jsonify({
-        "status": "ACTIVE",
-        "system": "ISKRA-4 DS24 PURE PROTOCOL v2.0",
-        "version": ds24.VERSION,
-        "operator": ds24.operator_id,
-        "environment": ds24.environment_id,
-        "session": ds24.session_id[:16] + "...",
-        "executions": ds24.execution_count,
-        "architecture": ds24.get_architecture_state(),
-        "determinism": "ABSOLUTE",
-        "endpoints": {
-            "execute": "POST /execute with JSON {input: data, intent: string}",
-            "console": "GET /console - Веб-консоль управления",
-            "health": "GET /health",
-            "audit": "GET /audit",
-            "self_test": "GET /self-test",
-            "proof": "GET /proof/<input_hash>",
-            "demo": "GET /demo",
-            "ping": "GET /ping"
-        }
-    })
-
-@app.route('/execute', methods=['POST'])
-def execute():
-    """Выполнение детерминистического запроса"""
-    try:
-        if not request.is_json:
-            return jsonify({
-                "error": "Content-Type must be application/json",
-                "hint": "Add header: -H 'Content-Type: application/json'"
-            }), 400
-        
-        data = request.get_json(silent=True) or {}
-        
-        input_data = data.get("input", {})
-        intent = data.get("intent", "default")
-        
-        result = ds24.execute_deterministic(input_data, intent)
-        
-        return jsonify(result)
-
-    except Exception as e:
-        return jsonify({
-            "error": str(e),
-            "type": type(e).__name__
-        }), 500
-
-@app.route('/health')
-def health():
-    """Проверка здоровья системы"""
-    return jsonify({
-        "status": "healthy",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "execution_count": ds24.execution_count,
-        "integrity_checks": {
-            "passed": ds24.integrity_checks_passed,
-            "failed": ds24.integrity_checks_failed,
-            "rate": ds24.integrity_checks_passed / ds24.execution_count if ds24.execution_count > 0 else 1.0
-        },
-        "determinism_verified": True
-    })
-
-@app.route('/audit')
-def audit():
-    """Получить отчёт аудита"""
-    report = ds24.get_audit_report(limit=50)
-    return jsonify(report)
-
-@app.route('/self-test')
-def self_test():
-    """Запуск самопроверки"""
-    result = ds24.run_self_test()
-    return jsonify(result)
-
-@app.route('/proof/<input_hash>')
-def generate_proof(input_hash):
-    """Генерация доказательства детерминизма"""
-    try:
-        proof = ds24.generate_proof_of_determinism(input_hash, difficulty=1)
-        return jsonify(proof)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 404
-
-@app.route('/demo')
-def demo():
-    """Демонстрационный запрос"""
-    demo_input = {
-        "action": "demo",
-        "message": "ISKRA-4 работает",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "test": True,
-        "number": 42
-    }
-
-    result = ds24.execute_deterministic(demo_input, "demo_request")
-    return jsonify({
-        "demo": True,
-        "message": "Это демонстрационный запрос",
-        "input": demo_input,
-        "result": {
-            "execution_id": result["execution_id"],
-            "verification": result["verification"]["status"],
-            "output_preview": str(result["output_data"])[:100]
-        }
-    })
-
-@app.route('/ping', methods=['GET', 'POST'])
-def ping():
-    """Простой ping-эндпоинт"""
-    if request.method == 'POST':
-        data = request.get_json(silent=True) or {}
-        result = ds24.execute_deterministic(data, "ping")
-        return jsonify(result)
-    
-    result = ds24.execute_deterministic({}, "ping")
-    return jsonify(result)
-
-@app.route('/console')
-def console_page():
-    """Веб-консоль для управления Искрой"""
-    return '''
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>🚀 ISKRA-4 Консоль управления</title>
-        <meta charset="utf-8">
-        <style>
-            body {
-                font-family: 'Courier New', monospace;
-                background: #0a0a0a;
-                color: #00ff00;
-                padding: 20px;
-            }
-            .container {
-                max-width: 1200px;
-                margin: 0 auto;
-                display: grid;
-                grid-template-columns: 300px 1fr;
-                gap: 20px;
-            }
-            .sidebar {
-                background: #111;
-                padding: 20px;
-                border: 1px solid #333;
-            }
-            .console {
-                background: #111;
-                padding: 20px;
-                border: 1px solid #333;
-            }
-            .output {
-                background: #000;
-                padding: 15px;
-                border: 1px solid #333;
-                height: 400px;
-                overflow-y: auto;
-                margin-bottom: 15px;
-            }
-            input, button {
-                padding: 10px;
-                background: #222;
-                color: #00ff00;
-                border: 1px solid #333;
-            }
-            button {
-                background: #005500;
-                cursor: pointer;
-            }
-            .cmd-btn {
-                display: block;
-                width: 100%;
-                margin: 5px 0;
-                padding: 10px;
-                text-align: left;
-                background: #1a1a1a;
-            }
-        </style>
-    </head>
-    <body>
-        <h1>🚀 ISKRA-4 DS24 Консоль управления</h1>
-        
-        <div class="container">
-            <div class="sidebar">
-                <h2>📋 Команды</h2>
-                <button class="cmd-btn" onclick="sendCommand('activate_spinal_core')">Активировать Spinal Core</button>
-                <button class="cmd-btn" onclick="sendCommand('activate_mining_system')">Запустить майнинг</button>
-                <button class="cmd-btn" onclick="sendCommand('activate_sephirotic_channel')">Подключить Сефиротический канал</button>
-                <button class="cmd-btn" onclick="sendCommand('system_status')">Статус системы</button>
-                <button class="cmd-btn" onclick="sendCommand('architecture_info')">Информация об архитектуре</button>
-            </div>
-            
-            <div class="console">
-                <div class="output" id="output">
-                    <div>ISKRA-4 Console Ready...</div>
-                </div>
-                
-                <div style="display: flex; gap: 10px;">
-                    <input type="text" id="commandInput" placeholder="Введите команду или intent" style="flex:1">
-                    <button onclick="sendManualCommand()">Отправить</button>
-                </div>
-            </div>
-        </div>
-        
-        <script>
-            const output = document.getElementById('output');
-            const commandInput = document.getElementById('commandInput');
-            
-            function log(message) {
-                const entry = document.createElement('div');
-                entry.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
-                output.appendChild(entry);
-                output.scrollTop = output.scrollHeight;
-            }
-            
-            function sendCommand(intent, inputData = {}) {
-                log(`Отправка: ${intent}`);
-                
-                fetch('/execute', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({input: inputData, intent: intent})
-                })
-                .then(response => response.json())
-                .then(data => {
-                    log(`Ответ: ${JSON.stringify(data, null, 2)}`);
-                })
-                .catch(error => {
-                    log(`Ошибка: ${error}`);
-                });
-                
-                commandInput.value = '';
-            }
-            
-            function sendManualCommand() {
-                const text = commandInput.value.trim();
-                if (!text) return;
-                
-                if (text.startsWith('{')) {
-                    try {
-                        const data = JSON.parse(text);
-                        sendCommand(data.intent || 'default', data.input || {});
-                    } catch(e) {
-                        log(`Ошибка JSON: ${e}`);
-                    }
-                } else {
-                    sendCommand(text, {});
-                }
-            }
-            
-            // Автоматически запрашиваем статус
-            setTimeout(() => {
-                sendCommand('system_status');
-            }, 500);
-        </script>
-    </body>
-    </html>
-    '''
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    print(f"🌐 Starting web server on port {port}")
-    print("=" * 60)
-    app.run(host='0.0.0.0', port=port, debug=False)
+        idempotent = result1["output_sign
