@@ -694,7 +694,7 @@ class TrustMesh:
         await self._update_network_metrics()
         
         # 4. Интеграция с другими модулями
-        if self.linked_modules["sephirotic_mining"]:
+        if self.linked_modules.get("sephirotic_mining"):
             # Награда за повышение доверия
             await self._distribute_trust_rewards(redistribution_report)
         
