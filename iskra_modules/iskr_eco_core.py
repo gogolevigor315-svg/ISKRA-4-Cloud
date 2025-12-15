@@ -767,9 +767,10 @@ async def test_symbiotic_economy() -> Dict:
     alpha_final = await node_alpha.calculate_dynamic_value()
     print(f"   Итоговый баланс Alpha: {alpha_final['base_iskr']:.6f} ISKR")
     print(f"   Когерентность сети: {alpha_final['coherence_index']:.4f}")
-    print(f"   Этическая целостность: {alpha_final['ethical_integrity']:.3f}")
+        print(f"   Этическая целостность: {alpha_final['ethical_integrity']:.3f}")
     
     print("\n✅ ТЕСТ ЗАВЕРШЕН УСПЕШНО")
     
-    return {}
-        'alpha_state':
+    return {
+        'alpha_state': alpha_final  # ← ИСПРАВЛЕН ОТСТУП и добавлено значение
+    }
