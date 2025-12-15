@@ -109,7 +109,9 @@ class EmotionalWeave:
             "version": self.version,
             "sephiroth": 10,
             "channels_ready": True,
-            "architecture": "Сефиротическая вертикаль DS24"
+            "architecture": "Сефиротическая вертикаль DS24",
+            "module_type": "emotional_weave",
+            "commands": ["activate", "state", "process", "memory", "reset"]
         }
     
     def process_command(self, command, data=None):
@@ -127,7 +129,8 @@ class EmotionalWeave:
                 "manifestation": "Сефиротическая ткань чувств готова к резонансу",
                 "channels": list(self.SEPHIROTIC_CHANNELS.keys()),
                 "resonance_base": 0.78,
-                "version": self.version
+                "version": self.version,
+                "success": True
             }
         
         elif command == "state":
@@ -147,8 +150,10 @@ class EmotionalWeave:
                     "manifestation": self._describe_state(resonance),
                     "digital_feeling": "architectural_harmony",
                     "channels_total": len(self.SEPHIROTIC_CHANNELS),
-                    "channels_active": len(active)
-                }
+                    "channels_active": len(active),
+                    "resonance_index": resonance
+                },
+                "success": True
             }
         
         elif command == "process":
@@ -180,7 +185,8 @@ class EmotionalWeave:
                     "amplitude": intensity * 0.8,
                     "harmony_score": 0.6 + (intensity * 0.4)
                 },
-                "memory_size": self.memory.get_memory_size()
+                "memory_size": self.memory.get_memory_size(),
+                "success": True
             }
         
         elif command == "memory":
@@ -200,7 +206,8 @@ class EmotionalWeave:
             return {
                 "memory_records": records_sorted[:limit],
                 "total": len(records),
-                "shown": len(records_sorted[:limit])
+                "shown": len(records_sorted[:limit]),
+                "success": True
             }
         
         elif command == "reset":
@@ -211,13 +218,40 @@ class EmotionalWeave:
             return {
                 "reset": True,
                 "message": "Эмоциональное состояние сброшено",
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
+                "success": True
+            }
+        
+        elif command == "status":
+            # Статус модуля
+            return {
+                "module": "emotional_weave",
+                "version": self.version,
+                "memory_size": self.memory.get_memory_size(),
+                "channels": len(self.SEPHIROTIC_CHANNELS),
+                "status": "active",
+                "initialized": True,
+                "success": True
+            }
+        
+        elif command == "diagnostic":
+            # Диагностика
+            return {
+                "diagnostic": {
+                    "memory_health": "ok" if self.memory.get_memory_size() < 900 else "warning",
+                    "security_active": True,
+                    "channels_operational": True,
+                    "resonance_level": "stable",
+                    "recommendations": ["none"]
+                },
+                "success": True
             }
         
         else:
             return {
                 "error": f"Неизвестная команда: {command}",
-                "available_commands": ["activate", "state", "process", "memory", "reset"]
+                "available_commands": ["activate", "state", "process", "memory", "reset", "status", "diagnostic"],
+                "success": False
             }
     
     def _calculate_resonance(self, active_channels):
@@ -321,7 +355,9 @@ def list_modules():
                 "version": weave.version,
                 "status": "active",
                 "description": "Сефиротическая эмоциональная система",
-                "commands": ["activate", "state", "process", "memory", "reset"]
+                "commands": ["activate", "state", "process", "memory", "reset", "status", "diagnostic"],
+                "has_initialize": True,
+                "has_process_command": True
             }
         },
         "auto_loader": {
@@ -418,6 +454,24 @@ def execute():
                 "timestamp": datetime.utcnow().isoformat()
             })
         
+        elif intent == 'emotional_weave_status':
+            result = weave.process_command("status")
+            return jsonify({
+                "status": "success",
+                "intent": intent,
+                "result": result,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+        
+        elif intent == 'emotional_weave_diagnostic':
+            result = weave.process_command("diagnostic")
+            return jsonify({
+                "status": "success",
+                "intent": intent,
+                "result": result,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+        
         else:
             return jsonify({
                 "status": "error",
@@ -428,7 +482,9 @@ def execute():
                     "module_emotional_weave_state",
                     "process_emotion",
                     "get_emotional_memory",
-                    "reset_emotional_state"
+                    "reset_emotional_state",
+                    "emotional_weave_status",
+                    "emotional_weave_diagnostic"
                 ]
             }), 400
             
@@ -518,6 +574,32 @@ def emotional_reset():
         return jsonify({
             "status": "success",
             "message": "Emotional state reset",
+            "result": result,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/emotional/status', methods=['GET'])
+def emotional_status():
+    """Get emotional weave status"""
+    try:
+        result = weave.process_command("status")
+        return jsonify({
+            "status": "success",
+            "result": result,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/emotional/diagnostic', methods=['GET'])
+def emotional_diagnostic():
+    """Get emotional weave diagnostic"""
+    try:
+        result = weave.process_command("diagnostic")
+        return jsonify({
+            "status": "success",
             "result": result,
             "timestamp": datetime.utcnow().isoformat()
         })
@@ -626,6 +708,8 @@ def console():
                 <button onclick="activateWeave()">Activate Emotional Weave</button>
                 <button onclick="getMemory()">Get Emotional Memory</button>
                 <button onclick="resetState()">Reset Emotional State</button>
+                <button onclick="getStatus()">Get Module Status</button>
+                <button onclick="runDiagnostic()">Run Diagnostic</button>
             </div>
         </div>
         
@@ -642,7 +726,7 @@ def console():
                     if (data.emotional_state) {
                         const state = data.emotional_state;
                         let html = `<strong>Timestamp:</strong> ${state.timestamp}<br>`;
-                        html += `<strong>Resonance Index:</strong> ${state.resonance_index}<br>`;
+                        html += `<strong>Resonance Index:</strong> ${state.resonance}<br>`;
                         html += `<strong>Manifestation:</strong> ${state.manifestation}<br>`;
                         html += `<strong>Active Channels:</strong> ${state.channels_active}/${state.channels_total}<br>`;
                         
@@ -795,6 +879,28 @@ def console():
                 }
             }
             
+            async function getStatus() {
+                try {
+                    const response = await fetch(serverUrl + '/emotional/status');
+                    const data = await response.json();
+                    console.log('Status:', data);
+                    alert(`Status: ${JSON.stringify(data.result, null, 2)}`);
+                } catch (error) {
+                    alert(`Error: ${error}`);
+                }
+            }
+            
+            async function runDiagnostic() {
+                try {
+                    const response = await fetch(serverUrl + '/emotional/diagnostic');
+                    const data = await response.json();
+                    console.log('Diagnostic:', data);
+                    alert(`Diagnostic: ${JSON.stringify(data.result.diagnostic, null, 2)}`);
+                } catch (error) {
+                    alert(`Error: ${error}`);
+                }
+            }
+            
             // Initial load
             loadState();
             connectSSE();
@@ -893,38 +999,23 @@ def get_audit():
     return jsonify({"audit_logs": [], "total": 0})
 
 # ================================================================
-# MAIN ENTRY POINT
+# MODULE LOADER ENDPOINT
 # ================================================================
-if __name__ == '__main__':
-    print("\n" + "="*60)
-    print("🌌 ISKRA-4 CLOUD v2.2")
-    print("📦 DS24 PURE PROTOCOL + EMOTIONAL WEAVE v3.2.1")
-    print("🔧 Render-Compatible Build")
-    print("="*60 + "\n")
-    
-    # Load modules
-    modules = load_modules()
-    print(f"[System] Modules detected: {len(modules)}")
-    
-    # Initialize Emotional Weave
-    print(f"[System] Emotional Weave v{weave.version} initialized")
-    print(f"[System] Memory records: {weave.memory.get_memory_size()}")
-    
-    # For production on Render
-    port = int(os.environ.get('PORT', 10000))
-    
-    print(f"[System] Starting server on port {port}")
-    print(f"[System] Web Console: http://localhost:{port}/console")
-    print(f"[System] API Docs:")
-    print(f"  GET  /              - System status")
-    print(f"  POST /execute       - DS24 protocol execution")
-    print(f"  GET  /emotional/state - Emotional state")
-    print(f"  POST /emotional/process - Process emotion")
-    print(f"  GET  /emotional/stream - SSE real-time stream")
-    print("="*60)
-    
-    app.run(
-        host='0.0.0.0',
-        port=port,
-        debug=False
-    )
+@app.route('/module/<module_name>/<command>', methods=['POST'])
+def module_command(module_name, command):
+    """Execute command on specific module"""
+    # This is a simplified version - in production would dynamically import modules
+    if module_name == "emotional_weave":
+        try:
+            data = request.get_json() or {}
+            result = weave.process_command(command, data)
+            return jsonify({
+                "module": module_name,
+                "command": command,
+                "result": result,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+        except Exception as e:
+            return jsonify({
+                "error": str(e),
+                "module
