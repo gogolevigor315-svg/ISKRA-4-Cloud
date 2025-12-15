@@ -338,7 +338,7 @@ class SymbioticEconomicCore:
         }
     
     def mine_command(self, data: Dict) -> Dict:
-        """Маинниг через Proof of Resonance"""
+        """Маиннинг через Proof of Resonance"""
         async def _mine():
             meaning = MeaningVector(
                 flow=data.get('flow', 0.5),
