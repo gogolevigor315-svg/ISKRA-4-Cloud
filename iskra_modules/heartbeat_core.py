@@ -844,4 +844,4 @@ if __name__ == "__main__":
     print("📊 ИТОГОВАЯ СТАТИСТИКА:")
     print(f"   Модуль: {MODULE_NAME} v{MODULE_VERSION}")
     print(f"   Частота ритма: {results['status']['heart_rate']} BPM")
-    print(f"   Когерентность: {results['co
+    print(f"   Когерентность: {results['coherence']:.2f}")
