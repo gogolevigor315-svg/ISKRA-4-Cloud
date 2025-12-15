@@ -771,5 +771,5 @@ async def test_symbiotic_economy() -> Dict:
     
     print("\n✅ ТЕСТ ЗАВЕРШЕН УСПЕШНО")
     
-    return {
+    return {}
         'alpha_state':
