@@ -1018,4 +1018,4 @@ def module_command(module_name, command):
         except Exception as e:
             return jsonify({
                 "error": str(e),
-                "module
+                "module"
