@@ -792,7 +792,7 @@ class ImmuneCore:
         )
         
         return {
-            "command": "heal",
+                       "command": "heal",
             "healing_session": healing_session,
             "system_coherence_after": self.metrics['system_coherence'],
             "immunity_state": self.immunity_state
@@ -805,4 +805,5 @@ class ImmuneCore:
             "node_id": self.node_id,
             "status": self.status,
             "immunity_state": self.immunity_state,
-            ""
+            "metrics": self.metrics  # ← ДОБАВЛЕНО недостающее поле
+        }
