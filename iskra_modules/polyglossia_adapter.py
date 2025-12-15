@@ -712,7 +712,7 @@ class PolyglossiaAdapter:
         text_lower = text.lower()
         
         # Быстрая проверка через пересечение множеств
-        words = set(re.findall(r'\b\w+\b', text_lower))
+                words = set(re.findall(r'\b\w+\b', text_lower))
         found_keywords = words.intersection(self.toxicity_keywords_set)
         
         toxicity_score = len(found_keywords) * 0.2
@@ -726,4 +726,5 @@ class PolyglossiaAdapter:
             "risk_level": round(risk_level, 3),
             "score": round(toxicity_score, 3),
             "threshold": 0.3,
-            "keywords_found"
+            "keywords_found": list(found_keywords)  # ← ИСПРАВЛЕНО: добавлено значение
+        }  # ← ДОБАВЛЕНА закрывающая скобка
