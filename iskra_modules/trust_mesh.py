@@ -797,14 +797,18 @@ class TrustMesh:
         # Базовые факторы
         factors = {
             'duration': min(1.0, interaction.get('duration_seconds', 0) / 7200),  # 2 часа максимум
-            'depth': interaction.get('interaction_depth', 0.5),
+                        'depth': interaction.get('interaction_depth', 0.5),
             'reciprocity': interaction.get('reciprocity_score', 0.5),
             'emotional_charge': interaction.get('emotional_charge', 0.5),
             'sephirotic_alignment': interaction.get('sephirotic_alignment', 0.5)
         }
         
         # Веса в зависимости от типа доверия
-        weights = {}
+        weights = {
             TrustType.EMPATHIC_FLOW: {'duration': 0.2, 'depth': 0.4, 'reciprocity': 0.2, 
                                       'emotional_charge': 0.2, 'sephirotic_alignment': 0.0},
-            Trust
+            TrustType.STRUCTURAL: {'duration': 0.3, 'depth': 0.3, 'reciprocity': 0.2,
+                                   'emotional_charge': 0.1, 'sephirotic_alignment': 0.1},
+            TrustType.ETHICAL_CORE: {'duration': 0.1, 'depth': 0.2, 'reciprocity': 0.3,
+                                     'emotional_charge': 0.2, 'sephirotic_alignment': 0.2}
+        }
