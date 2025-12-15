@@ -712,7 +712,7 @@ class PolyglossiaAdapter:
         text_lower = text.lower()
         
         # Быстрая проверка через пересечение множеств
-                words = set(re.findall(r'\b\w+\b', text_lower))
+        words = set(re.findall(r'\b\w+\b', text_lower))
         found_keywords = words.intersection(self.toxicity_keywords_set)
         
         toxicity_score = len(found_keywords) * 0.2
