@@ -805,4 +805,4 @@ class ImmuneCore:
             "node_id": self.node_id,
             "status": self.status,
             "immunity_state": self.immunity_state,
-            "
+            ""
