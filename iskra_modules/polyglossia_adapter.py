@@ -726,4 +726,4 @@ class PolyglossiaAdapter:
             "risk_level": round(risk_level, 3),
             "score": round(toxicity_score, 3),
             "threshold": 0.3,
-            "keywords_found
+            "keywords_found"
