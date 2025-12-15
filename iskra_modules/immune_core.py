@@ -1,5 +1,5 @@
 # =============================================================
-# ISKRA-4 · IMMUNE_CORE v1.0
+# ISKRA-4 · IMMUNE_CORE v1.0 - ИСПРАВЛЕННАЯ ВЕРСИЯ
 # Квантово-резонансная иммунная система для ISKRA-4
 # Полная интеграция с модульной архитектурой
 # =============================================================
@@ -9,14 +9,15 @@ import hashlib
 import json
 from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional, Union
 import logging
 from collections import deque
 import secrets
 import time
+import sys
 
 # Настройка логгера
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 class SephiraLevel(Enum):
@@ -47,7 +48,7 @@ class ThreatLevel(Enum):
         self.description = description
     
     @classmethod
-    def from_value(cls, value):
+    def from_value(cls, value: float) -> 'ThreatLevel':
         """Определение уровня угрозы по значению"""
         for level in cls:
             if level.min_val <= value < level.max_val:
@@ -70,7 +71,7 @@ class QuantumResonanceScanner:
         # Матрица сефиротических весов (10x10)
         self.sephirotic_matrix = self._initialize_sephirotic_matrix()
     
-    def _initialize_sephirotic_matrix(self):
+    def _initialize_sephirotic_matrix(self) -> np.ndarray:
         """Инициализация матрицы сефиротических связей"""
         matrix = np.zeros((10, 10))
         
@@ -96,7 +97,7 @@ class QuantumResonanceScanner:
         np.fill_diagonal(matrix, 1.0)  # Само-резонанс
         return matrix
     
-    def scan_quantum_resonance(self, data_stream, context=None):
+    def scan_quantum_resonance(self, data_stream: Dict, context: Optional[Dict] = None) -> Dict:
         """Сканирование квантового резонанса в данных"""
         context = context or {}
         
@@ -135,7 +136,7 @@ class QuantumResonanceScanner:
             'quantum_signature': self._generate_quantum_signature(data_stream)
         }
     
-    def _extract_sephirotic_profile(self, data):
+    def _extract_sephirotic_profile(self, data: Dict) -> List[float]:
         """Извлечение сефиротического профиля из данных"""
         profile = [0.5] * 10  # Базовый нейтральный профиль
         
@@ -181,7 +182,7 @@ class QuantumResonanceScanner:
         
         return profile
     
-    def _calculate_sephira_harmony(self, sephira_index, profile):
+    def _calculate_sephira_harmony(self, sephira_index: int, profile: List[float]) -> float:
         """Расчет гармонии для конкретной сефиры"""
         base_score = profile[sephira_index]
         
@@ -199,49 +200,49 @@ class QuantumResonanceScanner:
         
         return max(0.0, min(1.0, harmony))
     
-    def _pattern_ethical_violation(self, data, profile):
+    def _pattern_ethical_violation(self, data: Dict, profile: List[float]) -> float:
         """Паттерн этического нарушения"""
         # BINAH (3) и GEVURAH (4) - понимание и строгость
         if profile[2] < 0.3 or profile[3] < 0.3:
             return 0.8
         return 0.0
     
-    def _pattern_emotional_toxic(self, data, profile):
+    def _pattern_emotional_toxic(self, data: Dict, profile: List[float]) -> float:
         """Паттерн эмоциональной токсичности"""
         # NETZACH (6) - эмоции
         if profile[5] > 0.8 or profile[5] < 0.2:
             return 0.7
         return 0.0
     
-    def _pattern_sephirotic_imbalance(self, data, profile):
+    def _pattern_sephirotic_imbalance(self, data: Dict, profile: List[float]) -> float:
         """Паттерн сефиротического дисбаланса"""
         variances = np.var(profile)
         if variances > 0.1:
             return min(0.9, variances)
         return 0.0
     
-    def _pattern_energy_drain(self, data, profile):
+    def _pattern_energy_drain(self, data: Dict, profile: List[float]) -> float:
         """Паттерн энергетического дренажа"""
         # KETHER (0) - воля, энергия
         if profile[0] < 0.2:
             return 0.6
         return 0.0
     
-    def _pattern_trust_breach(self, data, profile):
+    def _pattern_trust_breach(self, data: Dict, profile: List[float]) -> float:
         """Паттерн нарушения доверия"""
         # CHESED (3) - милосердие, доверие
         if profile[3] < 0.3:
             return 0.75
         return 0.0
     
-    def _pattern_logical_paradox(self, data, profile):
+    def _pattern_logical_paradox(self, data: Dict, profile: List[float]) -> float:
         """Паттерн логического парадокса"""
         # BINAH (2) - понимание, логика
         if 0.4 < profile[2] < 0.6:
             return 0.3  # Низкая угроза, но требует внимания
         return 0.0
     
-    def _calculate_threat_level(self, harmony_scores, anomalies):
+    def _calculate_threat_level(self, harmony_scores: List[float], anomalies: List[Dict]) -> float:
         """Расчет общего уровня угрозы"""
         # Базовый уровень из гармонии
         base_threat = 1.0 - np.mean(harmony_scores)
@@ -257,23 +258,23 @@ class QuantumResonanceScanner:
         
         return total_threat
     
-    def _identify_affected_sephira(self, anomaly_score):
+    def _identify_affected_sephira(self, anomaly_score: float) -> int:
         """Идентификация наиболее затронутой сефиры"""
         # Простая эвристика - основана на уровне угрозы
         return min(9, int(anomaly_score * 10))
     
-    def _recommend_sephira_correction(self, harmony_scores):
+    def _recommend_sephira_correction(self, harmony_scores: List[float]) -> int:
         """Рекомендация сефиры для коррекции"""
         weakest = np.argmin(harmony_scores)
-        return weakest
+        return int(weakest)
     
-    def _generate_quantum_signature(self, data):
+    def _generate_quantum_signature(self, data: Dict) -> str:
         """Генерация квантовой сигнатуры данных"""
         data_str = json.dumps(data, sort_keys=True)
         quantum_seed = f"{data_str}{time.time_ns()}{secrets.token_hex(8)}"
         return hashlib.sha3_256(quantum_seed.encode()).hexdigest()[:16]
     
-    def _normalize_intent(self, intent):
+    def _normalize_intent(self, intent: Union[str, Any]) -> float:
         """Нормализация намерения"""
         if isinstance(intent, str):
             positive_keywords = ['create', 'heal', 'help', 'grow', 'connect']
@@ -287,7 +288,7 @@ class QuantumResonanceScanner:
         
         return 0.5
     
-    def _normalize_emotion(self, emotion):
+    def _normalize_emotion(self, emotion: Union[str, int, float, Any]) -> float:
         """Нормализация эмоционального заряда"""
         if isinstance(emotion, (int, float)):
             return max(0.0, min(1.0, abs(emotion)))
@@ -319,7 +320,7 @@ class SephiraEthicalFilter:
             'autonomy_honor': lambda x: x.get('autonomy_respect', 0) > 0.6
         }
     
-    def _initialize_ethical_matrices(self):
+    def _initialize_ethical_matrices(self) -> Dict[int, np.ndarray]:
         """Инициализация этических матриц для каждой сефиры"""
         matrices = {}
         
@@ -334,7 +335,7 @@ class SephiraEthicalFilter:
         
         return matrices
     
-    def filter_with_ds24(self, data, context=None):
+    def filter_with_ds24(self, data: Dict, context: Optional[Dict] = None) -> Dict:
         """Фильтрация через детерминированные правила DS24"""
         context = context or {}
         
@@ -356,8 +357,8 @@ class SephiraEthicalFilter:
         sephirotic_ethics = self._evaluate_sephirotic_ethics(data)
         
         # Общая оценка
-        compliance_score = len(rule_compliances) / len(self.ds24_rules)
-        ethical_score = np.mean(list(sephirotic_ethics.values()))
+        compliance_score = len(rule_compliances) / len(self.ds24_rules) if self.ds24_rules else 1.0
+        ethical_score = np.mean(list(sephirotic_ethics.values())) if sephirotic_ethics else 0.5
         
         total_score = 0.6 * compliance_score + 0.4 * ethical_score
         
@@ -384,7 +385,7 @@ class SephiraEthicalFilter:
         
         return result
     
-    def _evaluate_sephirotic_ethics(self, data):
+    def _evaluate_sephirotic_ethics(self, data: Dict) -> Dict[int, float]:
         """Оценка этики по 10 сефиротам"""
         scores = {}
         
@@ -394,7 +395,7 @@ class SephiraEthicalFilter:
         
         return scores
     
-    def _calculate_sephira_ethics(self, sephira, data):
+    def _calculate_sephira_ethics(self, sephira: int, data: Dict) -> float:
         """Расчет этической оценки для конкретной сефиры"""
         # KETHER - чистота намерения
         if sephira == 0:
@@ -427,14 +428,14 @@ class SephiraEthicalFilter:
         # Остальные сефиры - базовая оценка
         return 0.7
     
-    def _get_primary_ethical_sephira(self, ethics_scores):
+    def _get_primary_ethical_sephira(self, ethics_scores: Dict[int, float]) -> int:
         """Определение ведущей этической сефиры"""
         if not ethics_scores:
             return 5  # TIPHARETH по умолчанию
         
         return max(ethics_scores.items(), key=lambda x: x[1])[0]
     
-    def _generate_ethical_signature(self, data, score):
+    def _generate_ethical_signature(self, data: Dict, score: float) -> str:
         """Генерация этической сигнатуры"""
         data_hash = hashlib.md5(json.dumps(data, sort_keys=True).encode()).hexdigest()
         return f"ETH-{data_hash[:8]}-{score:.3f}"
@@ -454,7 +455,7 @@ class AutoProtectionSystem:
         self.active_protections = {}
         self.protection_history = deque(maxlen=500)
         
-    def activate_protection(self, threat_level, context):
+    def activate_protection(self, threat_level: ThreatLevel, context: Dict) -> List[Dict]:
         """Активация защитных слоев"""
         protections_activated = []
         
@@ -492,7 +493,7 @@ class AutoProtectionSystem:
         
         return protections_activated
     
-    def _determine_protection_layers(self, threat_level, context):
+    def _determine_protection_layers(self, threat_level: ThreatLevel, context: Dict) -> List[str]:
         """Определение необходимых слоев защиты"""
         layers = []
         
@@ -511,7 +512,7 @@ class AutoProtectionSystem:
         
         return list(set(layers))  # Удаление дубликатов
     
-    def _layer_quantum_quarantine(self, context):
+    def _layer_quantum_quarantine(self, context: Dict) -> Dict:
         """Квантовый карантин угрозы"""
         return {
             'status': 'quarantine_active',
@@ -521,7 +522,7 @@ class AutoProtectionSystem:
             'monitoring_frequency': '10hz'
         }
     
-    def _layer_resonance_healing(self, context):
+    def _layer_resonance_healing(self, context: Dict) -> Dict:
         """Резонансное исцеление системы"""
         return {
             'status': 'healing_initiated',
@@ -532,7 +533,7 @@ class AutoProtectionSystem:
             'vitality_restoration': 0.75
         }
     
-    def _layer_ethical_containment(self, context):
+    def _layer_ethical_containment(self, context: Dict) -> Dict:
         """Этическое сдерживание"""
         return {
             'status': 'ethical_boundary_established',
@@ -542,7 +543,7 @@ class AutoProtectionSystem:
             'violation_alert_threshold': 0.3
         }
     
-    def _layer_sephirotic_rebalance(self, context):
+    def _layer_sephirotic_rebalance(self, context: Dict) -> Dict:
         """Сефиротическое перебалансирование"""
         return {
             'status': 'rebalancing_active',
@@ -553,7 +554,7 @@ class AutoProtectionSystem:
             'focus_sephira': context.get('weakest_sephira', 5)
         }
     
-    def _layer_collective_shield(self, context):
+    def _layer_collective_shield(self, context: Dict) -> Dict:
         """Коллективный щит доверия"""
         return {
             'status': 'collective_shield_engaged',
@@ -564,7 +565,7 @@ class AutoProtectionSystem:
             'collective_iq_boost': 0.15
         }
     
-    def _calculate_energy_cost(self, layer_name):
+    def _calculate_energy_cost(self, layer_name: str) -> float:
         """Расчет энергозатрат слоя защиты"""
         costs = {
             'quantum_quarantine': 2.5,
@@ -575,7 +576,7 @@ class AutoProtectionSystem:
         }
         return costs.get(layer_name, 1.0)
     
-    def _get_sephira_focus(self, layer_name):
+    def _get_sephira_focus(self, layer_name: str) -> int:
         """Определение фокусной сефиры для слоя защиты"""
         focus_map = {
             'quantum_quarantine': 4,  # GEVURAH
@@ -616,7 +617,7 @@ class ImmuneCore:
         
         logger.info(f"🛡️ Immune Core v{self.version} initialized with node ID: {self.node_id}")
     
-    def initialize(self):
+    def initialize(self) -> Dict:
         """Инициализация модуля (стандартный интерфейс ISKRA-4)"""
         self.status = "active"
         self.immunity_state = "active_monitoring"
@@ -639,7 +640,7 @@ class ImmuneCore:
             "timestamp": datetime.now().isoformat()
         }
     
-    def process_command(self, command, data=None):
+    def process_command(self, command: str, data: Optional[Dict] = None) -> Dict:
         """Обработка команд иммунной системы"""
         data = data or {}
         
@@ -688,7 +689,7 @@ class ImmuneCore:
                 "timestamp": datetime.now().isoformat()
             }
     
-    def _cmd_scan(self, data):
+    def _cmd_scan(self, data: Dict) -> Dict:
         """Команда сканирования"""
         self.metrics['scans_performed'] += 1
         
@@ -717,7 +718,7 @@ class ImmuneCore:
             "metrics_updated": self.metrics['scans_performed']
         }
     
-    def _cmd_filter(self, data):
+    def _cmd_filter(self, data: Dict) -> Dict:
         """Команда этической фильтрации"""
         filter_result = self.ethical_filter.filter_with_ds24(
             data.get('data', {}),
@@ -734,7 +735,7 @@ class ImmuneCore:
             "suggested_action": "quarantine" if not filter_result['is_ethical'] else "allow"
         }
     
-    def _cmd_protect(self, data):
+    def _cmd_protect(self, data: Dict) -> Dict:
         """Команда активации защиты"""
         threat_level_name = data.get('threat_level', 'CAUTION')
         
@@ -764,7 +765,7 @@ class ImmuneCore:
             "system_coherence": self._calculate_system_coherence()
         }
     
-    def _cmd_heal(self, data):
+    def _cmd_heal(self, data: Dict) -> Dict:
         """Команда исцеления системы"""
         healing_session = {
             'id': f"HEAL-{int(time.time())}",
@@ -797,47 +798,11 @@ class ImmuneCore:
             "immunity_state": self.immunity_state
         }
     
-    def _cmd_status(self, data):
+    def _cmd_status(self, data: Dict) -> Dict:
         """Команда статуса системы"""
         return {
             "command": "status",
             "node_id": self.node_id,
             "status": self.status,
             "immunity_state": self.immunity_state,
-            "metrics": self.metrics,
-            "active_protections": len(self.protection_system.active_protections),
-            "threats_detected": len(self.threat_history),
-            "healing_sessions": len(self.healing_sessions),
-            "timestamp": datetime.now().isoformat()
-        }
-    
-    def _cmd_diagnostic(self, data):
-        """Команда диагностики системы"""
-        return {
-            "command": "diagnostic",
-            "system_health": self._check_system_health(),
-            "subsystems": {
-                "scanner": "operational",
-                "ethical_filter": "operational",
-                "protection_system": "operational"
-            },
-            "resource_usage": self._check_resource_usage(),
-            "recommendations": self._generate_diagnostic_recommendations()
-        }
-    
-    def _cmd_threat_report(self, data):
-        """Команда отчета об угрозах"""
-        recent_threats = list(self.threat_history)[-50:]  # Последние 50 угроз
-        
-        threat_summary = {
-            'total_threats': len(self.threat_history),
-            'recent_threats': len(recent_threats),
-            'threat_distribution': self._calculate_threat_distribution(recent_threats),
-            'most_common_pattern': self._identify_most_common_pattern(recent_threats),
-            'highest_threat_level': self._find_highest_threat(recent_threats)
-        }
-        
-        return {
-            "command": "threat_report",
-            "summary": threat_summary,
-            "recent_threats": recent_th
+            "
