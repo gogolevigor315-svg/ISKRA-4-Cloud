@@ -1007,11 +1007,17 @@ def module_command(module_name, command):
     # This is a simplified version - in production would dynamically import modules
     if module_name == "emotional_weave":
         try:
-            data = request.get_json() or {}
-            result = weave.process_command(command, data)
-            return jsonify({
-                "module": module_name,
-                "command": command,
-                "result": result,
-                "timestamp": datetime.utcnow().isoformat()
-            })
+    data = request.get_json() or {}
+    result = weave.process_command(command, data)
+    return jsonify({
+        "module": module_name,
+        "command": command,
+        "result": result,
+        "timestamp": datetime.utcnow().isoformat()
+    })
+except Exception as e:
+    return jsonify({
+        "error": str(e),
+        "module": module_name,
+        "timestamp": datetime.utcnow().isoformat()
+    })
