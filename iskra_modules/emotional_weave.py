@@ -1009,8 +1009,9 @@ def module_command(module_name, command):
         try:
             data = request.get_json() or {}
             result = weave.process_command(command, data)
-            return jsonify({
+                        return jsonify({
                 "module": module_name,
                 "command": command,
                 "result": result,
-                "timestamp": datetime.utcnow().iso
+                "timestamp": datetime.utcnow().isoformat()
+            })
