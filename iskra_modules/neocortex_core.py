@@ -1,994 +1,888 @@
-# neocortex_core.py - СОВЕРШЕННЫЙ НЕОКОРТЕКС ИСКРА (ФИНАЛЬНАЯ ВЕРСИЯ)
-import asyncio
-import numpy as np
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple, Set, Callable
-from dataclasses import dataclass, field
-from collections import deque, defaultdict
-import statistics
-import json
-import hashlib
-import networkx as nx
-from enum import Enum
-import pickle
-from scipy import stats
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
-import logging
-import functools
-import redis.asyncio as redis
-from pathlib import Path
-import lz4.frame
-import msgpack
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
-import aiohttp
-from aiohttp import web, WSMsgType
-import websockets
-import sqlite3
-import zstandard as zstd
-
-logger = logging.getLogger(__name__)
-
+# neocortex_core_v4_2.py
+# РАСШИРЕНИЕ ВЕРСИИ 4.1
 
 # ============================================================================
-# ВЕБСОКЕТ ИНТЕРФЕЙС ДЛЯ ДАННЫХ
+# МЕХАНИЗМ СНА И КОНСОЛИДАЦИИ ПАМЯТИ
 # ============================================================================
 
-class DataStreamWebSocket:
-    """WebSocket интерфейс для непрерывного стриминга данных из Data Bridge"""
+class SleepConsolidationSystem:
+    """Система консолидации памяти во время "сна" (оффлайн обработки)"""
     
-    def __init__(self, host: str = "0.0.0.0", port: int = 8765):
-        self.host = host
-        self.port = port
-        self.connections: Set[websockets.WebSocketServerProtocol] = set()
-        self.data_bridge = None
-        self.stream_tasks = {}
-        self.message_queue = asyncio.Queue(maxsize=10000)
-        self.subscriptions = defaultdict(set)  # topic -> connections
-        self.server = None
+    def __init__(self, config: NeocortexConfig, 
+                 memory_network: AdaptiveMemoryNetwork,
+                 hierarchical_memory: HierarchicalMemory):
+        
+        self.config = config
+        self.memory_network = memory_network
+        self.hierarchical_memory = hierarchical_memory
+        
+        # Состояние сна
+        self.sleep_state = {
+            'is_sleeping': False,
+            'sleep_cycle': 0,
+            'last_sleep': None,
+            'dreams_generated': 0,
+            'memory_consolidated': 0
+        }
+        
+        # Параметры сна
+        self.sleep_params = {
+            'consolidation_interval': 3600,  # Каждый час
+            'dream_probability': 0.3,
+            'memory_replay_ratio': 0.1,  # 10% воспоминаний для перепроигрывания
+            'synaptic_pruning_threshold': 0.1,
+            'min_sleep_duration': 300,  # 5 минут
+            'max_sleep_duration': 1800  # 30 минут
+        }
+        
+        # Очередь консолидации
+        self.consolidation_queue = asyncio.Queue(maxsize=1000)
+        self.consolidation_tasks = set()
         
         # Статистика
         self.stats = {
-            'total_messages': 0,
-            'active_connections': 0,
-            'bytes_transferred': 0,
-            'subscriptions': defaultdict(int)
+            'total_sleep_cycles': 0,
+            'total_consolidation_time': 0,
+            'memories_processed': 0,
+            'dreams_created': 0,
+            'pruned_connections': 0
         }
         
-        # Схемы валидации сообщений
-        self.schemas = {
-            'sensor_data': {
-                'required': ['timestamp', 'source', 'data'],
-                'types': {
-                    'timestamp': str,
-                    'source': str,
-                    'data': (dict, list)
-                }
-            },
-            'cognitive_event': {
-                'required': ['event_type', 'timestamp', 'payload'],
-                'types': {
-                    'event_type': str,
-                    'timestamp': str,
-                    'payload': dict
-                }
-            }
-        }
+        # Запуск фоновой консолидации
+        self._start_sleep_monitor()
         
-        logger.info(f"WebSocket интерфейс инициализирован: {host}:{port}")
+        logger.info("SleepConsolidationSystem инициализирована")
     
-    async def start(self):
-        """Запуск WebSocket сервера"""
-        self.server = await websockets.serve(
-            self.websocket_handler,
-            self.host,
-            self.port
+    def _start_sleep_monitor(self):
+        """Запуск мониторинга необходимости сна"""
+        
+        async def sleep_monitor():
+            while True:
+                try:
+                    # Проверка времени с последнего сна
+                    if self.sleep_state['last_sleep']:
+                        time_since_sleep = (datetime.utcnow() - 
+                                          self.sleep_state['last_sleep']).total_seconds()
+                        
+                        if time_since_sleep > self.sleep_params['consolidation_interval']:
+                            await self.initiate_sleep_cycle()
+                    
+                    await asyncio.sleep(60)  # Проверка каждую минуту
+                    
+                except Exception as e:
+                    logger.error(f"Ошибка в мониторе сна: {e}")
+                    await asyncio.sleep(10)
+        
+        asyncio.create_task(sleep_monitor())
+    
+    async def initiate_sleep_cycle(self, forced: bool = False) -> bool:
+        """Инициация цикла сна и консолидации"""
+        
+        if self.sleep_state['is_sleeping'] and not forced:
+            logger.debug("Уже в состоянии сна")
+            return False
+        
+        logger.info(f"Инициация цикла сна (цикл {self.sleep_state['sleep_cycle']})")
+        
+        # Начало сна
+        self.sleep_state['is_sleeping'] = True
+        self.sleep_state['sleep_cycle'] += 1
+        
+        sleep_start = datetime.utcnow()
+        
+        try:
+            # Фаза 1: Сбор памяти для консолидации
+            memories_to_consolidate = await self._gather_memories_for_consolidation()
+            
+            # Фаза 2: Перепроигрывание и усиление важных воспоминаний
+            consolidated_count = await self._replay_and_consolidate(memories_to_consolidate)
+            
+            # Фаза 3: Генерация "снов" (случайные ассоциации)
+            if random.random() < self.sleep_params['dream_probability']:
+                dreams_generated = await self._generate_dreams(memories_to_consolidate)
+                self.sleep_state['dreams_generated'] += dreams_generated
+            
+            # Фаза 4: Синаптическое прунирование
+            pruned_count = await self._synaptic_pruning()
+            
+            # Фаза 5: Оптимизация индексов
+            await self._optimize_memory_indices()
+            
+            # Обновление статистики
+            sleep_duration = (datetime.utcnow() - sleep_start).total_seconds()
+            self.stats['total_consolidation_time'] += sleep_duration
+            self.stats['memories_processed'] += consolidated_count
+            self.stats['pruned_connections'] += pruned_count
+            self.stats['total_sleep_cycles'] += 1
+            
+            self.sleep_state['last_sleep'] = datetime.utcnow()
+            self.sleep_state['memory_consolidated'] += consolidated_count
+            
+            logger.info(f"Цикл сна завершен: "
+                       f"{consolidated_count} воспоминаний консолидировано, "
+                       f"{pruned_count} связей обрезано, "
+                       f"длительность: {sleep_duration:.1f}с")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Ошибка во время цикла сна: {e}")
+            return False
+            
+        finally:
+            self.sleep_state['is_sleeping'] = False
+    
+    async def _gather_memories_for_consolidation(self) -> List[Dict[str, Any]]:
+        """Сбор воспоминаний для консолидации"""
+        
+        memories = []
+        
+        try:
+            # Получение недавних воспоминаний из сети
+            episodic_memories = list(self.memory_network.episodic_memory)
+            
+            # Фильтрация по важности и новизне
+            for memory in episodic_memories:
+                # Расчет оценки для консолидации
+                consolidation_score = self._calculate_consolidation_score(memory)
+                
+                if consolidation_score > 0.3:  # Порог консолидации
+                    memories.append({
+                        'memory': memory,
+                        'score': consolidation_score,
+                        'age': (datetime.utcnow() - memory['timestamp']).total_seconds()
+                    })
+            
+            # Сортировка по оценке
+            memories.sort(key=lambda x: x['score'], reverse=True)
+            
+            # Ограничение количества
+            max_memories = int(len(episodic_memories) * 
+                             self.sleep_params['memory_replay_ratio'])
+            memories = memories[:max_memories]
+            
+            logger.debug(f"Собрано {len(memories)} воспоминаний для консолидации")
+            
+        except Exception as e:
+            logger.error(f"Ошибка сбора воспоминаний: {e}")
+        
+        return memories
+    
+    def _calculate_consolidation_score(self, memory: Dict[str, Any]) -> float:
+        """Расчет оценки важности для консолидации"""
+        
+        score = 0.0
+        
+        # 1. Эмоциональная значимость
+        if 'emotional_intensity' in memory.get('experience', {}):
+            emotional_score = memory['experience']['emotional_intensity']
+            score += emotional_score * 0.4
+        
+        # 2. Временная свежесть (новые воспоминания важнее)
+        age = (datetime.utcnow() - memory['timestamp']).total_seconds()
+        recency_score = max(0, 1 - age / 86400)  # Затухание за сутки
+        score += recency_score * 0.3
+        
+        # 3. Частота активации (из семантической сети)
+        concepts = self.memory_network._extract_concepts(
+            memory.get('context', {}),
+            memory.get('features', {})
         )
         
-        # Запуск обработки очереди сообщений
-        asyncio.create_task(self._process_message_queue())
+        activation_score = 0.0
+        for concept in concepts[:5]:
+            if concept in self.memory_network.semantic_network:
+                weight = self.memory_network.semantic_network.nodes[concept].get('weight', 0)
+                activation_score += weight
         
-        # Запуск мониторинга соединений
-        asyncio.create_task(self._monitor_connections())
+        activation_score = min(1.0, activation_score / 10)
+        score += activation_score * 0.3
         
-        logger.info(f"WebSocket сервер запущен на ws://{self.host}:{self.port}")
+        return min(1.0, score)
     
-    async def websocket_handler(self, websocket: websockets.WebSocketServerProtocol, path: str):
-        """Обработчик WebSocket соединений"""
-        connection_id = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
+    async def _replay_and_consolidate(self, memories: List[Dict[str, Any]]) -> int:
+        """Перепроигрывание и консолидация воспоминаний"""
         
-        self.connections.add(websocket)
-        self.stats['active_connections'] += 1
+        consolidated_count = 0
         
-        logger.info(f"Новое WebSocket соединение: {connection_id}")
-        
-        try:
-            # Отправка приветственного сообщения
-            await websocket.send(json.dumps({
-                'type': 'welcome',
-                'connection_id': connection_id,
-                'timestamp': datetime.utcnow().isoformat(),
-                'capabilities': ['subscribe', 'publish', 'query'],
-                'schema_versions': list(self.schemas.keys())
-            }))
-            
-            # Основной цикл обработки сообщений
-            async for message in websocket:
-                try:
-                    data = json.loads(message)
-                    await self._handle_client_message(websocket, connection_id, data)
-                    
-                except json.JSONDecodeError:
-                    await websocket.send(json.dumps({
-                        'type': 'error',
-                        'error': 'invalid_json',
-                        'message': 'Invalid JSON format'
-                    }))
-                except Exception as e:
-                    logger.error(f"Ошибка обработки сообщения: {e}")
-                    await websocket.send(json.dumps({
-                        'type': 'error',
-                        'error': 'processing_error',
-                        'message': str(e)
-                    }))
-        
-        except websockets.exceptions.ConnectionClosed:
-            logger.info(f"WebSocket соединение закрыто: {connection_id}")
-        except Exception as e:
-            logger.error(f"Ошибка WebSocket соединения {connection_id}: {e}")
-        finally:
-            # Очистка
-            self.connections.remove(websocket)
-            self.stats['active_connections'] -= 1
-            
-            # Удаление из подписок
-            for topic, connections in self.subscriptions.items():
-                if websocket in connections:
-                    connections.remove(websocket)
-                    self.stats['subscriptions'][topic] -= 1
-    
-    async def _handle_client_message(self, websocket: websockets.WebSocketServerProtocol, 
-                                    connection_id: str, data: Dict[str, Any]):
-        """Обработка сообщений от клиента"""
-        msg_type = data.get('type')
-        
-        if msg_type == 'subscribe':
-            # Подписка на топик
-            topic = data.get('topic')
-            if topic:
-                self.subscriptions[topic].add(websocket)
-                self.stats['subscriptions'][topic] += 1
-                
-                await websocket.send(json.dumps({
-                    'type': 'subscription_confirmed',
-                    'topic': topic,
-                    'timestamp': datetime.utcnow().isoformat()
-                }))
-                
-                logger.debug(f"Соединение {connection_id} подписано на топик: {topic}")
-        
-        elif msg_type == 'unsubscribe':
-            # Отписка от топика
-            topic = data.get('topic')
-            if topic and websocket in self.subscriptions.get(topic, set()):
-                self.subscriptions[topic].remove(websocket)
-                self.stats['subscriptions'][topic] -= 1
-        
-        elif msg_type == 'publish':
-            # Публикация данных
-            topic = data.get('topic')
-            payload = data.get('payload', {})
-            
-            if topic:
-                # Валидация по схеме
-                schema_name = data.get('schema', 'sensor_data')
-                if schema_name in self.schemas:
-                    if not self._validate_schema(payload, self.schemas[schema_name]):
-                        await websocket.send(json.dumps({
-                            'type': 'error',
-                            'error': 'validation_error',
-                            'message': f'Invalid schema: {schema_name}'
-                        }))
-                        return
-                
-                # Постановка в очередь для рассылки
-                await self.message_queue.put({
-                    'type': 'broadcast',
-                    'topic': topic,
-                    'payload': payload,
-                    'source': connection_id,
-                    'timestamp': datetime.utcnow().isoformat()
-                })
-        
-        elif msg_type == 'query':
-            # Запрос данных
-            query_type = data.get('query_type')
-            if query_type == 'stats':
-                await websocket.send(json.dumps({
-                    'type': 'stats_response',
-                    'stats': self.stats,
-                    'timestamp': datetime.utcnow().isoformat()
-                }))
-        
-        elif msg_type == 'ping':
-            # Ping/Pong
-            await websocket.send(json.dumps({
-                'type': 'pong',
-                'timestamp': datetime.utcnow().isoformat()
-            }))
-    
-    def _validate_schema(self, data: Dict[str, Any], schema: Dict[str, Any]) -> bool:
-        """Валидация данных по схеме"""
-        # Проверка обязательных полей
-        for field in schema.get('required', []):
-            if field not in data:
-                return False
-        
-        # Проверка типов
-        for field, expected_type in schema.get('types', {}).items():
-            if field in data:
-                if not isinstance(data[field], expected_type):
-                    return False
-        
-        return True
-    
-    async def _process_message_queue(self):
-        """Обработка очереди сообщений и рассылка подписчикам"""
-        while True:
+        for memory_info in memories:
             try:
-                message = await self.message_queue.get()
+                memory = memory_info['memory']
                 
-                if message['type'] == 'broadcast':
-                    topic = message['topic']
-                    payload = message['payload']
+                # Перепроигрывание опыта через сеть
+                experience = memory['experience']
+                features = await self.memory_network.process_experience(experience)
+                
+                # Усиление ассоциаций
+                await self._strengthen_associations(memory, features)
+                
+                # Продвижение в иерархической памяти
+                if memory_info['score'] > 0.7:
+                    # Важные воспоминания переводим в долговременную память
+                    key = hashlib.md5(
+                        json.dumps(memory['experience'], sort_keys=True).encode()
+                    ).hexdigest()
                     
-                    # Рассылка всем подписчикам топика
-                    if topic in self.subscriptions:
-                        dead_connections = []
-                        
-                        for websocket in self.subscriptions[topic]:
-                            try:
-                                await websocket.send(json.dumps({
-                                    'type': 'data',
-                                    'topic': topic,
-                                    'payload': payload,
-                                    'timestamp': message['timestamp'],
-                                    'source': message.get('source', 'system')
-                                }))
-                                
-                                self.stats['total_messages'] += 1
-                                self.stats['bytes_transferred'] += len(json.dumps(payload))
-                                
-                            except (websockets.exceptions.ConnectionClosed, 
-                                   websockets.exceptions.InvalidState):
-                                dead_connections.append(websocket)
-                        
-                        # Очистка мертвых соединений
-                        for ws in dead_connections:
-                            self.subscriptions[topic].remove(ws)
-                            if ws in self.connections:
-                                self.connections.remove(ws)
-                
-                self.message_queue.task_done()
-                
-            except Exception as e:
-                logger.error(f"Ошибка обработки очереди сообщений: {e}")
-                await asyncio.sleep(0.1)
-    
-    async def _monitor_connections(self):
-        """Мониторинг и обслуживание соединений"""
-        while True:
-            try:
-                # Проверка активности соединений
-                dead_connections = []
-                for websocket in self.connections:
-                    try:
-                        # Отправка ping
-                        pong_waiter = await websocket.ping()
-                        await asyncio.wait_for(pong_waiter, timeout=10)
-                    except:
-                        dead_connections.append(websocket)
-                
-                # Очистка мертвых соединений
-                for ws in dead_connections:
-                    self.connections.remove(ws)
-                    for topic, connections in self.subscriptions.items():
-                        if ws in connections:
-                            connections.remove(ws)
-                
-                # Логирование статистики
-                if len(dead_connections) > 0:
-                    logger.debug(f"Очищено {len(dead_connections)} неактивных соединений")
-                
-                await asyncio.sleep(30)  # Проверка каждые 30 секунд
-                
-            except Exception as e:
-                logger.error(f"Ошибка мониторинга соединений: {e}")
-                await asyncio.sleep(10)
-    
-    async def stream_from_data_bridge(self, data_bridge, stream_name: str = "sensor_stream"):
-        """Потоковая передача данных из Data Bridge через WebSocket"""
-        self.data_bridge = data_bridge
-        
-        async def stream_generator():
-            while True:
-                try:
-                    # Получение данных из Data Bridge
-                    data = await data_bridge.pull_recent_stream(stream_name)
-                    if data:
-                        # Валидация и отправка
-                        validated_data = self._validate_and_transform(data)
-                        
-                        await self.message_queue.put({
-                            'type': 'broadcast',
-                            'topic': f'data_bridge/{stream_name}',
-                            'payload': validated_data,
-                            'source': 'data_bridge',
-                            'timestamp': datetime.utcnow().isoformat()
-                        })
-                    
-                    await asyncio.sleep(0.1)  # Контроль частоты
-                    
-                except Exception as e:
-                    logger.error(f"Ошибка стриминга из Data Bridge: {e}")
-                    await asyncio.sleep(1)
-        
-        # Запуск генератора
-        self.stream_tasks[stream_name] = asyncio.create_task(stream_generator())
-        logger.info(f"Запущен стриминг из Data Bridge: {stream_name}")
-    
-    def _validate_and_transform(self, data: Any) -> Dict[str, Any]:
-        """Валидация и трансформация данных из Data Bridge"""
-        if isinstance(data, dict):
-            # Добавление метаданных
-            data['_metadata'] = {
-                'processed_at': datetime.utcnow().isoformat(),
-                'schema_version': '1.0',
-                'source': 'data_bridge'
-            }
-            return data
-        elif isinstance(data, list):
-            return {
-                'items': data,
-                'count': len(data),
-                '_metadata': {
-                    'processed_at': datetime.utcnow().isoformat(),
-                    'schema_version': '1.0',
-                    'source': 'data_bridge'
-                }
-            }
-        else:
-            return {
-                'value': data,
-                '_metadata': {
-                    'processed_at': datetime.utcnow().isoformat(),
-                    'schema_version': '1.0',
-                    'source': 'data_bridge'
-                }
-            }
-
-
-# ============================================================================
-# СОХРАНЕНИЕ СОСТОЯНИЯ В БАЗУ ДАННЫХ
-# ============================================================================
-
-class NeurocortexStateDB:
-    """База данных для сохранения состояния неокортекса"""
-    
-    def __init__(self, db_path: str = "data/neurocortex_state.db", 
-                 redis_url: str = None,
-                 compression_level: int = 3):
-        
-        self.db_path = Path(db_path)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self.compression_level = compression_level
-        
-        # SQLite для структурированных данных
-        self.sqlite_conn = None
-        self._init_sqlite()
-        
-        # Redis для кэширования и быстрого доступа
-        self.redis_client = None
-        if redis_url:
-            self._init_redis(redis_url)
-        
-        # Пул для фонового сохранения
-        self.save_queue = asyncio.Queue(maxsize=1000)
-        self.save_tasks = []
-        
-        # Статистика
-        self.stats = {
-            'total_saves': 0,
-            'last_save': None,
-            'save_errors': 0,
-            'compression_ratio': 1.0
-        }
-        
-        # Запуск фонового сохранения
-        self._start_background_saver()
-        
-        logger.info(f"База данных состояния неокортекса инициализирована: {db_path}")
-    
-    def _init_sqlite(self):
-        """Инициализация SQLite базы данных"""
-        self.sqlite_conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        cursor = self.sqlite_conn.cursor()
-        
-        # Таблица состояний неокортекса
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS neurocortex_states (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp DATETIME NOT NULL,
-                snapshot_id TEXT UNIQUE NOT NULL,
-                component TEXT NOT NULL,
-                state_type TEXT NOT NULL,
-                state_data BLOB NOT NULL,
-                compressed_size INTEGER,
-                original_size INTEGER,
-                checksum TEXT,
-                metadata TEXT
-            )
-        ''')
-        
-        # Таблица когнитивных событий
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS cognitive_events (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp DATETIME NOT NULL,
-                event_type TEXT NOT NULL,
-                component TEXT NOT NULL,
-                event_data TEXT NOT NULL,
-                importance REAL DEFAULT 0.5,
-                processed BOOLEAN DEFAULT 0,
-                metadata TEXT
-            )
-        ''')
-        
-        # Таблица паттернов и схем
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS cognitive_patterns (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp DATETIME NOT NULL,
-                pattern_id TEXT NOT NULL,
-                pattern_type TEXT NOT NULL,
-                pattern_data BLOB NOT NULL,
-                activation_history TEXT,
-                confidence REAL DEFAULT 0.5,
-                usage_count INTEGER DEFAULT 0,
-                last_used DATETIME,
-                metadata TEXT
-            )
-        ''')
-        
-        # Индексы
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_states_timestamp ON neurocortex_states(timestamp)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_states_component ON neurocortex_states(component)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_events_timestamp ON cognitive_events(timestamp)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_events_type ON cognitive_events(event_type)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_patterns_type ON cognitive_patterns(pattern_type)')
-        
-        self.sqlite_conn.commit()
-    
-    def _init_redis(self, redis_url: str):
-        """Инициализация Redis"""
-        try:
-            self.redis_client = redis.from_url(redis_url, decode_responses=False)
-            
-            # Настройка Redis для эффективного хранения
-            redis_config = {
-                'maxmemory': '500mb',
-                'maxmemory-policy': 'allkeys-lru',
-                'save': '300 10'  # Сохранять каждые 300 секунд если 10+ изменений
-            }
-            
-            logger.info(f"Redis подключен для кэширования состояний: {redis_url}")
-            
-        except Exception as e:
-            logger.error(f"Ошибка подключения к Redis: {e}")
-            self.redis_client = None
-    
-    def _start_background_saver(self):
-        """Запуск фоновой задачи сохранения"""
-        async def background_saver():
-            while True:
-                try:
-                    save_item = await self.save_queue.get()
-                    await self._process_save_item(save_item)
-                    self.save_queue.task_done()
-                    
-                    # Небольшая пауза для предотвращения перегрузки
-                    await asyncio.sleep(0.01)
-                    
-                except Exception as e:
-                    logger.error(f"Ошибка в фоновом сохранении: {e}")
-                    self.stats['save_errors'] += 1
-                    await asyncio.sleep(1)
-        
-        self.save_tasks.append(asyncio.create_task(background_saver()))
-    
-    async def save_state(self, component: str, state_type: str, 
-                        state_data: Any, metadata: Dict[str, Any] = None,
-                        immediate: bool = False) -> str:
-        """Сохранение состояния компонента неокортекса"""
-        
-        snapshot_id = f"{component}_{state_type}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S_%f')}"
-        
-        save_item = {
-            'snapshot_id': snapshot_id,
-            'timestamp': datetime.utcnow(),
-            'component': component,
-            'state_type': state_type,
-            'state_data': state_data,
-            'metadata': metadata or {},
-            'immediate': immediate
-        }
-        
-        if immediate:
-            # Немедленное сохранение
-            await self._process_save_item(save_item)
-        else:
-            # Постановка в очередь для фонового сохранения
-            try:
-                await self.save_queue.put(save_item)
-            except asyncio.QueueFull:
-                logger.warning("Очередь сохранения переполнена, выполняем немедленное сохранение")
-                await self._process_save_item(save_item)
-        
-        return snapshot_id
-    
-    async def _process_save_item(self, save_item: Dict[str, Any]):
-        """Обработка элемента сохранения"""
-        try:
-            # Сериализация данных
-            original_data = pickle.dumps(save_item['state_data'])
-            original_size = len(original_data)
-            
-            # Сжатие
-            compressor = zstd.ZstdCompressor(level=self.compression_level)
-            compressed_data = compressor.compress(original_data)
-            compressed_size = len(compressed_data)
-            
-            # Расчет коэффициента сжатия
-            if original_size > 0:
-                compression_ratio = original_size / compressed_size
-                self.stats['compression_ratio'] = (
-                    self.stats['compression_ratio'] * 0.9 + compression_ratio * 0.1
-                )
-            
-            # Checksum для проверки целостности
-            checksum = hashlib.sha256(compressed_data).hexdigest()
-            
-            # Сохранение в SQLite
-            cursor = self.sqlite_conn.cursor()
-            cursor.execute('''
-                INSERT INTO neurocortex_states 
-                (timestamp, snapshot_id, component, state_type, state_data, 
-                 compressed_size, original_size, checksum, metadata)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                save_item['timestamp'].isoformat(),
-                save_item['snapshot_id'],
-                save_item['component'],
-                save_item['state_type'],
-                compressed_data,
-                compressed_size,
-                original_size,
-                checksum,
-                json.dumps(save_item['metadata'], default=str)
-            ))
-            
-            self.sqlite_conn.commit()
-            
-            # Кэширование в Redis
-            if self.redis_client:
-                cache_key = f"neurocortex:state:{save_item['component']}:{save_item['state_type']}:latest"
-                await self.redis_client.setex(
-                    cache_key,
-                    timedelta(hours=24),
-                    compressed_data
-                )
-                
-                # Также сохраняем метаданные
-                metadata_key = f"neurocortex:metadata:{save_item['snapshot_id']}"
-                await self.redis_client.setex(
-                    metadata_key,
-                    timedelta(hours=24),
-                    pickle.dumps({
-                        'timestamp': save_item['timestamp'].isoformat(),
-                        'component': save_item['component'],
-                        'state_type': save_item['state_type'],
-                        'original_size': original_size,
-                        'compressed_size': compressed_size,
-                        'checksum': checksum,
-                        'metadata': save_item['metadata']
-                    })
-                )
-            
-            self.stats['total_saves'] += 1
-            self.stats['last_save'] = datetime.utcnow().isoformat()
-            
-            logger.debug(f"Сохранено состояние: {save_item['snapshot_id']} "
-                        f"({original_size} → {compressed_size} bytes, ratio: {compression_ratio:.2f})")
-            
-        except Exception as e:
-            logger.error(f"Ошибка сохранения состояния {save_item.get('snapshot_id', 'unknown')}: {e}")
-            raise
-    
-    async def load_state(self, component: str, state_type: str, 
-                        snapshot_id: str = None) -> Optional[Any]:
-        """Загрузка состояния компонента"""
-        
-        try:
-            # Сначала проверяем Redis кэш
-            if self.redis_client and not snapshot_id:
-                cache_key = f"neurocortex:state:{component}:{state_type}:latest"
-                cached_data = await self.redis_client.get(cache_key)
-                
-                if cached_data:
-                    # Распаковка из Redis
-                    decompressor = zstd.ZstdDecompressor()
-                    decompressed = decompressor.decompress(cached_data)
-                    state = pickle.loads(decompressed)
-                    
-                    logger.debug(f"Загружено из Redis кэша: {component}:{state_type}")
-                    return state
-            
-            # Загрузка из SQLite
-            cursor = self.sqlite_conn.cursor()
-            
-            if snapshot_id:
-                cursor.execute('''
-                    SELECT state_data, checksum FROM neurocortex_states 
-                    WHERE snapshot_id = ? AND component = ? AND state_type = ?
-                ''', (snapshot_id, component, state_type))
-            else:
-                cursor.execute('''
-                    SELECT state_data, checksum FROM neurocortex_states 
-                    WHERE component = ? AND state_type = ?
-                    ORDER BY timestamp DESC LIMIT 1
-                ''', (component, state_type))
-            
-            result = cursor.fetchone()
-            
-            if result:
-                compressed_data, expected_checksum = result
-                
-                # Проверка целостности
-                actual_checksum = hashlib.sha256(compressed_data).hexdigest()
-                if actual_checksum != expected_checksum:
-                    logger.error(f"Checksum mismatch для состояния {component}:{state_type}")
-                    return None
-                
-                # Распаковка
-                decompressor = zstd.ZstdDecompressor()
-                decompressed = decompressor.decompress(compressed_data)
-                state = pickle.loads(decompressed)
-                
-                # Обновление Redis кэша
-                if self.redis_client:
-                    cache_key = f"neurocortex:state:{component}:{state_type}:latest"
-                    await self.redis_client.setex(
-                        cache_key,
-                        timedelta(hours=24),
-                        compressed_data
+                    await self.hierarchical_memory.promote_memory(
+                        key, "long_term"
                     )
                 
-                logger.debug(f"Загружено из SQLite: {component}:{state_type}")
-                return state
-            
-            return None
-            
-        except Exception as e:
-            logger.error(f"Ошибка загрузки состояния {component}:{state_type}: {e}")
-            return None
-    
-    async def log_cognitive_event(self, event_type: str, component: str, 
-                                 event_data: Dict[str, Any], 
-                                 importance: float = 0.5,
-                                 metadata: Dict[str, Any] = None):
-        """Логирование когнитивного события"""
+                consolidated_count += 1
+                
+                # Пауза для предотвращения перегрузки
+                await asyncio.sleep(0.01)
+                
+            except Exception as e:
+                logger.error(f"Ошибка консолидации воспоминания: {e}")
+                continue
         
-        event_item = {
-            'timestamp': datetime.utcnow(),
-            'event_type': event_type,
-            'component': component,
-            'event_data': event_data,
-            'importance': importance,
-            'metadata': metadata or {}
-        }
+        return consolidated_count
+    
+    async def _strengthen_associations(self, memory: Dict[str, Any], 
+                                     features: Dict[str, Any]):
+        """Усиление ассоциативных связей"""
+        
+        # Усиление связей в семантической сети
+        concepts = self.memory_network._extract_concepts(
+            memory.get('context', {}),
+            features
+        )
+        
+        for concept in concepts:
+            if concept in self.memory_network.semantic_network:
+                # Усиление узла
+                current_weight = self.memory_network.semantic_network.nodes[concept].get('weight', 1.0)
+                self.memory_network.semantic_network.nodes[concept]['weight'] = min(
+                    10.0, current_weight * 1.1
+                )
+                
+                # Усиление связей
+                for neighbor in self.memory_network.semantic_network.neighbors(concept):
+                    edge_data = self.memory_network.semantic_network[concept][neighbor]
+                    current_edge_weight = edge_data.get('weight', 0.1)
+                    self.memory_network.semantic_network[concept][neighbor]['weight'] = min(
+                        5.0, current_edge_weight * 1.05
+                    )
+    
+    async def _generate_dreams(self, memories: List[Dict[str, Any]]) -> int:
+        """Генерация "снов" - случайных ассоциаций"""
+        
+        dreams_generated = 0
+        
+        if not memories:
+            return 0
         
         try:
-            cursor = self.sqlite_conn.cursor()
-            cursor.execute('''
-                INSERT INTO cognitive_events 
-                (timestamp, event_type, component, event_data, importance, metadata)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (
-                event_item['timestamp'].isoformat(),
-                event_type,
-                component,
-                json.dumps(event_data, default=str),
-                importance,
-                json.dumps(metadata or {}, default=str)
-            ))
+            # Выбор случайных воспоминаний для комбинации
+            num_dreams = random.randint(1, min(5, len(memories) // 2))
             
-            self.sqlite_conn.commit()
-            
-            # Также отправляем в очередь для обработки
-            await self.save_queue.put({
-                'type': 'cognitive_event',
-                'data': event_item,
-                'immediate': True
-            })
-            
-            logger.debug(f"Записано когнитивное событие: {event_type} в {component}")
-            
-        except Exception as e:
-            logger.error(f"Ошибка логирования когнитивного события: {e}")
-    
-    async def save_cognitive_pattern(self, pattern_id: str, pattern_type: str,
-                                    pattern_data: Any, activation_history: List[float] = None,
-                                    confidence: float = 0.5, usage_count: int = 0,
-                                    last_used: datetime = None,
-                                    metadata: Dict[str, Any] = None):
-        """Сохранение когнитивного паттерна"""
-        
-        # Сериализация и сжатие данных паттерна
-        original_data = pickle.dumps(pattern_data)
-        compressor = zstd.ZstdCompressor(level=self.compression_level)
-        compressed_data = compressor.compress(original_data)
-        
-        cursor = self.sqlite_conn.cursor()
-        cursor.execute('''
-            INSERT OR REPLACE INTO cognitive_patterns 
-            (timestamp, pattern_id, pattern_type, pattern_data, 
-             activation_history, confidence, usage_count, last_used, metadata)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            datetime.utcnow().isoformat(),
-            pattern_id,
-            pattern_type,
-            compressed_data,
-            json.dumps(activation_history or []),
-            confidence,
-            usage_count,
-            last_used.isoformat() if last_used else None,
-            json.dumps(metadata or {}, default=str)
-        ))
-        
-        self.sqlite_conn.commit()
-        
-        logger.debug(f"Сохранен когнитивный паттерн: {pattern_id} ({pattern_type})")
-    
-    async def restore_full_state(self, timestamp: datetime = None) -> Dict[str, Any]:
-        """Полное восстановление состояния неокортекса на указанный момент времени"""
-        
-        restored_state = {}
-        
-        try:
-            cursor = self.sqlite_conn.cursor()
-            
-            # Определение временной метки
-            if not timestamp:
-                cursor.execute('SELECT MAX(timestamp) FROM neurocortex_states')
-                result = cursor.fetchone()
-                if result and result[0]:
-                    timestamp = datetime.fromisoformat(result[0])
-                else:
-                    logger.warning("Нет сохраненных состояний для восстановления")
-                    return {}
-            
-            # Получение всех компонентов на указанный момент
-            cursor.execute('''
-                SELECT DISTINCT component, state_type 
-                FROM neurocortex_states 
-                WHERE timestamp <= ?
-                ORDER BY timestamp DESC
-            ''', (timestamp.isoformat(),))
-            
-            components = cursor.fetchall()
-            
-            # Восстановление каждого компонента
-            for component, state_type in components:
-                cursor.execute('''
-                    SELECT state_data, checksum 
-                    FROM neurocortex_states 
-                    WHERE component = ? AND state_type = ? AND timestamp <= ?
-                    ORDER BY timestamp DESC LIMIT 1
-                ''', (component, state_type, timestamp.isoformat()))
+            for _ in range(num_dreams):
+                if len(memories) < 2:
+                    break
                 
-                result = cursor.fetchone()
-                if result:
-                    compressed_data, expected_checksum = result
-                    
-                    # Проверка целостности
-                    actual_checksum = hashlib.sha256(compressed_data).hexdigest()
-                    if actual_checksum != expected_checksum:
-                        logger.error(f"Checksum mismatch для {component}:{state_type}")
-                        continue
-                    
-                    # Распаковка
-                    decompressor = zstd.ZstdDecompressor()
-                    decompressed = decompressor.decompress(compressed_data)
-                    state = pickle.loads(decompressed)
-                    
-                    if component not in restored_state:
-                        restored_state[component] = {}
-                    restored_state[component][state_type] = state
-            
-            logger.info(f"Восстановлено состояние неокортекса на {timestamp}: "
-                       f"{len(restored_state)} компонентов")
-            
-            return restored_state
-            
-        except Exception as e:
-            logger.error(f"Ошибка полного восстановления состояния: {e}")
-            return {}
-    
-    async def cleanup_old_states(self, keep_days: int = 7, 
-                                keep_snapshots_per_component: int = 100):
-        """Очистка старых состояний"""
-        
-        try:
-            cursor = self.sqlite_conn.cursor()
-            
-            # Удаление старых по времени
-            cutoff_date = datetime.utcnow() - timedelta(days=keep_days)
-            
-            cursor.execute('''
-                DELETE FROM neurocortex_states 
-                WHERE timestamp < ?
-            ''', (cutoff_date.isoformat(),))
-            
-            time_deleted = cursor.rowcount
-            
-            # Удаление лишних снапшотов для каждого компонента
-            cursor.execute('''
-                SELECT DISTINCT component, state_type FROM neurocortex_states
-            ''')
-            
-            components = cursor.fetchall()
-            
-            type_deleted = 0
-            for component, state_type in components:
-                cursor.execute('''
-                    SELECT id FROM neurocortex_states 
-                    WHERE component = ? AND state_type = ?
-                    ORDER BY timestamp DESC
-                    LIMIT -1 OFFSET ?
-                ''', (component, state_type, keep_snapshots_per_component))
+                # Выбор двух случайных воспоминаний
+                mem1, mem2 = random.sample(memories, 2)
                 
-                ids_to_delete = [row[0] for row in cursor.fetchall()]
+                # Создание гибридного "сна"
+                dream = self._combine_memories_into_dream(mem1['memory'], mem2['memory'])
                 
-                if ids_to_delete:
-                    placeholders = ','.join('?' * len(ids_to_delete))
-                    cursor.execute(f'''
-                        DELETE FROM neurocortex_states 
-                        WHERE id IN ({placeholders})
-                    ''', ids_to_delete)
-                    
-                    type_deleted += cursor.rowcount
-            
-            self.sqlite_conn.commit()
-            
-            logger.info(f"Очистка старых состояний: "
-                       f"{time_deleted} по времени, {type_deleted} по количеству")
-            
-            return {'time_deleted': time_deleted, 'type_deleted': type_deleted}
-            
+                # Обработка "сна" через сеть (но без сохранения)
+                await self.memory_network.process_experience(dream)
+                
+                dreams_generated += 1
+                
+                logger.debug(f"Сгенерирован сон из {mem1['memory'].get('context', {}).get('source', '?')} "
+                           f"и {mem2['memory'].get('context', {}).get('source', '?')}")
+        
         except Exception as e:
-            logger.error(f"Ошибка очистки старых состояний: {e}")
-            return {'error': str(e)}
+            logger.error(f"Ошибка генерации снов: {e}")
+        
+        return dreams_generated
     
-    def get_stats(self) -> Dict[str, Any]:
-        """Получение статистики базы данных"""
+    def _combine_memories_into_dream(self, memory1: Dict[str, Any], 
+                                   memory2: Dict[str, Any]) -> Dict[str, Any]:
+        """Комбинация двух воспоминаний в "сон" """
         
-        cursor = self.sqlite_conn.cursor()
+        # Случайное смешивание контекстов
+        context1 = memory1.get('context', {})
+        context2 = memory2.get('context', {})
         
-        cursor.execute('SELECT COUNT(*) FROM neurocortex_states')
-        total_states = cursor.fetchone()[0]
+        dream_context = {}
+        for key in set(context1.keys()) | set(context2.keys()):
+            if random.random() < 0.5:
+                dream_context[key] = context1.get(key)
+            else:
+                dream_context[key] = context2.get(key)
         
-        cursor.execute('SELECT COUNT(*) FROM cognitive_events')
-        total_events = cursor.fetchone()[0]
-        
-        cursor.execute('SELECT COUNT(*) FROM cognitive_patterns')
-        total_patterns = cursor.fetchone()[0]
-        
-        cursor.execute('SELECT SUM(original_size) FROM neurocortex_states')
-        total_size = cursor.fetchone()[0] or 0
-        
-        cursor.execute('SELECT SUM(compressed_size) FROM neurocortex_states')
-        compressed_size = cursor.fetchone()[0] or 0
+        # Случайные искажения
+        if random.random() < 0.3:
+            # Добавление случайного элемента
+            dream_context['dream_element'] = random.choice([
+                'flying', 'floating', 'transformation', 'unfamiliar_place'
+            ])
         
         return {
-            'timestamp': datetime.utcnow().isoformat(),
-            'total_states': total_states,
-            'total_events': total_events,
-            'total_patterns': total_patterns,
-            'total_size_mb': total_size / (1024 * 1024),
-            'compressed_size_mb': compressed_size / (1024 * 1024),
-            'compression_ratio': total_size / compressed_size if compressed_size > 0 else 1.0,
-            'save_queue_size': self.save_queue.qsize(),
-            'redis_available': self.redis_client is not None,
-            'background_saver_tasks': len(self.save_tasks)
+            'data': {
+                'type': 'dream',
+                'source_memory_1': memory1.get('context', {}).get('source', 'unknown'),
+                'source_memory_2': memory2.get('context', {}).get('source', 'unknown'),
+                'dream_timestamp': datetime.utcnow().isoformat()
+            },
+            'context': dream_context,
+            'emotional_state': {
+                'valence': random.uniform(-0.5, 0.5),
+                'arousal': random.uniform(0.3, 0.8)
+            },
+            'timestamp': datetime.utcnow()
         }
-
+    
+    async def _synaptic_pruning(self) -> int:
+        """Синаптическое прунирование - обрезка слабых связей"""
+        
+        pruned_count = 0
+        
+        try:
+            # Обрезка в геббианских сетях
+            layers = [
+                self.memory_network.sensory_encoder,
+                self.memory_network.associative_layer,
+                self.memory_network.pattern_layer
+            ]
+            
+            for layer in layers:
+                layer.prune_weak_connections(self.sleep_params['synaptic_pruning_threshold'])
+                
+                # Подсчет обрезанных связей
+                stats = layer.get_learning_stats()
+                pruned_count += stats.get('pruned_connections', 0)
+            
+            # Обрезка в семантической сети
+            edges_to_remove = []
+            for u, v, data in self.memory_network.semantic_network.edges(data=True):
+                if data.get('weight', 0) < self.sleep_params['synaptic_pruning_threshold']:
+                    edges_to_remove.append((u, v))
+            
+            self.memory_network.semantic_network.remove_edges_from(edges_to_remove)
+            pruned_count += len(edges_to_remove)
+            
+            # Удаление изолированных узлов
+            isolated_nodes = [node for node, degree in 
+                            self.memory_network.semantic_network.degree() 
+                            if degree == 0]
+            self.memory_network.semantic_network.remove_nodes_from(isolated_nodes)
+            
+            logger.debug(f"Синаптическое прунирование: {pruned_count} связей обрезано")
+            
+        except Exception as e:
+            logger.error(f"Ошибка синаптического прунирования: {e}")
+        
+        return pruned_count
+    
+    async def _optimize_memory_indices(self):
+        """Оптимизация индексов памяти"""
+        
+        try:
+            # Оптимизация индексов в иерархической памяти
+            # (в реальной реализации здесь был бы вызов методов оптимизации БД)
+            
+            # Перестроение кэша
+            self.hierarchical_memory.short_term = OrderedDict(
+                list(self.hierarchical_memory.short_term.items())[-500:]
+            )
+            
+            logger.debug("Индексы памяти оптимизированы")
+            
+        except Exception as e:
+            logger.error(f"Ошибка оптимизации индексов: {e}")
+    
+    def get_sleep_stats(self) -> Dict[str, Any]:
+        """Получение статистики сна"""
+        
+        return {
+            'sleep_state': self.sleep_state,
+            'sleep_params': self.sleep_params,
+            'stats': self.stats,
+            'next_sleep_in': self._time_until_next_sleep()
+        }
+    
+    def _time_until_next_sleep(self) -> Optional[float]:
+        """Время до следующего сна"""
+        
+        if not self.sleep_state['last_sleep']:
+            return 0
+        
+        time_since_sleep = (datetime.utcnow() - 
+                          self.sleep_state['last_sleep']).total_seconds()
+        
+        return max(0, self.sleep_params['consolidation_interval'] - time_since_sleep)
 
 # ============================================================================
-# ИНТРОСПЕКТИВНОЕ ЛОГИРОВАНИЕ
+# ЦЕННОСТНЫЙ ФИЛЬТР
 # ============================================================================
 
-class IntrospectionLogger:
-    """Расширенное логирование когнитивных актов с интроспекцией"""
+class ValueFilter:
+    """Фильтр значимости на основе эмоциональных сигналов и системных ценностей"""
     
-    def __init__(self, log_dir: str = "logs/neurocortex", 
-                 level: str = "INFO",
-                 enable_telemetry: bool = True):
+    def __init__(self, config: NeocortexConfig):
+        self.config = config
         
-        self.log_dir = Path(log_dir)
-        self.log_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Настройка логирования
-        self.logger = logging.getLogger('neurocortex_introspection')
-        self.logger.setLevel(getattr(logging, level.upper()))
-        
-        # Обработчики
-        self._setup_handlers()
-        
-        # Телеметрия
-        self.telemetry_enabled = enable_telemetry
-        self.telemetry_data = {
-            'cognitive_acts': defaultdict(int),
-            'processing_times': deque(maxlen=1000),
-            'error_counts': defaultdict(int),
-            'insights_generated': 0,
-            'decisions_made': 0
+        # Системные ценности (веса)
+        self.values = {
+            'curiosity': 0.8,       # Любопытство и исследование
+            'efficiency': 0.7,      # Эффективность обработки
+            'stability': 0.6,       # Стабильность системы
+            'learning': 0.9,        # Обучение и адаптация
+            'self_preservation': 0.5, # Самосохранение
+            'goal_achievement': 0.75 # Достижение целей
         }
         
-        # Контекстные трейсы
-        self.context_traces = deque(maxlen=500)
+        # Эмоциональные преобразователи
+        self.emotional_transformers = {
+            'valence': self._transform_valence,
+            'arousal': self._transform_arousal,
+            'dominance': self._transform_dominance
+        }
         
-        # Анализ паттернов логирования
-        self.pattern_analyzer = LogPatternAnalyzer()
+        # История оценок
+        self.value_history = deque(maxlen=1000)
         
-        logger.info(f"Интроспективное логирование инициализировано: {log_dir}")
+        # Адаптивные веса
+        self.adaptive_weights = self.values.copy()
+        
+        logger.info("ValueFilter инициализирован")
     
-    def _setup_handlers(self):
-        """Настройка обработчиков логирования"""
+    async def evaluate_cognitive_act(self, act: CognitiveAct) -> Dict[str, Any]:
+        """Оценка когнитивного акта через призму ценностей"""
         
-        # Файловый обработчик с ротацией
-        file_handler = logging.handlers.RotatingFileHandler(
-            self.log_dir / "neurocortex.log",
-            maxBytes=10 * 1024 * 1024,  # 10 MB
-            backupCount=5,
-            encoding='utf-8'
+        evaluation = {
+            'act_id': act.id,
+            'timestamp': datetime.utcnow(),
+            'value_scores': {},
+            'total_value': 0.0,
+            'recommendation': 'process',  # process, prioritize, defer, ignore
+            'reasoning': []
+        }
+        
+        # Оценка по каждой ценности
+        for value_name, base_weight in self.adaptive_weights.items():
+            score = await self._evaluate_by_value(act, value_name, base_weight)
+            evaluation['value_scores'][value_name] = score
+            
+            # Накопление общего значения
+            evaluation['total_value'] += score * base_weight
+        
+        # Нормализация общего значения
+        max_possible = sum(self.adaptive_weights.values())
+        if max_possible > 0:
+            evaluation['total_value'] /= max_possible
+        
+        # Эмоциональная модуляция
+        if act.emotional_state:
+            emotional_modulation = self._apply_emotional_modulation(
+                act.emotional_state,
+                evaluation['total_value']
+            )
+            
+            evaluation['total_value'] = emotional_modulation['final_value']
+            evaluation['emotional_impact'] = emotional_modulation['impact']
+            evaluation['reasoning'].extend(emotional_modulation['reasoning'])
+        
+        # Генерация рекомендации
+        evaluation['recommendation'] = self._generate_recommendation(
+            evaluation['total_value'],
+            act.importance
         )
         
-        file_formatter = logging.Formatter(
-            '%(asctime)s | %(levelname)-8s | %(name)-20s | %(message)s | %(context)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
-        file_handler.setFormatter(file_formatter)
+        # Обновление адаптивных весов
+        await self._update_adaptive_weights(act, evaluation)
         
-        # JSON обработчик для структурированных логов
-        json_handler = logging.FileHandler(
-            self.log_dir / "neurocortex_structured.jsonl",
-            encoding='utf-8'
-        )
-        json_handler.setFormatter(JsonFormatter())
+        # Запись в историю
+        self.value_history.append({
+            'act': act.to_dict(),
+            'evaluation': evaluation,
+            'timestamp': datetime.utcnow()
+        })
         
-        # Добавление обработчиков
-        self.logger.addHandler(file_handler)
-        self.logger.addHandler(json_handler)
-        
-        # Отключение распространения в корневой логгер
-        self.logger.propagate = False
+        return evaluation
     
-    def log_cognitive_act(self, act_type: str, component: str, 
-                         data: Dict[str, Any], context: Dict[str, Any] = None,
-                         level: str = "INFO"):
-        """Логирование когнитивного акта с интроспекцией"""
+    async def _evaluate_by_value(self, act: CognitiveAct, 
+                               value_name: str, 
+                               base_weight: float) -> float:
+        """Оценка акта по конкретной ценности"""
         
-        timestamp = datetime.utcnow
+        score = 0.0
+        
+        if value_name == 'curiosity':
+            # Любопытство ценит новизну и сложность
+            if act.act_type in ['exploration', 'discovery', 'hypothesis_generation']:
+                score += 0.7
+            
+            # Новые данные ценнее старых
+            if act.data.get('novelty', 0) > 0.5:
+                score += 0.3
+        
+        elif value_name == 'efficiency':
+            # Эффективность ценит быстрые и точные решения
+            if act.act_type in ['decision_making', 'optimization']:
+                score += 0.6
+            
+            if act.confidence > 0.8:
+                score += 0.4
+        
+        elif value_name == 'stability':
+            # Стабильность ценит предсказуемость и контроль
+            if act.act_type in ['monitoring', 'error_handling', 'stabilization']:
+                score += 0.8
+            
+            if act.data.get('risk_level', 0) < 0.3:
+                score += 0.2
+        
+        elif value_name == 'learning':
+            # Обучение ценит новые знания и адаптацию
+            if act.act_type in ['learning', 'adaptation', 'pattern_recognition']:
+                score += 0.9
+            
+            if act.data.get('learning_potential', 0) > 0.5:
+                score += 0.1
+        
+        elif value_name == 'self_preservation':
+            # Самосохранение ценит безопасность и ресурсы
+            if act.act_type in ['threat_detection', 'resource_management']:
+                score += 0.7
+            
+            if act.data.get('threat_level', 0) > 0:
+                score += 0.3
+        
+        elif value_name == 'goal_achievement':
+            # Достижение целей ценит прогресс и завершение
+            if act.act_type in ['goal_progress', 'task_completion']:
+                score += 0.8
+            
+            if act.data.get('goal_relevance', 0) > 0.5:
+                score += 0.2
+        
+        # Модуляция на основе контекста
+        context_modulation = self._contextual_modulation(act.context, value_name)
+        score *= context_modulation
+        
+        return min(1.0, score)
+    
+    def _contextual_modulation(self, context: Dict[str, Any], 
+                             value_name: str) -> float:
+        """Модуляция оценки на основе контекста"""
+        
+        modulation = 1.0
+        
+        if 'system_load' in context:
+            load = context['system_load']
+            
+            if value_name == 'efficiency' and load > 0.8:
+                modulation *= 1.5  # При высокой нагрузке эффективность важнее
+            
+            if value_name == 'stability' and load > 0.9:
+                modulation *= 2.0  # При перегрузке стабильность критична
+        
+        if 'time_constraint' in context:
+            time_left = context['time_constraint']
+            
+            if value_name == 'goal_achievement' and time_left < 10:
+                modulation *= 1.8  # Срочные цели важнее
+        
+        return modulation
+    
+    def _apply_emotional_modulation(self, emotional_state: EmotionalState,
+                                  base_value: float) -> Dict[str, Any]:
+        """Применение эмоциональной модуляции к оценке"""
+        
+        impact = {
+            'valence_impact': 0.0,
+            'arousal_impact': 0.0,
+            'dominance_impact': 0.0
+        }
+        
+        reasoning = []
+        final_value = base_value
+        
+        # Валентность (положительная/отрицательная)
+        valence_impact = self.emotional_transformers['valence'](emotional_state.valence)
+        impact['valence_impact'] = valence_impact
+        
+        if valence_impact != 0:
+            final_value += valence_impact * 0.2
+            reasoning.append(f"Валентность {emotional_state.valence:.2f} → "
+                           f"изменение: {valence_impact:.2f}")
+        
+        # Возбуждение (интенсивность)
+        arousal_impact = self.emotional_transformers['arousal'](emotional_state.arousal)
+        impact['arousal_impact'] = arousal_impact
+        
+        if arousal_impact != 0:
+            final_value *= (1 + arousal_impact * 0.3)
+            reasoning.append(f"Возбуждение {emotional_state.arousal:.2f} → "
+                           f"множитель: {arousal_impact:.2f}")
+        
+        # Доминантность (контроль)
+        dominance_impact = self.emotional_transformers['dominance'](emotional_state.dominance)
+        impact['dominance_impact'] = dominance_impact
+        
+        if dominance_impact != 0:
+            # Доминантность стабилизирует оценку
+            adjustment = dominance_impact * (0.5 - abs(base_value - 0.5))
+            final_value += adjustment
+            reasoning.append(f"Доминантность {emotional_state.dominance:.2f} → "
+                           f"стабилизация: {adjustment:.2f}")
+        
+        return {
+            'final_value': max(0.0, min(1.0, final_value)),
+            'impact': impact,
+            'reasoning': reasoning
+        }
+    
+    def _transform_valence(self, valence: float) -> float:
+        """Преобразование валентности в воздействие на оценку"""
+        
+        if valence > 0.3:
+            return 0.1  # Положительные эмоции слегка повышают оценку
+        elif valence < -0.3:
+            return -0.1  # Отрицательные эмоции слегка понижают оценку
+        else:
+            return 0.0
+    
+    def _transform_arousal(self, arousal: float) -> float:
+        """Преобразование возбуждения в воздействие на оценку"""
+        
+        if arousal > 0.7:
+            return 0.2  # Высокое возбуждение усиливает оценку
+        elif arousal < 0.3:
+            return -0.1  # Низкое возбуждение ослабляет оценку
+        else:
+            return 0.0
+    
+    def _transform_dominance(self, dominance: float) -> float:
+        """Преобразование доминантности в воздействие на оценку"""
+        
+        if dominance > 0.6:
+            return 0.15  # Высокая доминантность стабилизирует
+        elif dominance < 0.4:
+            return -0.1  # Низкая доминантность дестабилизирует
+        else:
+            return 0.0
+    
+    def _generate_recommendation(self, total_value: float, 
+                               importance: float) -> str:
+        """Генерация рекомендации на основе оценки"""
+        
+        combined_score = (total_value * 0.7 + importance * 0.3)
+        
+        if combined_score > 0.8:
+            return 'prioritize'  # Высокий приоритет
+        elif combined_score > 0.5:
+            return 'process'     # Обычная обработка
+        elif combined_score > 0.3:
+            return 'defer'       # Отложить
+        else:
+            return 'ignore'      # Игнорировать
+    
+    async def _update_adaptive_weights(self, act: CognitiveAct,
+                                     evaluation: Dict[str, Any]):
+        """Адаптивное обновление весов ценностей"""
+        
+        # Обновление на основе успешности акта
+        if act.act_type == 'decision_making':
+            # Если решение было успешным, усиливаем соответствующие ценности
+            outcome = act.data.get('outcome', 'unknown')
+            
+            if outcome == 'success':
+                # Усиливаем ценности, способствовавшие успеху
+                for value_name, score in evaluation['value_scores'].items():
+                    if score > 0.5:
+                        self.adaptive_weights[value_name] = min(
+                            1.0, 
+                            self.adaptive_weights[value_name] * 1.05
+                        )
+            
+            elif outcome == 'failure':
+                # Ослабляем ценности, не предотвратившие неудачу
+                for value_name, score in evaluation['value_scores'].items():
+                    if score < 0.3:
+                        self.adaptive_weights[value_name] = max(
+                            0.1, 
+                            self.adaptive_weights[value_name] * 0.95
+                        )
+        
+        # Нормализация весов (чтобы сумма оставалась постоянной)
+        total = sum(self.adaptive_weights.values())
+        if total > 0:
+            normalization_factor = sum(self.values.values()) / total
+            for key in self.adaptive_weights:
+                self.adaptive_weights[key] *= normalization_factor
+    
+    def get_value_stats(self) -> Dict[str, Any]:
+        """Получение статистики ценностного фильтра"""
+        
+        recent_evaluations = list(self.value_history)[-100:] if self.value_history else []
+        
+        avg_values = {}
+        if recent_evaluations:
+            for eval_data in recent_evaluations:
+                for value_name, score in eval_data['evaluation']['value_scores'].items():
+                    if value_name not in avg_values:
+                        avg_values[value_name] = []
+                    avg_values[value_name].append(score)
+            
+            avg_values = {k: np.mean(v) for k, v in avg_values.items()}
+        
+        return {
+            'current_weights': self.adaptive_weights,
+            'base_weights': self.values,
+            'total_evaluations': len(self.value_history),
+            'recent_avg_scores': avg_values,
+            'recommendation_distribution': self._get_recommendation_distribution()
+        }
+    
+    def _get_recommendation_distribution(self) -> Dict[str, int]:
+        """Распределение рекомендаций"""
+        
+        distribution = defaultdict(int)
+        
+        for eval_data in self.value_history:
+            recommendation = eval_data['evaluation']['recommendation']
+            distribution[recommendation] += 1
+        
+        return dict(distribution)
+
+# ============================================================================
+# ОБРАТНАЯ СВЯЗЬ И САМОКОРРЕКЦИЯ
+# ============================================================================
+
+class FeedbackLoopSystem:
+    """Система обратной связи и самокоррекции"""
+    
+    def __init__(self, config: NeocortexConfig,
+                 cognitive_integrator: CognitiveIntegrator,
+                 focus_manager: FocusManager,
+                 value_filter: ValueFilter):
+        
+        self.config = config
+        self.integrator = cognitive_integrator
+        self.focus = focus_manager
+        self.value_filter = value_filter
+        
+        # Обратная связь
+        self.feedback_history = deque(maxlen=500)
+        self.correction_history = deque(maxlen=200)
+        
+        # Параметры адаптации
+        self.adaptation_params = {
+            'focus_adjustment_rate': 0.1,
+            'learning_rate_adjustment': 0.05,
+            'success_threshold': 0.7,
+            'failure_threshold': 0.3,
+            'feedback_window': 100  # Количество актов для анализа
+        }
+        
+        # Модель успешности
+        self.success_model = defaultdict(lambda: {'successes': 0, 'total': 0})
+        
+        logger.info("FeedbackLoopSystem инициализирована")
+    
+    async def process_feedback(self, act: CognitiveAct, 
+                             integration_result: Dict[str, Any]):
+        """Обработка обратной связи после интеграции"""
+        
+        feedback = {
+            'act_id': act.id,
+            'timestamp': datetime.utcnow(),
+            'integration_success': True,  # Предполагаем успех
+            'performance_metrics': {},
+            'corrections_applied': [],
+            'focus_adjustments': []
+        }
+        
+        # Анализ успешности
+        success_analysis = await self._analyze_success(act, integration_result)
+        feedback['performance_metrics'] = success_analysis
+        
+        # Обновление модели успешности
+        await self._update_success_model(act, success_analysis)
+        
+        # Применение коррекций при необходимости
+        if success_analysis['overall_success'] < self.adaptation_params['failure_threshold']:
+            corrections = await self._apply_corrections(act, success_analysis)
+            feedback['corrections_applied'] = corrections
+        
+        # Корректировка фокуса внимания
+        focus_adjustments = await self._adjust_focus_based_on_feedback(act, success_analysis)
+        feedback['focus_adjustments'] = focus_adjustments
+        
+        # Запись обратной связи
+        self.feedback_history.append(feedback)
+        
+        # Логирование
+        if feedback['corrections_applied']:
+            logger.info(f"Применены коррекции для акта {act.id}: "
+                       f"{feedback['corrections_applied']}")
+        
+        return feedback
+    
+    async def _analyze_success(self, act: CognitiveAct,
+                             integration_result: Dict[str, Any]) -> Dict[str, Any]:
+        """Анализ успешности когнитивного акта"""
+        
+        analysis = {
+            'processing_success': True,
+            'memory_success': True,
+            'learning_success': False,
+            'focus_success': True,
+            'overall_success': 0.5
+        }
+        
+        # Проверка успешности компонентов
+        components = integration_result.get('components', {})
+        
+        # Успешность обработки памяти
+        if 'memory' in components:
+            analysis['memory_success'] = components['memory'].get('success', False)
+        
+        # Успешность обучения сети
+        if 'network' in components:
+            network_result = components['network']
+            if 'novelty_score' in network_result:
+                analysis['learning_success'] = network_result['novelty_score'] > 0.3
+        
+        # Успешность фокуса внимания
+        if 'focus' in components:
+            focus_result = components['focus']
+            analysis['focus_success'] = focus_result.get('focus_updated', False)
+        
+        # Расчет общего успеха
+        success_factors = [
+            analysis['processing_success'] * 0.3,
+            analysis['memory_success'] * 0.2,
+            analysis['learning_success'] * 0.3,
+            analysis['focus_success'] * 0.2
+        ]
+        
+        analysis['overall_success'] = sum(success_factors)
+        
+        # Учет важности акта
+        analysis['overall_success'] *= (0.5 + act.importance * 0.5)
+        
+        return analysis
+    
+    async def _update_success_model(self, act: CognitiveAct,
+                                  success_analysis: Dict[str, Any]):
+        """Обновление модели успешности"""
+        
+        key = f"{act.component}:{act.act_type}"
+        
+        self.success_model[key]['total'] += 1
+        
+        if success_analysis['overall_success'] > self.adaptation_params['success_threshold']:
+            self.success_model[key]['successes'] += 1
+        
+        # Адаптация параметров на основе успешности
+        success_rate = (self.success_model[key]['successes'] / 
+                       max(1, self.success_model[key]['total']))
+        
+        if success_rate
