@@ -1,4 +1,4 @@
-# sephirot_bus.py - СОВЕРШЕННАЯ ЖИВАЯ СИСТЕМА СВЯЗЕЙ
+ # sephirot_bus.py - СОВЕРШЕННАЯ СЕФИРОТИЧЕСКАЯ ШИНА (ИДЕАЛЬНАЯ ВЕРСИЯ)
 import asyncio
 import json
 import hashlib
@@ -7,6 +7,8 @@ from typing import Dict, List, Optional, Any, Set, Tuple
 from dataclasses import dataclass, field
 from collections import deque, defaultdict
 import statistics
+import yaml
+from enum import Enum
 
 from .sephirot_base import (
     SephiroticNode, QuantumLink, SignalPackage, 
@@ -14,780 +16,808 @@ from .sephirot_base import (
 )
 
 
+class ChannelDirection(Enum):
+    """Направление канала"""
+    FORWARD = "forward"      # Прямое направление
+    REVERSE = "reverse"      # Обратное направление
+    BIDIRECTIONAL = "bidirectional"  # Двусторонний
+
+
 @dataclass
-class ChannelPath:
-    """Структура пути Древа Жизни (1 из 22 каналов)"""
-    hebrew_letter: str           # Ивритская буква пути
-    from_sephira: str           # Исходная сефира
-    to_sephira: str             # Целевая сефира
-    strength: float = 0.8       # Базовая сила связи (0.0-1.0)
-    bidirectional: bool = True  # Двунаправленный канал
-    description: str = ""       # Описание пути
-    activation_count: int = 0   # Количество активаций
+class QuantumChannel:
+    """Квантовый канал Древа Жизни с полной динамикой"""
+    
+    # Идентификаторы
+    id: str
+    hebrew_letter: str
+    from_sephira: str
+    to_sephira: str
+    
+    # Динамические параметры
+    base_strength: float = 0.8          # Базовая сила (0.0-1.0)
+    current_strength: float = 0.8       # Текущая сила с учетом резонанса
+    resonance_factor: float = 1.0       # Фактор резонанса (0.1-2.0)
+    energy_decay: float = 0.95          # Коэффициент затухания энергии
+    learning_rate: float = 0.01         # Скорость обучения канала
+    
+    # Настройки
+    direction: ChannelDirection = ChannelDirection.BIDIRECTIONAL
+    max_bandwidth: int = 100            # Макс сигналов/сек
+    current_load: int = 0               # Текущая нагрузка
+    is_active: bool = True              # Активен ли канал
+    
+    # Метаданные
+    description: str = ""
+    created: datetime = field(default_factory=datetime.utcnow)
     last_used: Optional[datetime] = None
-    resonance_factor: float = 1.0  # Текущий резонансный фактор
-    energy_decay: float = 0.95     # Коэффициент затухания сигнала
-    max_bandwidth: int = 100       # Максимальная пропускная способность
-    current_load: int = 0          # Текущая нагрузка
+    last_optimized: Optional[datetime] = None
+    
+    # Метрики
+    total_transmissions: int = 0
+    successful_transmissions: int = 0
+    failed_transmissions: int = 0
+    avg_latency: float = 0.0
+    avg_signal_strength: float = 0.0
+    
+    # История
+    strength_history: deque = field(default_factory=lambda: deque(maxlen=100))
+    resonance_history: deque = field(default_factory=lambda: deque(maxlen=100))
+    latency_history: deque = field(default_factory=lambda: deque(maxlen=100))
     
     def __post_init__(self):
+        """Пост-инициализация"""
         if not self.description:
             self.description = f"Путь {self.hebrew_letter}: {self.from_sephira} → {self.to_sephira}"
-    
-    def can_transmit(self, signal_strength: float = 1.0) -> Tuple[bool, str]:
-        """Проверка возможности передачи сигнала"""
-        if self.current_load >= self.max_bandwidth:
-            return False, "channel_overloaded"
         
-        effective_strength = self.strength * self.resonance_factor * signal_strength
-        if effective_strength < 0.1:
-            return False, "signal_too_weak"
-        
-        return True, "can_transmit"
+        # Инициализация истории
+        self.strength_history.append(self.current_strength)
+        self.resonance_history.append(self.resonance_factor)
     
-    def calculate_signal_loss(self, distance: int = 1) -> float:
-        """Расчет потери сигнала при передаче"""
-        base_loss = (1 - self.strength) * 0.3
-        resonance_loss = (1 - self.resonance_factor) * 0.2
-        distance_loss = (distance - 1) * 0.1
-        load_loss = (self.current_load / self.max_bandwidth) * 0.4
+    async def can_transmit(self, signal_strength: float = 1.0) -> Tuple[bool, str, float]:
+        """
+        Проверка возможности передачи с возвратом эффективной силы
         
-        total_loss = min(base_loss + resonance_loss + distance_loss + load_loss, 0.9)
-        return total_loss
+        Returns:
+            Tuple[bool, str, float]: (может передавать, причина, эффективная сила)
+        """
+        # Проверка активности
+        if not self.is_active:
+            return False, "channel_inactive", 0.0
+        
+        # Проверка перегрузки
+        load_percentage = self.current_load / self.max_bandwidth if self.max_bandwidth > 0 else 0
+        if load_percentage > 0.9:
+            return False, "channel_overloaded", 0.0
+        
+        # Расчет эффективной силы
+        effective_strength = (
+            self.current_strength * 
+            self.resonance_factor * 
+            signal_strength * 
+            (1 - load_percentage * 0.5)
+        )
+        
+        if effective_strength < 0.05:
+            return False, "signal_too_weak", effective_strength
+        
+        return True, "can_transmit", effective_strength
     
-    def update_resonance(self, success: bool) -> None:
-        """Обновление резонансного фактора на основе успешности передачи"""
+    async def calculate_signal_transform(self, signal_package: SignalPackage, 
+                                        distance: int = 1) -> Tuple[SignalPackage, float, Dict[str, Any]]:
+        """
+        Расчет трансформации сигнала при прохождении через канал
+        
+        Returns:
+            Tuple[modified_signal, remaining_strength, diagnostics]
+        """
+        diagnostics = {
+            "channel_id": self.id,
+            "base_strength": self.current_strength,
+            "resonance_factor": self.resonance_factor,
+            "distance": distance
+        }
+        
+        # Копируем сигнал для модификации
+        modified_signal = signal_package.copy()
+        
+        # Расчет потерь
+        distance_loss = 0.1 * (distance - 1)
+        load_loss = (self.current_load / self.max_bandwidth) * 0.3
+        resonance_gain = (self.resonance_factor - 1.0) * 0.2
+        
+        total_loss = max(0.0, distance_loss + load_loss - resonance_gain)
+        remaining_strength = 1.0 - total_loss
+        
+        # Применение потерь к силе сигнала
+        if hasattr(modified_signal, 'strength'):
+            modified_signal.strength *= remaining_strength
+        
+        # Модификация payload на основе характеристик канала
+        if hasattr(modified_signal, 'payload'):
+            # Добавление метаданных о прохождении через канал
+            channel_info = {
+                "channel_id": self.id,
+                "hebrew_letter": self.hebrew_letter,
+                "strength_impact": remaining_strength,
+                "resonance_impact": self.resonance_factor,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            
+            if "channel_history" not in modified_signal.payload:
+                modified_signal.payload["channel_history"] = []
+            modified_signal.payload["channel_history"].append(channel_info)
+            
+            # Усиление/ослабление определенных типов сигналов
+            if modified_signal.type == SignalType.EMOTIONAL:
+                # Эмоциональные сигналы усиливаются резонансом
+                if "intensity" in modified_signal.payload:
+                    modified_signal.payload["intensity"] *= (1.0 + (self.resonance_factor - 1.0) * 0.5)
+            
+            elif modified_signal.type == SignalType.INTENTION:
+                # Намерения усиливаются силой канала
+                if "strength" in modified_signal.payload:
+                    modified_signal.payload["strength"] *= self.current_strength
+        
+        diagnostics.update({
+            "total_loss": total_loss,
+            "remaining_strength": remaining_strength,
+            "modified_signal_type": modified_signal.type.value
+        })
+        
+        return modified_signal, remaining_strength, diagnostics
+    
+    async def update_from_transmission(self, success: bool, latency: float, 
+                                      final_strength: float, signal_type: SignalType):
+        """Обновление параметров канала на основе результата передачи"""
+        self.total_transmissions += 1
+        
         if success:
-            # Усиление резонанса при успешной передаче
-            self.resonance_factor = min(1.0, self.resonance_factor + 0.01)
-            self.strength = min(1.0, self.strength + 0.005)
+            self.successful_transmissions += 1
+            
+            # Усиление канала при успешной передаче
+            learning_adjustment = self.learning_rate * final_strength
+            
+            # Разное обучение для разных типов сигналов
+            if signal_type == SignalType.QUANTUM_SYNC:
+                learning_adjustment *= 1.5  # Квантовая синхронизация учит быстрее
+            elif signal_type == SignalType.EMOTIONAL:
+                learning_adjustment *= 1.2  # Эмоции также хорошо учат
+            
+            self.current_strength = min(1.0, self.current_strength + learning_adjustment)
+            self.resonance_factor = min(2.0, self.resonance_factor + learning_adjustment * 0.5)
+            
         else:
-            # Ослабление при неудаче
-            self.resonance_factor = max(0.1, self.resonance_factor - 0.02)
-            self.strength = max(0.3, self.strength - 0.01)
+            self.failed_transmissions += 1
+            
+            # Ослабление при неудаче, но не слишком резкое
+            penalty = self.learning_rate * 0.5
+            self.current_strength = max(0.1, self.current_strength - penalty)
+            self.resonance_factor = max(0.1, self.resonance_factor - penalty * 0.3)
         
-        # Автоматическое восстановление со временем
-        if self.last_used:
-            hours_since_use = (datetime.utcnow() - self.last_used).total_seconds() / 3600
-            if hours_since_use > 1:
-                recovery = hours_since_use * 0.01
-                self.resonance_factor = min(1.0, self.resonance_factor + recovery)
-                self.strength = min(1.0, self.strength + recovery * 0.5)
+        # Обновление средней латенции
+        if self.avg_latency == 0:
+            self.avg_latency = latency
+        else:
+            self.avg_latency = (self.avg_latency * 0.9) + (latency * 0.1)
+        
+        # Обновление средней силы
+        if self.avg_signal_strength == 0:
+            self.avg_signal_strength = final_strength
+        else:
+            self.avg_signal_strength = (self.avg_signal_strength * 0.9) + (final_strength * 0.1)
+        
+        # Сохранение в историю
+        self.strength_history.append(self.current_strength)
+        self.resonance_history.append(self.resonance_factor)
+        self.latency_history.append(latency)
+        
+        self.last_used = datetime.utcnow()
+        
+        # Автоматическая оптимизация каждые 100 передач
+        if self.total_transmissions % 100 == 0:
+            await self.auto_optimize()
+    
+    async def auto_optimize(self):
+        """Автоматическая оптимизация параметров канала"""
+        if len(self.strength_history) < 10:
+            return
+        
+        # Анализ трендов
+        recent_strengths = list(self.strength_history)[-10:]
+        avg_recent = statistics.mean(recent_strengths)
+        
+        # Если сила снижается, пробуем увеличить learning rate
+        if avg_recent < self.current_strength * 0.9:
+            self.learning_rate = min(0.1, self.learning_rate * 1.1)
+        
+        # Если сила стабильна, уменьшаем learning rate для стабилизации
+        elif abs(avg_recent - self.current_strength) < 0.05:
+            self.learning_rate = max(0.001, self.learning_rate * 0.9)
+        
+        # Автоматическое восстановление если канал почти мертв
+        if self.current_strength < 0.2 and self.resonance_factor < 0.3:
+            await self.emergency_recovery()
+        
+        self.last_optimized = datetime.utcnow()
+    
+    async def emergency_recovery(self):
+        """Экстренное восстановление канала"""
+        print(f"[CHANNEL] Экстренное восстановление канала {self.id}")
+        
+        # Сброс до базовых значений с небольшим усилением
+        self.current_strength = self.base_strength * 1.1
+        self.resonance_factor = 1.0
+        self.learning_rate = 0.02  # Увеличиваем скорость обучения
+        
+        # Очистка части истории
+        if len(self.strength_history) > 50:
+            self.strength_history = deque(list(self.strength_history)[-50:], maxlen=100)
+        
+        # Временное увеличение пропускной способности
+        old_bandwidth = self.max_bandwidth
+        self.max_bandwidth = int(self.max_bandwidth * 1.5)
+        
+        print(f"[CHANNEL] Канал {self.id} восстановлен. Bandwidth: {old_bandwidth} → {self.max_bandwidth}")
+    
+    def get_health_report(self) -> Dict[str, Any]:
+        """Отчет о здоровье канала"""
+        success_rate = (
+            self.successful_transmissions / self.total_transmissions 
+            if self.total_transmissions > 0 else 0
+        )
+        
+        # Анализ стабильности
+        stability = 0.0
+        if len(self.strength_history) > 5:
+            recent_strengths = list(self.strength_history)[-5:]
+            stability = 1.0 - statistics.stdev(recent_strengths)
+        
+        return {
+            "channel_id": self.id,
+            "hebrew_letter": self.hebrew_letter,
+            "path": f"{self.from_sephira} → {self.to_sephira}",
+            "is_active": self.is_active,
+            "current_strength": self.current_strength,
+            "resonance_factor": self.resonance_factor,
+            "load_percentage": (self.current_load / self.max_bandwidth) * 100,
+            "success_rate": success_rate,
+            "total_transmissions": self.total_transmissions,
+            "avg_latency": self.avg_latency,
+            "avg_signal_strength": self.avg_signal_strength,
+            "stability": stability,
+            "health_score": self.calculate_health_score(),
+            "last_used": self.last_used.isoformat() if self.last_used else None,
+            "recommendations": self.generate_recommendations(),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    
+    def calculate_health_score(self) -> float:
+        """Расчет общего показателя здоровья канала"""
+        success_rate = (
+            self.successful_transmissions / self.total_transmissions 
+            if self.total_transmissions > 0 else 0.5
+        )
+        
+        load_factor = 1.0 - (self.current_load / self.max_bandwidth)
+        strength_factor = self.current_strength
+        resonance_factor = min(1.0, self.resonance_factor)
+        
+        weights = {
+            "success": 0.4,
+            "load": 0.2,
+            "strength": 0.25,
+            "resonance": 0.15
+        }
+        
+        score = (
+            success_rate * weights["success"] +
+            load_factor * weights["load"] +
+            strength_factor * weights["strength"] +
+            resonance_factor * weights["resonance"]
+        )
+        
+        return min(max(score, 0.0), 1.0)
+    
+    def generate_recommendations(self) -> List[str]:
+        """Генерация рекомендаций для канала"""
+        recommendations = []
+        
+        health_score = self.calculate_health_score()
+        
+        if health_score < 0.3:
+            recommendations.append("emergency_recovery_needed")
+        elif health_score < 0.6:
+            recommendations.append("optimization_recommended")
+        
+        if self.current_load > self.max_bandwidth * 0.8:
+            recommendations.append("reduce_load_or_increase_bandwidth")
+        
+        if self.resonance_factor < 0.5:
+            recommendations.append("improve_resonance_with_sync_signals")
+        
+        if self.successful_transmissions < 10 and self.total_transmissions > 50:
+            recommendations.append("investigate_failure_patterns")
+        
+        return recommendations
+
+
+class ChannelLoadBalancer:
+    """Интеллектуальный балансировщик нагрузки каналов"""
+    
+    def __init__(self):
+        self.selection_history: deque = deque(maxlen=1000)
+        self.channel_performance: Dict[str, Dict[str, Any]] = {}
+        self.last_rebalance: Optional[datetime] = None
+    
+    async def select_best_channel(self, available_channels: List[QuantumChannel], 
+                                 signal_type: SignalType, signal_strength: float) -> Optional[QuantumChannel]:
+        """
+        Выбор лучшего канала для передачи с учетом множества факторов
+        """
+        if not available_channels:
+            return None
+        
+        scored_channels = []
+        
+        for channel in available_channels:
+            # Проверка возможности передачи
+            can_transmit, reason, effective_strength = await channel.can_transmit(signal_strength)
+            
+            if not can_transmit:
+                continue
+            
+            # Расчет скоринга
+            score = await self.calculate_channel_score(
+                channel, signal_type, effective_strength
+            )
+            
+            scored_channels.append((score, channel, effective_strength, reason))
+        
+        if not scored_channels:
+            return None
+        
+        # Сортировка по скору (высший скор = лучший канал)
+        scored_channels.sort(key=lambda x: x[0], reverse=True)
+        
+        best_score, best_channel, best_strength, best_reason = scored_channels[0]
+        
+        # Запись в историю выбора
+        self.selection_history.append({
+            "timestamp": datetime.utcnow().isoformat(),
+            "channel_id": best_channel.id,
+            "signal_type": signal_type.value,
+            "score": best_score,
+            "strength": best_strength,
+            "reason": best_reason,
+            "alternatives": len(scored_channels) - 1
+        })
+        
+        # Обновление статистики производительности
+        await self.update_channel_performance(best_channel.id, best_score)
+        
+        return best_channel
+    
+    async def calculate_channel_score(self, channel: QuantumChannel, 
+                                     signal_type: SignalType, effective_strength: float) -> float:
+        """
+        Расчет скоринга канала по множеству параметров
+        """
+        # Базовый скор на основе эффективной силы
+        base_score = effective_strength * 0.3
+        
+        # Скор на основе истории успешности
+        success_rate = (
+            channel.successful_transmissions / channel.total_transmissions 
+            if channel.total_transmissions > 0 else 0.5
+        )
+        success_score = success_rate * 0.25
+        
+        # Скор на основе резонанса
+        resonance_score = min(1.0, channel.resonance_factor) * 0.2
+        
+        # Скор на основе нагрузки (меньше нагрузка = лучше)
+        load_factor = 1.0 - (channel.current_load / channel.max_bandwidth)
+        load_score = load_factor * 0.15
+        
+        # Скор на основе латенции (меньше латенция = лучше)
+        latency_factor = 1.0 / (1.0 + channel.avg_latency) if channel.avg_latency > 0 else 0.5
+        latency_score = latency_factor * 0.1
+        
+        # Бонусы/штрафы для типов сигналов
+        type_bonus = 0.0
+        
+        if signal_type == SignalType.QUANTUM_SYNC and channel.resonance_factor > 1.2:
+            type_bonus = 0.2  # Квантовые синхронизации любят высокий резонанс
+        
+        elif signal_type == SignalType.EMOTIONAL and channel.current_strength > 0.8:
+            type_bonus = 0.15  # Эмоции любят сильные каналы
+        
+        elif signal_type == SignalType.INTENTION and success_rate > 0.8:
+            type_bonus = 0.1  # Намерения любят надежные каналы
+        
+        # Итоговый скор
+        total_score = (
+            base_score + 
+            success_score + 
+            resonance_score + 
+            load_score + 
+            latency_score + 
+            type_bonus
+        )
+        
+        # Гарантируем диапазон 0-1
+        return min(max(total_score, 0.0), 1.0)
+    
+    async def update_channel_performance(self, channel_id: str, score: float):
+        """Обновление статистики производительности канала"""
+        if channel_id not in self.channel_performance:
+            self.channel_performance[channel_id] = {
+                "scores": deque(maxlen=100),
+                "selections": 0,
+                "avg_score": 0.0,
+                "last_selected": None
+            }
+        
+        perf = self.channel_performance[channel_id]
+        perf["scores"].append(score)
+        perf["selections"] += 1
+        perf["avg_score"] = statistics.mean(perf["scores"]) if perf["scores"] else 0.0
+        perf["last_selected"] = datetime.utcnow().isoformat()
+    
+    async def rebalance_load(self, all_channels: List[QuantumChannel], 
+                            target_utilization: float = 0.7):
+        """
+        Ребалансировка нагрузки между каналами
+        """
+        now = datetime.utcnow()
+        
+        # Не чаще чем раз в 5 минут
+        if (self.last_rebalance and 
+            (now - self.last_rebalance).total_seconds() < 300):
+            return
+        
+        # Анализ текущей нагрузки
+        channel_loads = []
+        for channel in all_channels:
+            utilization = channel.current_load / channel.max_bandwidth
+            channel_loads.append((channel.id, utilization, channel.max_bandwidth))
+        
+        # Сортировка по утилизации
+        channel_loads.sort(key=lambda x: x[1])
+        
+        # Если разница между самым загруженным и самым свободным > 30%
+        if channel_loads:
+            min_load = channel_loads[0][1]
+            max_load = channel_loads[-1][1]
+            
+            if max_load - min_load > 0.3:
+                # Ребалансировка: перераспределяем часть пропускной способности
+                print(f"[BALANCER] Ребалансировка нагрузки: min={min_load:.2f}, max={max_load:.2f}")
+                
+                for i, (channel_id, utilization, bandwidth) in enumerate(channel_loads):
+                    channel = next((c for c in all_channels if c.id == channel_id), None)
+                    if channel:
+                        # Увеличиваем пропускную способность перегруженных каналов
+                        if utilization > target_utilization:
+                            new_bandwidth = int(bandwidth * 1.1)
+                            channel.max_bandwidth = min(200, new_bandwidth)
+                            print(f"  ↑ {channel.id}: {bandwidth} → {channel.max_bandwidth}")
+                        
+                        # Уменьшаем у очень свободных
+                        elif utilization < target_utilization * 0.5:
+                            new_bandwidth = int(bandwidth * 0.9)
+                            channel.max_bandwidth = max(50, new_bandwidth)
+                            print(f"  ↓ {channel.id}: {bandwidth} → {channel.max_bandwidth}")
+        
+        self.last_rebalance = now
+    
+    def get_balancing_report(self) -> Dict[str, Any]:
+        """Отчет о балансировке"""
+        if not self.channel_performance:
+            return {"total_channels": 0, "avg_selection_score": 0}
+        
+        avg_scores = [
+            perf["avg_score"] 
+            for perf in self.channel_performance.values() 
+            if perf["avg_score"] > 0
+        ]
+        
+        selection_counts = [
+            perf["selections"] 
+            for perf in self.channel_performance.values()
+        ]
+        
+        return {
+            "total_channels_tracked": len(self.channel_performance),
+            "total_selections_recorded": len(self.selection_history),
+            "avg_selection_score": statistics.mean(avg_scores) if avg_scores else 0,
+            "min_selection_score": min(avg_scores) if avg_scores else 0,
+            "max_selection_score": max(avg_scores) if avg_scores else 0,
+            "most_selected_channels": sorted(
+                [(cid, perf["selections"]) for cid, perf in self.channel_performance.items()],
+                key=lambda x: x[1],
+                reverse=True
+            )[:5],
+            "least_selected_channels": sorted(
+                [(cid, perf["selections"]) for cid, perf in self.channel_performance.items()],
+                key=lambda x: x[1]
+            )[:5],
+            "rebalance_last_performed": self.last_rebalance.isoformat() if self.last_rebalance else None,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+
+class SignalTracer:
+    """Продвинутая система трассировки сигналов"""
+    
+    def __init__(self):
+        self.traces: Dict[str, 'SignalTrace'] = {}
+        self.trace_index: Dict[str, List[str]] = defaultdict(list)  # node -> trace_ids
+        self.completed_traces: deque = deque(maxlen=1000)
+        
+    def create_trace(self, signal_package: SignalPackage, source_node: str) -> 'SignalTrace':
+        """Создание новой трассировки"""
+        trace_id = self._generate_trace_id(signal_package, source_node)
+        
+        trace = SignalTrace(
+            id=trace_id,
+            signal_package=signal_package,
+            source_node=source_node,
+            start_time=datetime.utcnow()
+        )
+        
+        self.traces[trace_id] = trace
+        self.trace_index[source_node].append(trace_id)
+        
+        return trace
+    
+    def _generate_trace_id(self, signal_package: SignalPackage, source_node: str) -> str:
+        """Генерация уникального ID трассировки"""
+        content = f"{source_node}_{signal_package.type}_{signal_package.id}_{datetime.utcnow().timestamp()}"
+        return hashlib.sha256(content.encode()).hexdigest()[:16]
+    
+    async def add_hop(self, trace_id: str, channel: QuantumChannel, 
+                     node: SephiroticNode, processing_time: float, 
+                     output_strength: float):
+        """Добавление шага в трассировку"""
+        if trace_id not in self.traces:
+            return
+        
+        trace = self.traces[trace_id]
+        
+        hop = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "channel_id": channel.id,
+            "channel_letter": channel.hebrew_letter,
+            "from_node": channel.from_sephira,
+            "to_node": channel.to_sephira,
+            "node_status": node.status.value if node else "unknown",
+            "node_resonance": node.resonance if hasattr(node, 'resonance') else 0.0,
+            "processing_time": processing_time,
+            "output_strength": output_strength,
+            "channel_strength": channel.current_strength,
+            "channel_resonance": channel.resonance_factor,
+            "channel_load": channel.current_load
+        }
+        
+        trace.hops.append(hop)
+        
+        # Индексация по узлу
+        if channel.to_sephira:
+            self.trace_index[channel.to_sephira].append(trace_id)
+    
+    def complete_trace(self, trace_id: str, success: bool, 
+                      final_node: str = None, error: str = None):
+        """Завершение трассировки"""
+        if trace_id not in self.traces:
+            return
+        
+        trace = self.traces[trace_id]
+        trace.end_time = datetime.utcnow()
+        trace.success = success
+        trace.final_node = final_node
+        trace.error = error
+        
+        # Расчет статистик
+        if trace.hops:
+            trace.total_hops = len(trace.hops)
+            trace.total_duration = (trace.end_time - trace.start_time).total_seconds()
+            trace.avg_processing_time = statistics.mean(
+                [hop["processing_time"] for hop in trace.hops]
+            )
+            trace.min_strength = min([hop["output_strength"] for hop in trace.hops])
+            trace.max_strength = max([hop["output_strength"] for hop in trace.hops])
+            
+            # Определение узких мест
+            bottlenecks = []
+            for hop in trace.hops:
+                if hop["output_strength"] < 0.3:
+                    bottlenecks.append({
+                        "channel": hop["channel_letter"],
+                        "strength": hop["output_strength"],
+                        "reason": "low_strength"
+                    })
+                elif hop["processing_time"] > 1.0:
+                    bottlenecks.append({
+                        "channel": hop["channel_letter"],
+                        "processing_time": hop["processing_time"],
+                        "reason": "high_latency"
+                    })
+            
+            trace.bottlenecks = bottlenecks
+        
+        # Перемещение в завершенные
+        self.completed_traces.append(trace)
+        
+        # Удаление из активных (но храним по ID для быстрого доступа)
+        # Не удаляем полностью, чтобы можно было запрашивать по ID
+    
+    def get_trace(self, trace_id: str) -> Optional[Dict[str, Any]]:
+        """Получение трассировки по ID"""
+        if trace_id in self.traces:
+            return self.traces[trace_id].to_dict()
+        return None
+    
+    def get_node_traces(self, node_name: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """Получение трассировок связанных с узлом"""
+        trace_ids = self.trace_index.get(node_name, [])[-limit:]
+        traces = []
+        
+        for trace_id in trace_ids:
+            if trace_id in self.traces:
+                traces.append(self.traces[trace_id].to_dict())
+        
+        return traces
+    
+    def get_recent_traces(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """Получение последних трассировок"""
+        recent = list(self.completed_traces)[-limit:]
+        return [trace.to_dict() for trace in recent]
+    
+    def analyze_trace_patterns(self) -> Dict[str, Any]:
+        """Анализ паттернов в трассировках"""
+        if not self.completed_traces:
+            return {"total_traces": 0}
+        
+        traces = list(self.completed_traces)
+        
+        # Статистики успешности
+        successful = [t for t in traces if t.success]
+        failed = [t for t in traces if not t.success]
+        
+        # Анализ по типам сигналов
+        by_type = defaultdict(list)
+        for trace in traces:
+            by_type[trace.signal_package.type.value].append(trace)
+        
+        type_stats = {}
+        for sig_type, type_traces in by_type.items():
+            if type_traces:
+                success_rate = len([t for t in type_traces if t.success]) / len(type_traces)
+                avg_hops = statistics.mean([t.total_hops for t in type_traces]) if type_traces else 0
+                avg_duration = statistics.mean([t.total_duration for t in type_traces]) if type_traces else 0
+                
+                type_stats[sig_type] = {
+                    "count": len(type_traces),
+                    "success_rate": success_rate,
+                    "avg_hops": avg_hops,
+                    "avg_duration": avg_duration
+                }
+        
+        # Анализ узких мест
+        all_bottlenecks = []
+        for trace in traces:
+            all_bottlenecks.extend(trace.bottlenecks)
+        
+        bottleneck_stats = defaultdict(int)
+        for bottleneck in all_bottlenecks:
+            key = f"{bottleneck.get('channel', 'unknown')}_{bottleneck.get('reason', 'unknown')}"
+            bottleneck_stats[key] += 1
+        
+        return {
+            "total_traces": len(traces),
+            "successful_traces": len(successful),
+            "failed_traces": len(failed),
+            "overall_success_rate": len(successful) / len(traces) if traces else 0,
+            "by_signal_type": type_stats,
+            "common_bottlenecks": dict(sorted(bottleneck_stats.items(), key=lambda x: x[1], reverse=True)[:10]),
+            "avg_hops_all": statistics.mean([t.total_hops for t in traces]) if traces else 0,
+            "avg_duration_all": statistics.mean([t.total_duration for t in traces]) if traces else 0,
+            "timestamp": datetime.utcnow().isoformat()
+        }
 
 
 @dataclass
 class SignalTrace:
-    """Трассировка прохождения сигнала через сеть"""
-    signal_id: str
-    source: str
-    original_package: SignalPackage
-    path_taken: List[Dict[str, Any]] = field(default_factory=list)
-    start_time: datetime = field(default_factory=datetime.utcnow)
+    """Структура трассировки сигнала"""
+    id: str
+    signal_package: SignalPackage
+    source_node: str
+    start_time: datetime
     end_time: Optional[datetime] = None
     success: bool = False
+    final_node: Optional[str] = None
+    error: Optional[str] = None
+    hops: List[Dict[str, Any]] = field(default_factory=list)
     total_hops: int = 0
-    average_strength: float = 0.0
-    bottlenecks: List[str] = field(default_factory=list)
-    
-    def add_hop(self, channel: ChannelPath, strength_after: float, 
-                processing_time: float, node_status: str):
-        """Добавление шага в трассировку"""
-        self.path_taken.append({
-            "channel": channel.hebrew_letter,
-            "from": channel.from_sephira,
-            "to": channel.to_sephira,
-            "strength_before": channel.strength,
-            "strength_after": strength_after,
-            "processing_time": processing_time,
-            "node_status": node_status,
-            "timestamp": datetime.utcnow().isoformat(),
-            "resonance_factor": channel.resonance_factor
-        })
-        self.total_hops += 1
-    
-    def complete(self, success: bool = True):
-        """Завершение трассировки"""
-        self.end_time = datetime.utcnow()
-        self.success = success
-        
-        if self.path_taken:
-            strengths = [hop["strength_after"] for hop in self.path_taken]
-            self.average_strength = statistics.mean(strengths)
-            
-            # Определение узких мест (сигнал < 0.3)
-            self.bottlenecks = [
-                hop["channel"] for hop in self.path_taken 
-                if hop["strength_after"] < 0.3
-            ]
+    total_duration: float = 0.0
+    avg_processing_time: float = 0.0
+    min_strength: float = 1.0
+    max_strength: float = 1.0
+    bottlenecks: List[Dict[str, Any]] = field(default_factory=list)
     
     def to_dict(self) -> Dict[str, Any]:
         """Конвертация в словарь"""
         return {
-            "signal_id": self.signal_id,
-            "source": self.source,
-            "signal_type": self.original_package.type.value,
+            "trace_id": self.id,
+            "signal_id": self.signal_package.id,
+            "signal_type": self.signal_package.type.value,
+            "source_node": self.source_node,
+            "target_node": self.signal_package.target,
             "start_time": self.start_time.isoformat(),
             "end_time": self.end_time.isoformat() if self.end_time else None,
-            "duration_seconds": (
-                (self.end_time - self.start_time).total_seconds() 
-                if self.end_time else None
-            ),
+            "duration": self.total_duration,
             "success": self.success,
+            "final_node": self.final_node,
+            "error": self.error,
             "total_hops": self.total_hops,
-            "average_strength": self.average_strength,
+            "avg_processing_time": self.avg_processing_time,
+            "min_strength": self.min_strength,
+            "max_strength": self.max_strength,
             "bottlenecks": self.bottlenecks,
-            "path_details": self.path_taken
+            "hops": self.hops[-10:] if self.hops else [],  # Последние 10 шагов
+            "hop_count": len(self.hops)
         }
-
-
-class QuantumChannelOptimizer:
-    """Оптимизатор квантовых каналов с динамической подстройкой"""
-    
-    def __init__(self):
-        self.channel_metrics: Dict[str, Dict[str, Any]] = {}
-        self.optimization_history: deque = deque(maxlen=1000)
-        self.last_optimization: Optional[datetime] = None
-        
-    async def analyze_channel_performance(self, channels: List[ChannelPath], 
-                                         traces: List[SignalTrace]) -> Dict[str, Any]:
-        """Анализ производительности каналов"""
-        
-        channel_stats = {}
-        for channel in channels:
-            channel_key = f"{channel.from_sephira}->{channel.to_sephira}"
-            
-            # Сбор статистики по этому каналу
-            channel_traces = [
-                trace for trace in traces
-                if any(
-                    hop["channel"] == channel.hebrew_letter 
-                    for hop in trace.path_taken
-                )
-            ]
-            
-            if channel_traces:
-                success_rate = len([t for t in channel_traces if t.success]) / len(channel_traces)
-                avg_strength = statistics.mean([
-                    hop["strength_after"]
-                    for trace in channel_traces
-                    for hop in trace.path_taken
-                    if hop["channel"] == channel.hebrew_letter
-                ]) if any(trace.path_taken for trace in channel_traces) else 0
-                
-                avg_processing_time = statistics.mean([
-                    hop["processing_time"]
-                    for trace in channel_traces
-                    for hop in trace.path_taken
-                    if hop["channel"] == channel.hebrew_letter
-                ]) if any(trace.path_taken for trace in channel_traces) else 0
-            else:
-                success_rate = 0
-                avg_strength = 0
-                avg_processing_time = 0
-            
-            channel_stats[channel_key] = {
-                "hebrew_letter": channel.hebrew_letter,
-                "success_rate": success_rate,
-                "average_strength": avg_strength,
-                "average_processing_time": avg_processing_time,
-                "current_strength": channel.strength,
-                "resonance_factor": channel.resonance_factor,
-                "load_percentage": (channel.current_load / channel.max_bandwidth) * 100,
-                "activation_count": channel.activation_count,
-                "recommendation": self._generate_recommendation(
-                    success_rate, avg_strength, channel.current_load, channel.max_bandwidth
-                )
-            }
-        
-        return channel_stats
-    
-    def _generate_recommendation(self, success_rate: float, avg_strength: float,
-                                current_load: int, max_bandwidth: int) -> str:
-        """Генерация рекомендаций по оптимизации канала"""
-        load_percentage = (current_load / max_bandwidth) * 100
-        
-        if success_rate < 0.5:
-            return "increase_strength_or_rest"
-        elif avg_strength < 0.3:
-            return "improve_resonance"
-        elif load_percentage > 80:
-            return "increase_bandwidth_or_balance_load"
-        elif success_rate > 0.9 and avg_strength > 0.8:
-            return "optimal"
-        else:
-            return "monitor"
-    
-    async def optimize_channels(self, channels: List[ChannelPath], 
-                               force: bool = False) -> List[ChannelPath]:
-        """Оптимизация каналов на основе метрик"""
-        
-        now = datetime.utcnow()
-        
-        # Проверка необходимости оптимизации (не чаще чем раз в 5 минут)
-        if (not force and self.last_optimization and 
-            (now - self.last_optimization).total_seconds() < 300):
-            return channels
-        
-        optimized_channels = []
-        changes_made = []
-        
-        for channel in channels:
-            original_strength = channel.strength
-            original_resonance = channel.resonance_factor
-            
-            # Анализ метрик канала
-            channel_key = f"{channel.from_sephira}->{channel.to_sephira}"
-            metrics = self.channel_metrics.get(channel_key, {})
-            
-            success_rate = metrics.get("success_rate", 0.5)
-            avg_strength = metrics.get("average_strength", 0.5)
-            load_percentage = metrics.get("load_percentage", 0)
-            
-            # Применение оптимизаций
-            if success_rate < 0.3:
-                # Низкая успешность - снижаем нагрузку
-                channel.max_bandwidth = max(50, channel.max_bandwidth - 20)
-                channel.strength = max(0.3, channel.strength - 0.1)
-                changes_made.append(f"{channel.hebrew_letter}: reduced_load")
-            
-            elif success_rate > 0.8 and avg_strength > 0.7:
-                # Высокая успешность - можно повысить нагрузку
-                if load_percentage < 60:
-                    channel.max_bandwidth = min(200, channel.max_bandwidth + 20)
-                    channel.strength = min(1.0, channel.strength + 0.05)
-                    changes_made.append(f"{channel.hebrew_letter}: increased_capacity")
-            
-            # Автоматическая балансировка резонанса
-            if avg_strength < 0.4:
-                channel.resonance_factor = min(1.0, channel.resonance_factor + 0.05)
-            elif avg_strength > 0.9:
-                channel.resonance_factor = max(0.5, channel.resonance_factor - 0.03)
-            
-            # Запись изменений
-            if (abs(channel.strength - original_strength) > 0.01 or
-                abs(channel.resonance_factor - original_resonance) > 0.01):
-                changes_made.append(
-                    f"{channel.hebrew_letter}: strength {original_strength:.2f}→{channel.strength:.2f}, "
-                    f"resonance {original_resonance:.2f}→{channel.resonance_factor:.2f}"
-                )
-            
-            optimized_channels.append(channel)
-        
-        # Запись истории оптимизации
-        if changes_made:
-            self.optimization_history.append({
-                "timestamp": now.isoformat(),
-                "changes": changes_made,
-                "total_channels": len(channels),
-                "channels_optimized": len([c for c in changes_made if "strength" in c or "resonance" in c])
-            })
-        
-        self.last_optimization = now
-        return optimized_channels
 
 
 class SephiroticBus:
-    """Совершенная центральная шина для 10 узлов и 22 путей Древа Жизни"""
+    """СОВЕРШЕННАЯ сефиротическая шина с полной асинхронностью и интеллектом"""
     
-    def __init__(self, config_file: str = "config/sephirot_channels.json"):
+    def __init__(self, config_file: str = "config/sephirot_channels.yaml"):
+        # Ядро
         self.nodes: Dict[str, SephiroticNode] = {}
-        self.channels: List[ChannelPath] = []
-        self.signal_traces: Dict[str, SignalTrace] = {}
-        self.message_log: deque = deque(maxlen=500)
-        self.feedback_queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
-        self.optimizer = QuantumChannelOptimizer()
-        self.load_balancer = ChannelLoadBalancer()
+        self.channels: Dict[str, QuantumChannel] = {}
+        self.channel_connections: Dict[str, List[str]] = defaultdict(list)  # node -> channel_ids
         
-        # Метрики шины
-        self.metrics = {
-            "total_signals": 0,
-            "successful_signals": 0,
-            "failed_signals": 0,
-            "average_latency": 0.0,
-            "peak_load": 0,
-            "system_coherence_history": deque(maxlen=100),
-            "channel_health_history": defaultdict(lambda: deque(maxlen=50))
-        }
+        # Подсистемы
+        self.tracer = SignalTracer()
+        self.load_balancer = ChannelLoadBalancer()
+        self.feedback_processor = FeedbackProcessor(self)
+        
+        # Очереди
+        self.signal_queue = asyncio.PriorityQueue(maxsize=10000)
+        self.feedback_queue = asyncio.Queue(maxsize=5000)
+        
+        # Метрики
+        self.metrics = BusMetrics()
+        self.health_monitor = BusHealthMonitor(self)
+        
+        # Фоновые задачи
+        self.background_tasks: List[asyncio.Task] = []
+        self.is_running = False
         
         # Инициализация
-        self._load_all_channels()
-        self._init_background_tasks()
+        self._load_full_channel_config(config_file)
+        self._init_background_services()
         
-        print(f"[BUS] Инициализирована сефиротическая шина с {len(self.channels)} каналами")
+        print(f"[BUS] 🌳 Инициализирована совершенная сефиротическая шина")
+        print(f"[BUS] 📊 Каналов: {len(self.channels)} | Макс. очередь: {self.signal_queue.maxsize}")
     
-    def _load_all_channels(self):
-        """Загрузка всех 22 каналов Древа Жизни"""
-        # Полный набор 22 путей (ивритские буквы + сефирот)
-        all_channels = [
-            # 3 вертикальных столпа
-            ChannelPath("Aleph", "Kether", "Chokhmah", 0.95, True, "Путь от Короны к Мудрости"),
-            ChannelPath("Beth", "Kether", "Binah", 0.95, True, "Путь от Короны к Пониманию"),
-            ChannelPath("Gimel", "Kether", "Tiferet", 0.9, True, "Путь от Короны к Красоте"),
-            
-            # Горизонтальные пути верхнего треугольника
-            ChannelPath("Daleth", "Chokhmah", "Binah", 0.85, True, "Путь от Мудрости к Пониманию"),
-            ChannelPath("He", "Chokhmah", "Tiferet", 0.8, True, "Путь от Мудрости к Красоте"),
-            ChannelPath("Vav", "Chokhmah", "Chesed", 0.75, True, "Путь от Мудрости к Милосердию"),
-            
-            # Средние пути
-            ChannelPath("Zayin", "Binah", "Tiferet", 0.8, True, "Путь от Понимания к Красоте"),
-            ChannelPath("Cheth", "Binah", "Gevurah", 0.75, True, "Путь от Понимания к Строгости"),
-            ChannelPath("Teth", "Chesed", "Gevurah", 0.7, True, "Путь от Милосердия к Строгости"),
-            
-            # Центральные пути
-            ChannelPath("Yod", "Chesed", "Tiferet", 0.85, True, "Путь от Милосердия к Красоте"),
-            ChannelPath("Kaph", "Gevurah", "Tiferet", 0.85, True, "Путь от Строгости к Красоте"),
-            ChannelPath("Lamed", "Chesed", "Netzach", 0.8, True, "Путь от Милосердия к Победе"),
-            
-            # Нижние пути
-            ChannelPath("Mem", "Gevurah", "Hod", 0.8, True, "Путь от Строгости к Славе"),
-            ChannelPath("Nun", "Tiferet", "Netzach", 0.9, True, "Путь от Красоты к Победе"),
-            ChannelPath("Samekh", "Tiferet", "Yesod", 0.9, True, "Путь от Красоты к Основанию"),
-            
-            ChannelPath("Ayin", "Tiferet", "Hod", 0.9, True, "Путь от Красоты к Славе"),
-            ChannelPath("Pe", "Netzach", "Hod", 0.85, True, "Путь от Победы к Славе"),
-            ChannelPath("Tzaddi", "Netzach", "Yesod", 0.8, True, "Путь от Победы к Основанию"),
-            
-            ChannelPath("Qoph", "Hod", "Yesod", 0.85, True, "Путь от Славы к Основанию"),
-            ChannelPath("Resh", "Netzach", "Malkuth", 0.75, True, "Путь от Победы к Царству"),
-            ChannelPath("Shin", "Hod", "Malkuth", 0.75, True, "Путь от Славы к Царству"),
-            ChannelPath("Tav", "Yesod", "Malkuth", 0.95, True, "Путь от Основания к Царству"),
-        ]
-        
-        self.channels = all_channels
-        print(f"[BUS] Загружены {len(self.channels)}/22 каналов Древа Жизни")
-    
-    def _init_background_tasks(self):
-        """Инициализация фоновых задач шины"""
-        self.background_tasks = {
-            "optimization": None,
-            "feedback_processing": None,
-            "metrics_aggregation": None,
-            "health_check": None
-        }
-    
-    async def start_background_tasks(self):
-        """Запуск фоновых задач"""
-        loop = asyncio.get_event_loop()
-        
-        self.background_tasks["optimization"] = loop.create_task(
-            self._periodic_optimization()
-        )
-        
-        self.background_tasks["feedback_processing"] = loop.create_task(
-            self._process_feedback_queue()
-        )
-        
-        self.background_tasks["metrics_aggregation"] = loop.create_task(
-            self._aggregate_metrics()
-        )
-        
-        self.background_tasks["health_check"] = loop.create_task(
-            self._health_check_cycle()
-        )
-        
-        print("[BUS] Фоновые задачи запущены")
-    
-    async def register_node(self, node: SephiroticNode) -> bool:
-        """Регистрация сефиротического узла с проверкой дубликатов"""
-        if node.name in self.nodes:
-            print(f"[BUS] Предупреждение: узел {node.name} уже зарегистрирован")
-            return False
-        
-        self.nodes[node.name] = node
-        
-        # Создание обратных связей для узла
-        await self._create_node_feedback_channels(node.name)
-        
-        print(f"[BUS] Зарегистрирован узел: {node.name} (уровень {node.sephira_level})")
-        return True
-    
-    async def _create_node_feedback_channels(self, node_name: str):
-        """Создание каналов обратной связи для узла"""
-        # Находим все входящие каналы для узла
-        incoming_channels = [
-            channel for channel in self.channels 
-            if channel.to_sephira == node_name
-        ]
-        
-        for channel in incoming_channels:
-            # Проверяем, существует ли уже обратный канал
-            reverse_exists = any(
-                c.from_sephira == node_name and c.to_sephira == channel.from_sephira
-                for c in self.channels
-            )
-            
-            if not reverse_exists and channel.bidirectional:
-                # Создаем обратный канал с немного другими параметрами
-                reverse_channel = ChannelPath(
-                    hebrew_letter=f"{channel.hebrew_letter}_R",
-                    from_sephira=node_name,
-                    to_sephira=channel.from_sephira,
-                    strength=channel.strength * 0.9,  # Обратный путь слабее
-                    bidirectional=True,
-                    description=f"Обратный путь от {node_name} к {channel.from_sephira}",
-                    energy_decay=channel.energy_decay * 1.1  # Большее затухание
-                )
-                self.channels.append(reverse_channel)
-    
-    async def transmit(self, from_node: str, signal_package: SignalPackage, 
-                      max_hops: int = 5, require_confirmation: bool = False) -> Dict[str, Any]:
-        """Асинхронная передача сигнала через соответствующие каналы с трассировкой"""
-        
-        # Генерация ID сигнала для трассировки
-        signal_id = hashlib.md5(
-            f"{from_node}_{signal_package.type}_{datetime.utcnow().isoformat()}".encode()
-        ).hexdigest()[:16]
-        
-        # Создание трассировки
-        trace = SignalTrace(
-            signal_id=signal_id,
-            source=from_node,
-            original_package=signal_package
-        )
-        self.signal_traces[signal_id] = trace
-        
-        # Проверка безопасности сигнала
-        safety_check = await self._validate_signal(signal_package)
-        if not safety_check["valid"]:
-            trace.complete(False)
-            return {
-                "success": False,
-                "error": f"Signal validation failed: {safety_check['reason']}",
-                "signal_id": signal_id,
-                "trace": trace.to_dict()
-            }
-        
-        # Основной цикл передачи
-        current_node = from_node
-        remaining_hops = max_hops
-        current_signal = signal_package.copy()
-        current_strength = 1.0
-        
-        start_time = datetime.utcnow()
-        
-        while remaining_hops > 0 and current_node in self.nodes:
-            # Находим все исходящие каналы из текущего узла
-            outgoing_channels = [
-                channel for channel in self.channels
-                if channel.from_sephira == current_node and channel.to_sephira in self.nodes
-            ]
-            
-            if not outgoing_channels:
-                break
-            
-            # Балансировка нагрузки: выбираем лучший канал
-            selected_channel = await self.load_balancer.select_best_channel(
-                outgoing_channels, current_signal.type, current_strength
-            )
-            
-            if not selected_channel:
-                break
-            
-            # Проверка возможности передачи
-            can_transmit, reason = selected_channel.can_transmit(current_strength)
-            if not can_transmit:
-                trace.bottlenecks.append(f"{selected_channel.hebrew_letter}:{reason}")
-                break
-            
-            # Подготовка к передаче
-            target_node = self.nodes[selected_channel.to_sephira]
-            processing_start = datetime.utcnow()
-            
-            try:
-                # Обновление метаданных сигнала
-                current_signal.metadata["hops"] = max_hops - remaining_hops + 1
-                current_signal.metadata["current_strength"] = current_strength
-                current_signal.metadata["channel"] = selected_channel.hebrew_letter
-                
-                # Передача сигнала целевому узлу (асинхронно)
-                result = await target_node.receive_signal(current_signal)
-                
-                # Расчет времени обработки
-                processing_time = (datetime.utcnow() - processing_start).total_seconds()
-                
-                # Обновление канала
-                selected_channel.activation_count += 1
-                selected_channel.current_load += 1
-                selected_channel.last_used = datetime.utcnow()
-                
-                # Расчет затухания сигнала
-                signal_loss = selected_channel.calculate_signal_loss(max_hops - remaining_hops)
-                current_strength *= (1 - signal_loss)
-                
-                # Обновление трассировки
-                trace.add_hop(
-                    channel=selected_channel,
-                    strength_after=current_strength,
-                    processing_time=processing_time,
-                    node_status=target_node.status.value
-                )
-                
-                # Обновление резонанса канала на основе успешности
-                selected_channel.update_resonance(True)
-                
-                # Переход к следующему узлу
-                current_node = selected_channel.to_sephira
-                
-                # Проверка завершения (достигнута цель или сигнал слишком слаб)
-                if (current_node == signal_package.target or 
-                    current_strength < 0.1 or 
-                    (require_confirmation and result.get("confirmed", False))):
-                    break
-                
-                remaining_hops -= 1
-                
-                # Небольшая задержка между переходами
-                await asyncio.sleep(0.001)
-                
-            except Exception as e:
-                # Ошибка обработки
-                selected_channel.update_resonance(False)
-                trace.add_hop(
-                    channel=selected_channel,
-                    strength_after=current_strength * 0.5,  # Сильное затухание при ошибке
-                    processing_time=(datetime.utcnow() - processing_start).total_seconds(),
-                    node_status="error"
-                )
-                break
-            
-            finally:
-                # Снижение нагрузки на канал
-                selected_channel.current_load = max(0, selected_channel.current_load - 1)
-        
-        # Завершение трассировки
-        trace.complete(trace.total_hops > 0)
-        
-        # Обновление метрик шины
-        await self._update_transmission_metrics(
-            success=trace.success,
-            duration=(datetime.utcnow() - start_time).total_seconds(),
-            hops=trace.total_hops,
-            final_strength=current_strength
-        )
-        
-        # Логирование
-        await self._log_transmission(trace)
-        
-        return {
-            "success": trace.success,
-            "signal_id": signal_id,
-            "final_node": current_node,
-            "final_strength": current_strength,
-            "total_hops": trace.total_hops,
-            "bottlenecks": trace.bottlenecks,
-            "trace": trace.to_dict(),
-            "timestamp": datetime.utcnow().isoformat()
-        }
-    
-    async def _validate_signal(self, signal_package: SignalPackage) -> Dict[str, Any]:
-        """Проверка безопасности и валидности сигнала"""
-        
-        # Проверка размера payload
-        if hasattr(signal_package, 'payload'):
-            import sys
-            payload_size = sys.getsizeof(str(signal_package.payload))
-            if payload_size > 1024 * 1024:  # 1 MB лимит
-                return {"valid": False, "reason": "payload_too_large"}
-        
-        # Проверка типа сигнала
-        if not isinstance(signal_package.type, SignalType):
-            return {"valid": False, "reason": "invalid_signal_type"}
-        
-        # Проверка TTL если есть
-        if hasattr(signal_package, 'ttl'):
-            if signal_package.ttl <= 0:
-                return {"valid": False, "reason": "signal_expired"}
-        
-        return {"valid": True, "reason": "ok"}
-    
-    async def broadcast_quantum_sync(self, sync_signal: SignalPackage, 
-                                    group_name: str = "all") -> Dict[str, Dict[str, Any]]:
-        """Квантовая синхронизация состояний узлов в группе"""
-        
-        results = {}
-        
-        if group_name == "all":
-            target_nodes = list(self.nodes.keys())
-        else:
-            # Определение узлов в группе
-            target_nodes = []
-            for channel in self.channels:
-                if group_name in channel.description or channel.from_sephira in group_name:
-                    target_nodes.append(channel.from_sephira)
-                    target_nodes.append(channel.to_sephira)
-            target_nodes = list(set(target_nodes))
-        
-        # Параллельная синхронизация
-        tasks = []
-        for node_name in target_nodes:
-            if node_name in self.nodes:
-                task = self._perform_single_sync(node_name, sync_signal)
-                tasks.append(task)
-        
-        # Ожидание всех синхронизаций
-        sync_results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        for i, node_name in enumerate(target_nodes):
-            if i < len(sync_results):
-                results[node_name] = (
-                    sync_results[i] if not isinstance(sync_results[i], Exception)
-                    else {"error": str(sync_results[i]), "sync_successful": False}
-                )
-        
-        return results
-    
-    async def _perform_single_sync(self, node_name: str, sync_signal: SignalPackage) -> Dict[str, Any]:
-        """Выполнение синхронизации с одним узлом"""
-        node = self.nodes[node_name]
-        
-        # Специальный сигнал синхронизации
-        sync_package = sync_signal.copy()
-        sync_package.target = node_name
-        sync_package.metadata["sync_mode"] = True
-        
+    def _load_full_channel_config(self, config_file: str):
+        """Загрузка полной конфигурации 22 каналов"""
         try:
-            result = await node.receive_signal(sync_package)
-            
-            # Проверка успешности синхронизации
-            current_resonance = node.resonance if hasattr(node, 'resonance') else 0.5
-            sync_successful = result.get("sync_accepted", False) or current_resonance > 0.6
-            
-            return {
-                "sync_successful": sync_successful,
-                "current_resonance": current_resonance,
-                "node_status": node.status.value,
-                "response": result,
-                "resonance_gain": min(0.1, (1 - current_resonance) * 0.2) if sync_successful else 0
-            }
-        except Exception as e:
-            return {"error": str(e), "sync_successful": False}
-    
-    async def propagate_feedback(self, to_node: str, feedback: Dict[str, Any]) -> Dict[str, Any]:
-        """Распространение обратной связи к узлу"""
-        
-        if to_node not in self.nodes:
-            return {"error": f"Node {to_node} not found", "success": False}
-        
-        # Создание сигнала обратной связи
-        feedback_signal = SignalPackage(
-            source="BUS_FEEDBACK",
-            target=to_node,
-            type=SignalType.COMMAND,
-            payload=feedback,
-            metadata={"feedback_loop": True, "timestamp": datetime.utcnow().isoformat()}
-        )
-        
-        # Помещение в очередь обратной связи
-        try:
-            await self.feedback_queue.put({
-                "signal": feedback_signal,
-                "priority": feedback.get("priority", 5)
-            })
-            return {"success": True, "queued": True, "timestamp": datetime.utcnow().isoformat()}
-        except asyncio.QueueFull:
-            return {"error": "Feedback queue is full", "success": False}
-    
-    async def _process_feedback_queue(self):
-        """Обработка очереди обратной связи"""
-        while True:
-            try:
-                # Получение с приоритетом
-                feedback_item = await self.feedback_queue.get()
-                feedback_signal = feedback_item["signal"]
+            # Попытка загрузки из YAML
+            with open(config_file, 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+                channels_config = config.get('channels', [])
                 
-                # Передача обратной связи
-                await self.transmit(
-                    from_node=feedback_signal.source,
-                    signal_package=feedback_signal,
-                    max_hops=3,
-                    require_confirmation=True
-                )
+                for chan_config in channels_config:
+                    channel = QuantumChannel(**chan_config)
+                    self.channels[channel.id] = channel
+                    
+                    # Создание связей
+                    self.channel_connections[channel.from_sephira].append(channel.id)
+                    if channel.direction in [ChannelDirection.BIDIRECTIONAL, ChannelDirection.REVERSE]:
+                        self.channel_connections[channel.to_sephira].append(channel.id)
                 
-                self.feedback_queue.task_done()
-                
-            except Exception as e:
-                print(f"[BUS] Ошибка обработки обратной связи: {e}")
-            
-            await asyncio.sleep(0.1)  # Предотвращение перегрузки
-    
-    async def get_signal_trace(self, signal_id: str) -> Optional[Dict[str, Any]]:
-        """Получение детальной трассировки сигнала"""
-        if signal_id in self.signal_traces:
-            trace = self.signal_traces[signal_id]
-            return trace.to_dict()
-        return None
-    
-    async def get_network_state(self) -> Dict[str, Any]:
-        """Расширенное состояние сети"""
-        active_nodes = [
-            name for name, node in self.nodes.items()
-            if node.status == NodeStatus.ACTIVE
-        ]
-        
-        # Расчет когерентности с учетом резонанса
-        coherence = await self._calculate_enhanced_coherence()
-        
-        # Статистика каналов
-        channel_stats = {
-            "total": len(self.channels),
-            "active": len([c for c in self.channels 
-                          if c.from_sephira in self.nodes and c.to_sephira in self.nodes]),
-            "avg_strength": statistics.mean([c.strength for c in self.channels]) 
-                          if self.channels else 0,
-            "avg_resonance": statistics.mean([c.resonance_factor for c in self.channels]) 
-                           if self.channels else 0,
-            "total_load": sum(c.current_load for c in self.channels)
-        }
-        
-        return {
-            "timestamp": datetime.utcnow().isoformat(),
-            "nodes_registered": list(self.nodes.keys()),
-            "nodes_active": active_nodes,
-            "active_node_count": len(active_nodes),
-            "total_node_count": len(self.nodes),
-            "channel_statistics": channel_stats,
-            "system_coherence": coherence,
-            "coherence_level": self._coherence_to_level(coherence),
-            "recent_signals": len(self.message_log),
-            "feedback_queue_size": self.feedback_queue.qsize(),
-            "active_traces": len(self.signal_traces),
-            "metrics": {
-                "success_rate": (
-                    self.metrics["successful_signals"] / self.metrics["total_signals"] 
-                    if self.metrics["total_signals"] > 0 else 0
-                ),
-                "average_latency": self.metrics["average_latency"],
-                "peak_load": self.metrics["peak_load"]
-            }
-        }
-    
-    async def _calculate_enhanced_coherence(self) -> float:
-        """Расширенный расчет когерентности сети"""
-        if not self.nodes or not self.channels:
-            return 0.0
-        
-        # 1. Базовая когерентность (активные связи)
-        active_channels = [
-            c for c in self.channels
-            if c.from_sephira in self.nodes and c.to_sephira in self.nodes
-        ]
-        base_coherence = len(active_channels) / len(self.channels)
-        
-        # 2. Резонансная когерентность
-        resonance_values = [c.resonance_factor for c in active_channels]
-        resonance_coherence = (
-            statistics.mean(resonance_values) 
-            if resonance_values else 0
-        )
-        
-        # 3. Энергетическая когерентность
-        active_nodes = [
-            node for node in self.nodes.values()
-            if node.status == NodeStatus.ACTIVE
-        ]
-        if active_nodes:
-            energy_values = [node.energy for node in active_nodes if hasattr(node, 'energy')]
-            energy_coherence = (
-                statistics.mean(energy_values) 
-               
+                print(f"[BUS] Загружено {len(self.channels)} каналов из конфига")              
