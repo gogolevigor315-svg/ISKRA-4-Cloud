@@ -1,8 +1,10 @@
- # sephirot_bus.py - АБСОЛЮТНО ИДЕАЛЬНАЯ СЕФИРОТИЧЕСКАЯ ШИНА
+# sephirot_bus.py - АБСОЛЮТНО СОВЕРШЕННАЯ СЕФИРОТИЧЕСКАЯ ШИНА
 import asyncio
 import json
 import hashlib
 import pickle
+import secrets
+import jwt
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Set, Tuple, Callable
 from dataclasses import dataclass, field, asdict
@@ -21,6 +23,10 @@ from prometheus_client import Gauge, Counter, Histogram, Summary, Info
 from tensorflow import keras
 from tensorflow.keras import layers
 import threading
+import os
+import zipfile
+import io
+from pathlib import Path
 
 from .sephirot_base import (
     SephiroticNode, QuantumLink, SignalPackage, 
@@ -29,865 +35,836 @@ from .sephirot_base import (
 
 
 # ============================================================================
-# МОДУЛЬ МЕТРИК PROMETHEUS
+# МОДУЛЬ БЕЗОПАСНОСТИ JWT
 # ============================================================================
 
-class PrometheusMetricsExporter:
-    """Экспортер метрик в формате Prometheus с поддержкой многопоточности"""
+class JWTSecurityManager:
+    """Менеджер безопасности с JWT аутентификацией"""
     
-    def __init__(self, namespace: str = "sephirot_bus"):
-        self.namespace = namespace
-        self.metrics = {}
-        self.lock = threading.Lock()
+    def __init__(self, secret_key: str = None, token_expiry_hours: int = 24):
+        self.secret_key = secret_key or secrets.token_hex(32)
+        self.token_expiry_hours = token_expiry_hours
+        self.revoked_tokens: Set[str] = set()
+        self.token_history: deque = deque(maxlen=1000)
+        self.access_log: deque = deque(maxlen=5000)
         
-        # Инициализация Prometheus метрик
-        self._init_prometheus_metrics()
+        print(f"[SECURITY] JWT менеджер инициализирован. Токены действительны {token_expiry_hours}ч")
     
-    def _init_prometheus_metrics(self):
-        """Инициализация всех Prometheus метрик"""
-        with self.lock:
-            # Гаужи (текущие значения)
-            self.metrics["channels_total"] = Gauge(
-                f"{self.namespace}_channels_total",
-                "Total number of quantum channels",
-                ["direction", "status"]
-            )
-            
-            self.metrics["channels_active"] = Gauge(
-                f"{self.namespace}_channels_active",
-                "Number of active quantum channels"
-            )
-            
-            self.metrics["channel_strength"] = Gauge(
-                f"{self.namespace}_channel_strength",
-                "Current channel strength",
-                ["channel_id", "hebrew_letter", "from_sephira", "to_sephira"]
-            )
-            
-            self.metrics["channel_resonance"] = Gauge(
-                f"{self.namespace}_channel_resonance",
-                "Current channel resonance factor",
-                ["channel_id", "hebrew_letter"]
-            )
-            
-            self.metrics["channel_load_percentage"] = Gauge(
-                f"{self.namespace}_channel_load_percentage",
-                "Current channel load percentage",
-                ["channel_id"]
-            )
-            
-            self.metrics["nodes_registered"] = Gauge(
-                f"{self.namespace}_nodes_registered",
-                "Number of registered sephirotic nodes"
-            )
-            
-            self.metrics["nodes_active"] = Gauge(
-                f"{self.namespace}_nodes_active",
-                "Number of active sephirotic nodes"
-            )
-            
-            self.metrics["system_coherence"] = Gauge(
-                f"{self.namespace}_system_coherence",
-                "Current system coherence level (0-1)"
-            )
-            
-            self.metrics["queue_sizes"] = Gauge(
-                f"{self.namespace}_queue_size",
-                "Current queue sizes",
-                ["queue_type"]
-            )
-            
-            # Каунтеры (накопительные)
-            self.metrics["signals_transmitted"] = Counter(
-                f"{self.namespace}_signals_transmitted_total",
-                "Total number of signals transmitted",
-                ["signal_type", "status"]
-            )
-            
-            self.metrics["feedback_messages"] = Counter(
-                f"{self.namespace}_feedback_messages_total",
-                "Total number of feedback messages processed"
-            )
-            
-            self.metrics["channel_transmissions"] = Counter(
-                f"{self.namespace}_channel_transmissions_total",
-                "Total transmissions per channel",
-                ["channel_id", "result"]
-            )
-            
-            # Гистограммы (распределения)
-            self.metrics["signal_processing_time"] = Histogram(
-                f"{self.namespace}_signal_processing_seconds",
-                "Signal processing time distribution",
-                buckets=[0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0, 5.0]
-            )
-            
-            self.metrics["channel_latency"] = Histogram(
-                f"{self.namespace}_channel_latency_seconds",
-                "Channel latency distribution",
-                ["channel_id"],
-                buckets=[0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0]
-            )
-            
-            # Саммари (сводки)
-            self.metrics["signal_strength_summary"] = Summary(
-                f"{self.namespace}_signal_strength_summary",
-                "Signal strength summary statistics",
-                ["signal_type"]
-            )
-            
-            # Инфо (статическая информация)
-            self.metrics["bus_info"] = Info(
-                f"{self.namespace}_info",
-                "Information about the Sephirotic Bus"
-            )
-            
-            print(f"[METRICS] Prometheus экспортер инициализирован ({self.namespace})")
-    
-    def update_channel_metrics(self, channel: 'QuantumChannel'):
-        """Обновление метрик канала"""
-        with self.lock:
-            # Гаужи
-            self.metrics["channel_strength"].labels(
-                channel_id=channel.id,
-                hebrew_letter=channel.hebrew_letter,
-                from_sephira=channel.from_sephira,
-                to_sephira=channel.to_sephira
-            ).set(channel.current_strength)
-            
-            self.metrics["channel_resonance"].labels(
-                channel_id=channel.id,
-                hebrew_letter=channel.hebrew_letter
-            ).set(channel.resonance_factor)
-            
-            self.metrics["channel_load_percentage"].labels(
-                channel_id=channel.id
-            ).set((channel.current_load / channel.max_bandwidth) * 100 if channel.max_bandwidth > 0 else 0)
-    
-    def update_system_metrics(self, nodes_total: int, nodes_active: int, 
-                             coherence: float, queue_sizes: Dict[str, int]):
-        """Обновление системных метрик"""
-        with self.lock:
-            self.metrics["nodes_registered"].set(nodes_total)
-            self.metrics["nodes_active"].set(nodes_active)
-            self.metrics["system_coherence"].set(coherence)
-            
-            for queue_type, size in queue_sizes.items():
-                self.metrics["queue_sizes"].labels(queue_type=queue_type).set(size)
-    
-    def record_signal_transmission(self, signal_type: str, success: bool, 
-                                  processing_time: float = None, 
-                                  strength: float = None):
-        """Запись метрик передачи сигнала"""
-        with self.lock:
-            status = "success" if success else "failure"
-            self.metrics["signals_transmitted"].labels(
-                signal_type=signal_type,
-                status=status
-            ).inc()
-            
-            if processing_time is not None:
-                self.metrics["signal_processing_time"].observe(processing_time)
-            
-            if strength is not None:
-                self.metrics["signal_strength_summary"].labels(
-                    signal_type=signal_type
-                ).observe(strength)
-    
-    def record_channel_transmission(self, channel_id: str, success: bool, 
-                                   latency: float = None):
-        """Запись метрик передачи по каналу"""
-        with self.lock:
-            result = "success" if success else "failure"
-            self.metrics["channel_transmissions"].labels(
-                channel_id=channel_id,
-                result=result
-            ).inc()
-            
-            if latency is not None:
-                self.metrics["channel_latency"].labels(
-                    channel_id=channel_id
-                ).observe(latency)
-    
-    def record_feedback_message(self):
-        """Запись метрик обратной связи"""
-        with self.lock:
-            self.metrics["feedback_messages"].inc()
-    
-    def update_bus_info(self, info: Dict[str, str]):
-        """Обновление информации о шине"""
-        with self.lock:
-            self.metrics["bus_info"].info(info)
-    
-    def get_metrics_http_handler(self):
-        """Получение HTTP обработчика для метрик Prometheus"""
-        return prometheus_client.make_wsgi_app()
-    
-    def generate_metrics_report(self) -> Dict[str, Any]:
-        """Генерация отчета по метрикам"""
-        with self.lock:
-            report = {
-                "timestamp": datetime.utcnow().isoformat(),
-                "namespace": self.namespace,
-                "metrics": {}
-            }
-            
-            # Сбор данных по метрикам
-            for name, metric in self.metrics.items():
-                if hasattr(metric, '_metrics'):
-                    # Для метрик с лейблами
-                    metric_data = {}
-                    for label_values, metric_instance in metric._metrics.items():
-                        if hasattr(metric_instance, '_value'):
-                            metric_data[str(label_values)] = metric_instance._value.get()
-                    
-                    if metric_data:
-                        report["metrics"][name] = metric_data
-                elif hasattr(metric, '_value'):
-                    # Для простых метрик
-                    report["metrics"][name] = metric._value.get()
-            
-            return report
-
-
-# ============================================================================
-# МОДУЛЬ ВИЗУАЛИЗАЦИИ ГРАФА
-# ============================================================================
-
-class GraphVisualizer:
-    """Продвинутый визуализатор графа сефиротической сети"""
-    
-    def __init__(self):
-        self.graphviz_graph = None
-        self.plotly_figure = None
-        self.last_update = None
-        self.layout_cache = {}
-        
-    def create_graphviz_graph(self, channels: List['QuantumChannel'], 
-                             nodes: Dict[str, SephiroticNode], 
-                             title: str = "Сефиротическая Сеть") -> graphviz.Digraph:
-        """Создание графа Graphviz"""
-        
-        # Создание направленного графа
-        graph = graphviz.Digraph(
-            comment=title,
-            format='svg',
-            engine='neato',  # Для позиционирования
-            graph_attr={
-                'label': title,
-                'labelloc': 't',
-                'fontsize': '20',
-                'fontname': 'Helvetica',
-                'bgcolor': '#0f0f1f',
-                'rankdir': 'TB',  # Top to Bottom
-                'splines': 'curved',
-                'overlap': 'false'
-            },
-            node_attr={
-                'shape': 'circle',
-                'style': 'filled',
-                'fontname': 'Helvetica',
-                'fontsize': '12',
-                'width': '0.8',
-                'height': '0.8'
-            },
-            edge_attr={
-                'fontname': 'Helvetica',
-                'fontsize': '10',
-                'arrowsize': '0.7'
-            }
-        )
-        
-        # Цветовая схема для сефирот
-        sephira_colors = {
-            "Kether": "#ffd700",    # Золотой
-            "Chokhmah": "#4169e1",  # Королевский синий
-            "Binah": "#8a2be2",     # Сине-фиолетовый
-            "Chesed": "#32cd32",    # Лаймовый
-            "Gevurah": "#dc143c",   # Малиновый
-            "Tiferet": "#ff69b4",   # Ярко-розовый
-            "Netzach": "#00ced1",   # Темный бирюзовый
-            "Hod": "#ff8c00",       # Темно-оранжевый
-            "Yesod": "#9370db",     # Средне-фиолетовый
-            "Malkuth": "#2e8b57"    # Морская зелень
+    def create_token(self, user_id: str, permissions: List[str], 
+                    metadata: Dict[str, Any] = None) -> str:
+        """Создание JWT токена"""
+        payload = {
+            'user_id': user_id,
+            'permissions': permissions,
+            'exp': datetime.utcnow() + timedelta(hours=self.token_expiry_hours),
+            'iat': datetime.utcnow(),
+            'jti': secrets.token_hex(16),  # Уникальный ID токена
+            'metadata': metadata or {}
         }
         
-        # Добавление узлов (сефирот)
-        for node_name, node in nodes.items():
-            color = sephira_colors.get(node_name, "#808080")
-            
-            # Определение активности
-            is_active = node.status == NodeStatus.ACTIVE if hasattr(node, 'status') else True
-            
-            node_attrs = {
-                'fillcolor': f"{color}{'ff' if is_active else '80'}",  # Полная или полупрозрачная
-                'color': color,
-                'penwidth': '3' if is_active else '1',
-                'label': f"{node_name}\n{node.resonance:.2f}" if hasattr(node, 'resonance') else node_name
-            }
-            
-            if not is_active:
-                node_attrs['style'] = 'filled,dashed'
-            
-            graph.node(node_name, **node_attrs)
+        token = jwt.encode(payload, self.secret_key, algorithm='HS256')
         
-        # Добавление ребер (каналов)
-        for channel in channels:
-            if channel.from_sephira in nodes and channel.to_sephira in nodes:
-                # Цвет ребра на основе силы канала
-                strength_color = self._strength_to_color(channel.current_strength)
-                resonance_alpha = hex(int(channel.resonance_factor * 255))[2:].zfill(2)
-                
-                edge_attrs = {
-                    'color': f"{strength_color}{resonance_alpha}",
-                    'penwidth': str(max(1, channel.current_strength * 5)),
-                    'label': channel.hebrew_letter,
-                    'fontcolor': strength_color,
-                    'dir': 'both' if channel.direction == ChannelDirection.BIDIRECTIONAL else 'forward',
-                    'style': 'solid' if channel.is_active else 'dashed'
-                }
-                
-                # Для перегруженных каналов
-                load_percentage = (channel.current_load / channel.max_bandwidth) if channel.max_bandwidth > 0 else 0
-                if load_percentage > 0.8:
-                    edge_attrs['color'] = '#ff0000'  # Красный для перегруженных
-                    edge_attrs['penwidth'] = '3'
-                    edge_attrs['style'] = 'bold'
-                
-                graph.edge(channel.from_sephira, channel.to_sephira, **edge_attrs)
-        
-        self.graphviz_graph = graph
-        self.last_update = datetime.utcnow()
-        
-        return graph
-    
-    def _strength_to_color(self, strength: float) -> str:
-        """Конвертация силы канала в цвет"""
-        if strength > 0.8:
-            return "#00ff00"  # Зеленый
-        elif strength > 0.6:
-            return "#aaff00"  # Лаймовый
-        elif strength > 0.4:
-            return "#ffff00"  # Желтый
-        elif strength > 0.2:
-            return "#ffaa00"  # Оранжевый
-        else:
-            return "#ff0000"  # Красный
-    
-    def create_plotly_visualization(self, channels: List['QuantumChannel'], 
-                                   nodes: Dict[str, SephiroticNode]) -> go.Figure:
-        """Создание интерактивной визуализации Plotly"""
-        
-        # Позиции сефирот в 3D пространстве
-        positions = self._calculate_3d_positions(nodes)
-        
-        # Создание фигуры
-        fig = make_subplots(
-            rows=1, cols=1,
-            specs=[[{'type': 'scatter3d'}]],
-            subplot_titles=['🌳 Сефиротическая Сеть в 3D']
-        )
-        
-        # Добавление узлов
-        node_x, node_y, node_z = [], [], []
-        node_text, node_color, node_size = [], [], []
-        
-        for node_name, (x, y, z) in positions.items():
-            node_x.append(x)
-            node_y.append(y)
-            node_z.append(z)
-            
-            node = nodes.get(node_name)
-            resonance = node.resonance if node and hasattr(node, 'resonance') else 0.5
-            energy = node.energy if node and hasattr(node, 'energy') else 0.5
-            
-            # Текст для tooltip
-            node_text.append(
-                f"<b>{node_name}</b><br>"
-                f"Резонанс: {resonance:.2f}<br>"
-                f"Энергия: {energy:.2f}<br>"
-                f"Статус: {node.status.value if node else 'unknown'}"
-            )
-            
-            # Цвет на основе резонанса
-            r = int((1 - resonance) * 255)
-            g = int(resonance * 255)
-            node_color.append(f'rgb({r}, {g}, 100)')
-            
-            # Размер на основе энергии
-            node_size.append(10 + energy * 15)
-        
-        # Добавление узлов в граф
-        fig.add_trace(go.Scatter3d(
-            x=node_x, y=node_y, z=node_z,
-            mode='markers+text',
-            marker=dict(
-                size=node_size,
-                color=node_color,
-                line=dict(width=2, color='white'),
-                opacity=0.9
-            ),
-            text=[name for name in positions.keys()],
-            textposition="top center",
-            hovertext=node_text,
-            hoverinfo='text',
-            name='Сефироты'
-        ), row=1, col=1)
-        
-        # Добавление ребер (каналов)
-        for channel in channels:
-            if (channel.from_sephira in positions and 
-                channel.to_sephira in positions):
-                
-                x0, y0, z0 = positions[channel.from_sephira]
-                x1, y1, z1 = positions[channel.to_sephira]
-                
-                # Цвет ребра на основе силы
-                strength_color = self._strength_to_plotly_color(channel.current_strength)
-                
-                fig.add_trace(go.Scatter3d(
-                    x=[x0, x1, None],
-                    y=[y0, y1, None],
-                    z=[z0, z1, None],
-                    mode='lines',
-                    line=dict(
-                        color=strength_color,
-                        width=max(1, channel.current_strength * 3),
-                        dash='solid' if channel.is_active else 'dash'
-                    ),
-                    opacity=0.7,
-                    hoverinfo='none',
-                    showlegend=False,
-                    name=f"{channel.hebrew_letter}: {channel.current_strength:.2f}"
-                ), row=1, col=1)
-        
-        # Настройка макета
-        fig.update_layout(
-            title=dict(
-                text="Сефиротическая Сеть ISKRA-4",
-                font=dict(size=24, color='white')
-            ),
-            scene=dict(
-                xaxis=dict(showbackground=False, showticklabels=False, title=''),
-                yaxis=dict(showbackground=False, showticklabels=False, title=''),
-                zaxis=dict(showbackground=False, showticklabels=False, title=''),
-                bgcolor='rgba(10, 10, 30, 1)',
-                camera=dict(
-                    eye=dict(x=1.5, y=1.5, z=1.5)
-                )
-            ),
-            paper_bgcolor='rgba(10, 10, 30, 1)',
-            font=dict(color='white', size=12),
-            showlegend=True,
-            legend=dict(
-                x=0.02,
-                y=0.98,
-                bgcolor='rgba(0,0,0,0.5)',
-                bordercolor='white',
-                borderwidth=1
-            )
-        )
-        
-        self.plotly_figure = fig
-        return fig
-    
-    def _calculate_3d_positions(self, nodes: Dict[str, SephiroticNode]) -> Dict[str, Tuple[float, float, float]]:
-        """Расчет 3D позиций для сефирот"""
-        
-        # Классическая схема Древа Жизни в 3D
-        positions = {
-            "Kether": (0, 0, 2),      # Вверху
-            "Chokhmah": (-1, 0, 1),   # Слева-сверху
-            "Binah": (1, 0, 1),       # Справа-сверху
-            "Chesed": (-1.5, 0, 0),   # Слева-середина
-            "Gevurah": (1.5, 0, 0),   # Справа-середина
-            "Tiferet": (0, 0, 0),     # Центр
-            "Netzach": (-1, 0, -1),   # Слева-снизу
-            "Hod": (1, 0, -1),        # Справа-снизу
-            "Yesod": (0, 0, -1.5),    # Снизу-центр
-            "Malkuth": (0, 0, -2.5)   # В самом низу
-        }
-        
-        # Адаптация под существующие узлы
-        actual_positions = {}
-        for node_name in nodes.keys():
-            if node_name in positions:
-                actual_positions[node_name] = positions[node_name]
-            else:
-                # Случайное позиционирование для новых узлов
-                actual_positions[node_name] = (
-                    np.random.uniform(-2, 2),
-                    np.random.uniform(-2, 2),
-                    np.random.uniform(-2, 2)
-                )
-        
-        return actual_positions
-    
-    def _strength_to_plotly_color(self, strength: float) -> str:
-        """Конвертация силы канала в цвет для Plotly"""
-        if strength > 0.8:
-            return "rgba(0, 255, 0, 0.8)"
-        elif strength > 0.6:
-            return "rgba(170, 255, 0, 0.7)"
-        elif strength > 0.4:
-            return "rgba(255, 255, 0, 0.6)"
-        elif strength > 0.2:
-            return "rgba(255, 170, 0, 0.5)"
-        else:
-            return "rgba(255, 0, 0, 0.4)"
-    
-    def save_graphviz_to_file(self, filename: str = "sephirot_network.svg"):
-        """Сохранение графа Graphviz в файл"""
-        if self.graphviz_graph:
-            self.graphviz_graph.render(
-                filename=filename.replace('.svg', ''),
-                format='svg',
-                cleanup=True
-            )
-            return True
-        return False
-    
-    def get_plotly_html(self, include_plotlyjs: str = 'cdn') -> str:
-        """Получение HTML с Plotly визуализацией"""
-        if self.plotly_figure:
-            return self.plotly_figure.to_html(
-                include_plotlyjs=include_plotlyjs,
-                full_html=True,
-                config={'responsive': True}
-            )
-        return "<div>Визуализация не готова</div>"
-    
-    def generate_live_dashboard(self, bus_state: Dict[str, Any]) -> str:
-        """Генерация живого дашборда"""
-        
-        html = f"""
-        <!DOCTYPE html>
-        <html lang="ru">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Сефиротическая Сеть - Live Dashboard</title>
-            <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-            <style>
-                body {{
-                    margin: 0;
-                    padding: 20px;
-                    background: linear-gradient(135deg, #0f0f1f 0%, #1a1a2e 100%);
-                    color: white;
-                    font-family: 'Arial', sans-serif;
-                }}
-                .dashboard {{
-                    display: grid;
-                    grid-template-columns: 1fr 1fr;
-                    gap: 20px;
-                    max-width: 1800px;
-                    margin: 0 auto;
-                }}
-                .card {{
-                    background: rgba(255, 255, 255, 0.1);
-                    border-radius: 10px;
-                    padding: 20px;
-                    backdrop-filter: blur(10px);
-                    border: 1px solid rgba(255, 255, 255, 0.2);
-                }}
-                .metrics-grid {{
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                    gap: 10px;
-                    margin-top: 15px;
-                }}
-                .metric {{
-                    background: rgba(0, 0, 0, 0.3);
-                    padding: 10px;
-                    border-radius: 5px;
-                    text-align: center;
-                }}
-                .metric-value {{
-                    font-size: 24px;
-                    font-weight: bold;
-                    color: #4dabf7;
-                }}
-                .metric-label {{
-                    font-size: 12px;
-                    color: #adb5bd;
-                }}
-                h1, h2, h3 {{
-                    margin-top: 0;
-                    color: #ffd700;
-                }}
-                #graph3d {{
-                    height: 600px;
-                }}
-                .health-indicator {{
-                    display: inline-block;
-                    width: 10px;
-                    height: 10px;
-                    border-radius: 50%;
-                    margin-right: 5px;
-                }}
-                .healthy {{ background: #40c057; }}
-                .warning {{ background: #fab005; }}
-                .critical {{ background: #fa5252; }}
-            </style>
-        </head>
-        <body>
-            <h1>🌳 Древо Жизни - Live Dashboard</h1>
-            
-            <div class="dashboard">
-                <div class="card" style="grid-column: span 2;">
-                    <h2>3D Визуализация Сети</h2>
-                    <div id="graph3d"></div>
-                </div>
-                
-                <div class="card">
-                    <h2>Системные Метрики</h2>
-                    <div class="metrics-grid">
-                        <div class="metric">
-                            <div class="metric-value">{bus_state.get('nodes_active', 0)}/{bus_state.get('total_node_count', 0)}</div>
-                            <div class="metric-label">Активных узлов</div>
-                        </div>
-                        <div class="metric">
-                            <div class="metric-value">{bus_state.get('system_coherence', 0):.2%}</div>
-                            <div class="metric-label">Когерентность</div>
-                        </div>
-                        <div class="metric">
-                            <div class="metric-value">{bus_state.get('channel_statistics', {{}}).get('active', 0)}/{bus_state.get('channel_statistics', {{}}).get('total', 0)}</div>
-                            <div class="metric-label">Активных каналов</div>
-                        </div>
-                        <div class="metric">
-                            <div class="metric-value">{bus_state.get('recent_signals', 0)}</div>
-                            <div class="metric-label">Сигналов (24ч)</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="card">
-                    <h2>Состояние Каналов</h2>
-                    <div id="channels-health"></div>
-                </div>
-                
-                <div class="card" style="grid-column: span 2;">
-                    <h2>Текущая Активность</h2>
-                    <div id="recent-activity"></div>
-                </div>
-            </div>
-            
-            <script>
-                // JavaScript для живого обновления
-                function updateDashboard() {{
-                    fetch('/bus/state')
-                        .then(response => response.json())
-                        .then(data => {{
-                            // Обновление метрик
-                            document.querySelector('.metric-value:nth-child(1)').textContent = 
-                                `${{data.nodes_active}}/${{data.total_node_count}}`;
-                            
-                            document.querySelector('.metric-value:nth-child(2)').textContent = 
-                                `${{(data.system_coherence * 100).toFixed(2)}}%`;
-                            
-                            // Обновление 3D графа каждые 30 секунд
-                            if (window.lastGraphUpdate && (Date.now() - window.lastGraphUpdate) > 30000) {{
-                                update3DGraph(data);
-                                window.lastGraphUpdate = Date.now();
-                            }}
-                        }});
-                }}
-                
-                // Автообновление каждые 5 секунд
-                setInterval(updateDashboard, 5000);
-                updateDashboard();
-            </script>
-        </body>
-        </html>
-        """
-        
-        return html
-
-
-# ============================================================================
-# НЕЙРОННЫЙ ПРЕДИКТОР КАНАЛОВ LSTM
-# ============================================================================
-
-class ChannelDegradationPredictor:
-    """LSTM нейронная сеть для предсказания деградации каналов"""
-    
-    def __init__(self, sequence_length: int = 10, prediction_horizon: int = 5):
-        self.sequence_length = sequence_length
-        self.prediction_horizon = prediction_horizon
-        self.model = None
-        self.scaler = None
-        self.training_history = []
-        self.is_trained = False
-        
-        # История данных для каждого канала
-        self.channel_histories: Dict[str, deque] = defaultdict(
-            lambda: deque(maxlen=sequence_length * 2)
-        )
-        
-    def build_model(self, input_shape: Tuple[int, int]) -> keras.Model:
-        """Построение LSTM модели"""
-        
-        model = keras.Sequential([
-            layers.LSTM(
-                64,
-                input_shape=input_shape,
-                return_sequences=True,
-                dropout=0.2,
-                recurrent_dropout=0.2
-            ),
-            layers.LSTM(
-                32,
-                dropout=0.2,
-                recurrent_dropout=0.2
-            ),
-            layers.Dense(16, activation='relu'),
-            layers.Dropout(0.3),
-            layers.Dense(self.prediction_horizon, activation='linear')  # Прогноз на N шагов вперед
-        ])
-        
-        model.compile(
-            optimizer=keras.optimizers.Adam(learning_rate=0.001),
-            loss='mse',
-            metrics=['mae', 'mape']
-        )
-        
-        self.model = model
-        return model
-    
-    def prepare_training_data(self, channel_histories: Dict[str, List[float]]) -> Tuple[np.ndarray, np.ndarray]:
-        """Подготовка данных для обучения"""
-        
-        sequences = []
-        targets = []
-        
-        for channel_id, history in channel_histories.items():
-            if len(history) >= self.sequence_length + self.prediction_horizon:
-                history_array = np.array(history)
-                
-                # Нормализация
-                if self.scaler is None:
-                    from sklearn.preprocessing import MinMaxScaler
-                    self.scaler = MinMaxScaler()
-                    history_array = history_array.reshape(-1, 1)
-                    history_array = self.scaler.fit_transform(history_array).flatten()
-                else:
-                    history_array = history_array.reshape(-1, 1)
-                    history_array = self.scaler.transform(history_array).flatten()
-                
-                # Создание последовательностей
-                for i in range(len(history_array) - self.sequence_length - self.prediction_horizon + 1):
-                    seq = history_array[i:i + self.sequence_length]
-                    target = history_array[i + self.sequence_length:i + self.sequence_length + self.prediction_horizon]
-                    
-                    sequences.append(seq)
-                    targets.append(target)
-        
-        if not sequences:
-            return np.array([]), np.array([])
-        
-        X = np.array(sequences).reshape(-1, self.sequence_length, 1)
-        y = np.array(targets)
-        
-        return X, y
-    
-    async def train(self, channel_histories: Dict[str, List[float]], 
-                   epochs: int = 50, validation_split: float = 0.2):
-        """Обучение модели"""
-        
-        X, y = self.prepare_training_data(channel_histories)
-        
-        if len(X) == 0:
-            print("[PREDICTOR] Недостаточно данных для обучения")
-            return
-        
-        print(f"[PREDICTOR] Обучение на {len(X)} последовательностях...")
-        
-        # Разделение на тренировочную и валидационную выборки
-        split_idx = int(len(X) * (1 - validation_split))
-        X_train, X_val = X[:split_idx], X[split_idx:]
-        y_train, y_val = y[:split_idx], y[split_idx:]
-        
-        # Построение модели если еще не построена
-        if self.model is None:
-            self.build_model((self.sequence_length, 1))
-        
-        # Обучение
-        history = self.model.fit(
-            X_train, y_train,
-            epochs=epochs,
-            batch_size=32,
-            validation_data=(X_val, y_val),
-            verbose=0,
-            callbacks=[
-                keras.callbacks.EarlyStopping(
-                    monitor='val_loss',
-                    patience=10,
-                    restore_best_weights=True
-                ),
-                keras.callbacks.ReduceLROnPlateau(
-                    monitor='val_loss',
-                    factor=0.5,
-                    patience=5
-                )
-            ]
-        )
-        
-        self.training_history.append({
-            "timestamp": datetime.utcnow().isoformat(),
-            "epochs": epochs,
-            "train_samples": len(X_train),
-            "val_samples": len(X_val),
-            "final_loss": history.history['loss'][-1],
-            "final_val_loss": history.history['val_loss'][-1]
+        # Логирование создания токена
+        self.token_history.append({
+            'timestamp': datetime.utcnow().isoformat(),
+            'user_id': user_id,
+            'token_jti': payload['jti'],
+            'permissions': permissions,
+            'action': 'token_created'
         })
         
-        self.is_trained = True
-        print(f"[PREDICTOR] Обучение завершено. Final loss: {history.history['val_loss'][-1]:.4f}")
+        return token
     
-    async def predict_degradation(self, channel_id: str, 
-                                 current_metrics: Dict[str, float]) -> Dict[str, Any]:
-        """Предсказание деградации канала"""
+    def validate_token(self, token: str, required_permissions: List[str] = None) -> Dict[str, Any]:
+        """Валидация JWT токена"""
+        try:
+            # Проверка отозванных токенов
+            if token in self.revoked_tokens:
+                raise jwt.InvalidTokenError("Token revoked")
+            
+            # Декодирование токена
+            payload = jwt.decode(token, self.secret_key, algorithms=['HS256'])
+            
+            # Проверка срока действия
+            if datetime.utcnow() > datetime.fromtimestamp(payload['exp']):
+                raise jwt.ExpiredSignatureError("Token expired")
+            
+            # Проверка разрешений
+            if required_permissions:
+                user_permissions = set(payload.get('permissions', []))
+                required_set = set(required_permissions)
+                
+                if not required_set.issubset(user_permissions):
+                    raise jwt.InvalidTokenError("Insufficient permissions")
+            
+            # Логирование успешного доступа
+            self.access_log.append({
+                'timestamp': datetime.utcnow().isoformat(),
+                'user_id': payload['user_id'],
+                'token_jti': payload['jti'],
+                'permissions': payload['permissions'],
+                'action': 'access_granted',
+                'ip_address': '127.0.0.1'  # Будет заполнено из контекста запроса
+            })
+            
+            return {
+                'valid': True,
+                'payload': payload,
+                'user_id': payload['user_id'],
+                'permissions': payload['permissions'],
+                'metadata': payload.get('metadata', {})
+            }
+            
+        except jwt.ExpiredSignatureError as e:
+            self.access_log.append({
+                'timestamp': datetime.utcnow().isoformat(),
+                'error': str(e),
+                'action': 'access_denied_expired'
+            })
+            return {'valid': False, 'error': 'Token expired'}
+            
+        except jwt.InvalidTokenError as e:
+            self.access_log.append({
+                'timestamp': datetime.utcnow().isoformat(),
+                'error': str(e),
+                'action': 'access_denied_invalid'
+            })
+            return {'valid': False, 'error': str(e)}
+            
+        except Exception as e:
+            self.access_log.append({
+                'timestamp': datetime.utcnow().isoformat(),
+                'error': str(e),
+                'action': 'access_denied_error'
+            })
+            return {'valid': False, 'error': 'Invalid token'}
+    
+    def revoke_token(self, token: str) -> bool:
+        """Отзыв токена"""
+        try:
+            payload = jwt.decode(token, self.secret_key, algorithms=['HS256'])
+            self.revoked_tokens.add(token)
+            
+            self.token_history.append({
+                'timestamp': datetime.utcnow().isoformat(),
+                'user_id': payload.get('user_id'),
+                'token_jti': payload.get('jti'),
+                'action': 'token_revoked'
+            })
+            
+            return True
+        except:
+            return False
+    
+    def create_auth_middleware(self, required_permissions: List[str] = None):
+        """Создание middleware для аутентификации"""
+        @web.middleware
+        async def auth_middleware(request: web.Request, handler: Callable):
+            # Исключение для публичных эндпоинтов
+            public_paths = ['/metrics', '/health', '/login', '/docs']
+            if any(request.path.startswith(path) for path in public_paths):
+                return await handler(request)
+            
+            # Проверка заголовка Authorization
+            auth_header = request.headers.get('Authorization', '')
+            
+            if not auth_header.startswith('Bearer '):
+                return web.json_response(
+                    {'error': 'Missing or invalid Authorization header'},
+                    status=401
+                )
+            
+            token = auth_header[7:]  # Убираем "Bearer "
+            validation_result = self.validate_token(token, required_permissions)
+            
+            if not validation_result['valid']:
+                return web.json_response(
+                    {'error': validation_result.get('error', 'Authentication failed')},
+                    status=403
+                )
+            
+            # Добавление информации о пользователе в запрос
+            request['user'] = validation_result
+            
+            # Логирование IP
+            peer = request.transport.get_extra_info('peername')
+            if peer:
+                ip_address = peer[0]
+                if self.access_log:
+                    self.access_log[-1]['ip_address'] = ip_address
+            
+            return await handler(request)
         
-        if not self.is_trained or self.model is None:
-            return {"error": "Модель не обучена", "confidence": 0}
+        return auth_middleware
+    
+    def get_security_report(self) -> Dict[str, Any]:
+        """Отчет о безопасности"""
+        now = datetime.utcnow()
         
-        # Добавление текущих метрик в историю
-        if channel_id not in self.channel_histories:
-            self.channel_histories[channel_id] = deque(maxlen=self.sequence_length * 2)
+        # Статистика по доступам
+        recent_accesses = list(self.access_log)[-100:] if self.access_log else []
         
-        # Используем силу канала как основной показатель
-        if 'current_strength' in current_metrics:
-            self.channel_histories[channel_id].append(current_metrics['current_strength'])
+        access_stats = {
+            'total_attempts': len(self.access_log),
+            'successful_accesses': len([a for a in recent_accesses if a.get('action') == 'access_granted']),
+            'failed_accesses': len([a for a in recent_accesses if a.get('action', '').startswith('access_denied')]),
+            'common_errors': defaultdict(int)
+        }
         
-        # Проверка наличия достаточной истории
-        if len(self.channel_histories[channel_id]) < self.sequence_length:
-            return {"error": "Недостаточно данных", "confidence": 0}
+        for access in recent_accesses:
+            if 'error' in access:
+                access_stats['common_errors'][access['error']] += 1
         
-        # Подготовка последовательности для предсказания
-        recent_history = list(self.channel_histories[channel_id])[-self.sequence_length:]
+        return {
+            'timestamp': now.isoformat(),
+            'tokens_issued': len(self.token_history),
+            'tokens_revoked': len(self.revoked_tokens),
+            'active_sessions': len(self.token_history) - len(self.revoked_tokens),
+            'access_statistics': access_stats,
+            'security_level': 'high',
+            'recommendations': self._generate_security_recommendations()
+        }
+    
+    def _generate_security_recommendations(self) -> List[str]:
+        """Генерация рекомендаций по безопасности"""
+        recommendations = []
         
-        # Нормализация
-        if self.scaler:
-            history_array = np.array(recent_history).reshape(-1, 1)
-            history_array = self.scaler.transform(history_array).flatten()
+        if len(self.access_log) > 1000:
+            # Частый доступ - проверка на брутфорс
+            recent_failures = len([
+                a for a in list(self.access_log)[-100:]
+                if a.get('action', '').startswith('access_denied')
+            ])
+            
+            if recent_failures > 20:
+                recommendations.append("high_failure_rate_detected")
+        
+        if len(self.revoked_tokens) > 50:
+            recommendations.append("consider_token_rotation")
+        
+        if self.token_expiry_hours > 24:
+            recommendations.append("reduce_token_lifetime_for_security")
+        
+        return recommendations
+
+
+# ============================================================================
+# МОДУЛЬ АВТОСОХРАНЕНИЯ ИСТОРИИ
+# ============================================================================
+
+class HistoryAutoSaver:
+    """Автоматическое сохранение истории и состояния системы"""
+    
+    def __init__(self, save_dir: str = "data/bus_history", 
+                 save_interval_minutes: int = 5,
+                 max_snapshots: int = 100):
+        
+        self.save_dir = Path(save_dir)
+        self.save_interval_minutes = save_interval_minutes
+        self.max_snapshots = max_snapshots
+        self.last_save: Optional[datetime] = None
+        self.snapshot_counter = 0
+        self.compression_enabled = True
+        
+        # Создание директории если не существует
+        self.save_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Создание поддиректорий
+        (self.save_dir / "metrics").mkdir(exist_ok=True)
+        (self.save_dir / "models").mkdir(exist_ok=True)
+        (self.save_dir / "snapshots").mkdir(exist_ok=True)
+        (self.save_dir / "logs").mkdir(exist_ok=True)
+        
+        print(f"[HISTORY] Автосохранение инициализировано. Интервал: {save_interval_minutes} минут")
+    
+    async def save_system_state(self, bus: 'SephiroticBus', 
+                               force: bool = False) -> bool:
+        """Сохранение состояния системы"""
+        
+        now = datetime.utcnow()
+        
+        # Проверка необходимости сохранения
+        if (not force and self.last_save and 
+            (now - self.last_save).total_seconds() < self.save_interval_minutes * 60):
+            return False
+        
+        try:
+            timestamp = now.strftime("%Y%m%d_%H%M%S")
+            snapshot_id = f"snapshot_{timestamp}_{self.snapshot_counter:04d}"
+            
+            # Сохранение различных компонентов
+            await self._save_metrics(bus, snapshot_id)
+            await self._save_models(bus, snapshot_id)
+            await self._save_snapshot(bus, snapshot_id)
+            await self._save_logs(bus, snapshot_id)
+            
+            # Создание метаданных снапшота
+            metadata = {
+                'snapshot_id': snapshot_id,
+                'timestamp': now.isoformat(),
+                'components_saved': ['metrics', 'models', 'snapshot', 'logs'],
+                'bus_state': {
+                    'nodes_count': len(bus.nodes),
+                    'channels_count': len(bus.channels),
+                    'system_coherence': await bus._calculate_enhanced_coherence(),
+                    'queue_sizes': {
+                        'signal_queue': bus.signal_queue.qsize(),
+                        'feedback_queue': bus.feedback_queue.qsize()
+                    }
+                }
+            }
+            
+            await self._save_metadata(metadata, snapshot_id)
+            
+            # Очистка старых снапшотов
+            await self._cleanup_old_snapshots()
+            
+            self.last_save = now
+            self.snapshot_counter += 1
+            
+            print(f"[HISTORY] Снапшот сохранен: {snapshot_id}")
+            return True
+            
+        except Exception as e:
+            print(f"[HISTORY] Ошибка сохранения: {e}")
+            return False
+    
+    async def _save_metrics(self, bus: 'SephiroticBus', snapshot_id: str):
+        """Сохранение метрик"""
+        metrics_file = self.save_dir / "metrics" / f"{snapshot_id}_metrics.json"
+        
+        metrics_data = {
+            'timestamp': datetime.utcnow().isoformat(),
+            'channel_metrics': {},
+            'system_metrics': await bus.get_network_state(),
+            'tracer_analytics': bus.tracer.analyze_trace_patterns() if hasattr(bus, 'tracer') else {},
+            'predictor_history': bus.predictor.training_history if hasattr(bus, 'predictor') else []
+        }
+        
+        # Сохранение метрик каналов
+        if hasattr(bus, 'channels'):
+            for channel_id, channel in bus.channels.items():
+                metrics_data['channel_metrics'][channel_id] = channel.get_health_report()
+        
+        with open(metrics_file, 'w', encoding='utf-8') as f:
+            json.dump(metrics_data, f, indent=2, ensure_ascii=False, default=str)
+    
+    async def _save_models(self, bus: 'SephiroticBus', snapshot_id: str):
+        """Сохранение моделей машинного обучения"""
+        if hasattr(bus, 'predictor') and bus.predictor.model:
+            model = bus.predictor.model
+            
+            # Сохранение архитектуры модели
+            arch_file = self.save_dir / "models" / f"{snapshot_id}_architecture.json"
+            model_json = model.to_json()
+            
+            with open(arch_file, 'w', encoding='utf-8') as f:
+                f.write(model_json)
+            
+            # Сохранение весов
+            weights_file = self.save_dir / "models" / f"{snapshot_id}_weights.h5"
+            model.save_weights(str(weights_file))
+            
+            # Сохранение scaler
+            if bus.predictor.scaler:
+                scaler_file = self.save_dir / "models" / f"{snapshot_id}_scaler.pkl"
+                with open(scaler_file, 'wb') as f:
+                    pickle.dump(bus.predictor.scaler, f)
+    
+    async def _save_snapshot(self, bus: 'SephiroticBus', snapshot_id: str):
+        """Сохранение полного снапшота состояния"""
+        snapshot_file = self.save_dir / "snapshots" / f"{snapshot_id}_full.pkl"
+        
+        # Подготовка данных для сериализации
+        snapshot_data = {
+            'timestamp': datetime.utcnow().isoformat(),
+            'nodes': {name: node.serialize() for name, node in bus.nodes.items() 
+                     if hasattr(node, 'serialize')},
+            'channels': {cid: asdict(channel) for cid, channel in bus.channels.items()},
+            'queues': {
+                'signal_queue_size': bus.signal_queue.qsize(),
+                'feedback_queue_size': bus.feedback_queue.qsize()
+            },
+            'config': bus.config if hasattr(bus, 'config') else {}
+        }
+        
+        # Сжатие данных если включено
+        if self.compression_enabled:
+            compressed_data = self._compress_data(snapshot_data)
+            with open(snapshot_file, 'wb') as f:
+                f.write(compressed_data)
         else:
-            history_array = np.array(recent_history)
+            with open(snapshot_file, 'wb') as f:
+                pickle.dump(snapshot_data, f)
+    
+    async def _save_logs(self, bus: 'SephiroticBus', snapshot_id: str):
+        """Сохранение логов"""
+        logs_file = self.save_dir / "logs" / f"{snapshot_id}_logs.json"
         
-        # Предсказание
-        X_pred = history_array.reshape(1, self.sequence_length, 1)
-        predictions = self.model.predict(X_pred, verbose=0)[0]
+        logs_data = {
+            'timestamp': datetime.utcnow().isoformat(),
+            'access_logs': list(bus.security_manager.access_log)[-1000:] if hasattr(bus, 'security_manager') else [],
+            'token_history': list(bus.security_manager.token_history)[-500:] if hasattr(bus, 'security_manager') else [],
+            'bus_events': list(bus.metrics.bus_events)[-1000:] if hasattr(bus, 'metrics') else []
+        }
         
-        # Денормализация если есть scaler
-        if self.scaler:
-            predictions = self.scaler.inverse_transform(predictions.reshape(-1, 1)).flatten()
+        with open(logs_file, 'w', encoding='utf-8') as f:
+            json.dump(logs_data, f, indent=2, ensure_ascii=False, default=str)
+    
+    async def _save_metadata(self, metadata: Dict[str, Any], snapshot_id: str):
+        """Сохранение метаданных снапшота"""
+        meta_file = self.save_dir / "snapshots" / f"{snapshot_id}_metadata.json"
         
-        # Анализ предсказаний
-        current_value = recent_history[-1]
-        predicted_values = predictions.tolist()
+        with open(meta_file, 'w', encoding='utf-8') as f:
+            json.dump(metadata, f, indent=2, ensure_ascii=False, default=str)
+    
+    def _compress_data(self, data: Any) -> bytes:
+        """Сжатие данных"""
+        buffer = io.BytesIO()
         
-        # Расчет тренда
-        trend = "stable"
-        if len(predicted_values) >= 2:
-            if predicted_values[-1] < current_value * 0.8:
+        with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            # Сериализация и сжатие
+            pickled_data = pickle.dumps(data)
+            
+            # Добавление в zip
+            zip_file.writestr('data.pkl', pickled_data)
+        
+        return buffer.getvalue()
+    
+    async def _cleanup_old_snapshots(self):
+        """Очистка старых снапшотов"""
+        try:
+            # Получение всех снапшотов
+            snapshot_files = list(self.save_dir.glob("snapshots/*_metadata.json"))
+            
+            if len(snapshot_files) <= self.max_snapshots:
+                return
+            
+            # Сортировка по времени создания
+            snapshot_files.sort(key=lambda x: x.stat().st_mtime)
+            
+            # Удаление старых файлов
+            files_to_remove = snapshot_files[:-self.max_snapshots]
+            
+            for meta_file in files_to_remove:
+                # Удаление всех связанных файлов
+                snapshot_prefix = meta_file.stem.replace('_metadata', '')
+                
+                for ext in ['_full.pkl', '_metrics.json', '_architecture.json', 
+                           '_weights.h5', '_scaler.pkl', '_logs.json']:
+                    related_file = self.save_dir / "snapshots" / f"{snapshot_prefix}{ext}"
+                    if related_file.exists():
+                        related_file.unlink()
+                
+                # Удаление метаданных
+                meta_file.unlink()
+            
+            print(f"[HISTORY] Удалено {len(files_to_remove)} старых снапшотов")
+            
+        except Exception as e:
+            print(f"[HISTORY] Ошибка очистки снапшотов: {e}")
+    
+    async def restore_from_snapshot(self, snapshot_id: str, bus: 'SephiroticBus') -> bool:
+        """Восстановление состояния из снапшота"""
+        try:
+            meta_file = self.save_dir / "snapshots" / f"{snapshot_id}_metadata.json"
+            
+            if not meta_file.exists():
+                print(f"[HISTORY] Снапшот {snapshot_id} не найден")
+                return False
+            
+            print(f"[HISTORY] Восстановление из снапшота: {snapshot_id}")
+            
+            # Здесь будет логика восстановления состояния
+            # (зависит от структуры данных в шине)
+            
+            return True
+            
+        except Exception as e:
+            print(f"[HISTORY] Ошибка восстановления: {e}")
+            return False
+    
+    def get_storage_report(self) -> Dict[str, Any]:
+        """Отчет о хранилище"""
+        total_size = 0
+        file_counts = defaultdict(int)
+        
+        # Расчет размера и количества файлов
+        for root, dirs, files in os.walk(self.save_dir):
+            for file in files:
+                file_path = Path(root) / file
+                total_size += file_path.stat().st_size
+                
+                # Подсчет по типам файлов
+                ext = file_path.suffix
+                file_counts[ext] += 1
+        
+        return {
+            'timestamp': datetime.utcnow().isoformat(),
+            'storage_path': str(self.save_dir),
+            'total_size_mb': total_size / (1024 * 1024),
+            'file_counts': dict(file_counts),
+            'snapshots_stored': len(list(self.save_dir.glob("snapshots/*_metadata.json"))),
+            'last_save': self.last_save.isoformat() if self.last_save else None,
+            'next_scheduled_save': (
+                (self.last_save + timedelta(minutes=self.save_interval_minutes)).isoformat()
+                if self.last_save else None
+            ),
+            'compression_enabled': self.compression_enabled
+        }
+
+
+# ============================================================================
+# МОДУЛЬ ОБЪЯСНИМОСТИ ИИ
+# ============================================================================
+
+class AIExplainabilityLogger:
+    """Логирование объяснимости решений ИИ"""
+    
+    def __init__(self, log_dir: str = "data/ai_explanations"):
+        self.log_dir = Path(log_dir)
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+        
+        self.decision_logs: deque = deque(maxlen=5000)
+        self.feature_importance_history: Dict[str, List[Tuple[datetime, List[float]]]] = defaultdict(list)
+        self.prediction_insights: deque = deque(maxlen=1000)
+        
+        print(f"[EXPLAINABILITY] Логгер объяснимости ИИ инициализирован")
+    
+    def log_lstm_decision(self, channel_id: str, inputs: np.ndarray, 
+                         predictions: np.ndarray, actual_values: Optional[np.ndarray] = None,
+                         feature_names: List[str] = None, confidence: float = 1.0):
+        """Логирование решения LSTM модели"""
+        
+        timestamp = datetime.utcnow()
+        
+        # Анализ важности признаков (упрощенный)
+        if len(inputs.shape) == 3 and inputs.shape[0] == 1:
+            input_sequence = inputs[0].flatten()
+            
+            # Простой анализ: какие значения изменились больше всего
+            if len(input_sequence) > 1:
+                diffs = np.abs(np.diff(input_sequence))
+                important_indices = np.argsort(diffs)[-3:]  # Топ-3 изменения
+                
+                if feature_names and len(feature_names) >= len(input_sequence):
+                    important_features = [
+                        feature_names[i] for i in important_indices 
+                        if i < len(feature_names)
+                    ]
+                else:
+                    important_features = [f"feature_{i}" for i in important_indices]
+                
+                # Сохранение важности признаков
+                self.feature_importance_history[channel_id].append(
+                    (timestamp, diffs.tolist())
+                )
+            else:
+                important_features = ["single_feature"]
+        
+        # Формирование insight
+        insight = self._generate_prediction_insight(
+            predictions, actual_values, confidence
+        )
+        
+        # Запись лога
+        log_entry = {
+            'timestamp': timestamp.isoformat(),
+            'channel_id': channel_id,
+            'model_type': 'LSTM',
+            'input_shape': inputs.shape,
+            'input_summary': {
+                'mean': float(np.mean(inputs)),
+                'std': float(np.std(inputs)),
+                'min': float(np.min(inputs)),
+                'max': float(np.max(inputs))
+            },
+            'predictions': predictions.tolist() if hasattr(predictions, 'tolist') else predictions,
+            'actual_values': actual_values.tolist() if actual_values is not None and hasattr(actual_values, 'tolist') else actual_values,
+            'important_features': important_features,
+            'confidence': confidence,
+            'insight': insight,
+            'explanation': self._explain_prediction(predictions, insight)
+        }
+        
+        self.decision_logs.append(log_entry)
+        self.prediction_insights.append(insight)
+        
+        # Автосохранение каждые 100 записей
+        if len(self.decision_logs) % 100 == 0:
+            self._auto_save_logs()
+        
+        return log_entry
+    
+    def _generate_prediction_insight(self, predictions: np.ndarray, 
+                                    actual_values: Optional[np.ndarray],
+                                    confidence: float) -> Dict[str, Any]:
+        """Генерация инсайта из предсказания"""
+        
+        if len(predictions) == 0:
+            return {"type": "empty_prediction", "confidence": 0}
+        
+        # Анализ тренда
+        if len(predictions) >= 2:
+            trend = "stable"
+            first_val = predictions[0]
+            last_val = predictions[-1]
+            
+            if last_val > first_val * 1.1:
+                trend = "improving"
+            elif last_val < first_val * 0.9:
                 trend = "degrading"
-            elif predicted_values[-           
+            
+            # Анализ волатильности
+            volatility = np.std(predictions) / (np.mean(predictions) + 1e-10)
+            
+            # Проверка на аномалии
+            anomalies = []
+            mean_val = np.mean(predictions)
+            std_val = np.std(predictions)
+            
+            for i, val in enumerate(predictions):
+                if abs(val - mean_val) > 2 * std_val:
+                    anomalies.append({
+                        'position': i,
+                        'value': float(val),
+                        'deviation': float(abs(val - mean_val) / std_val)
+                    })
+        else:
+            trend = "unknown"
+            volatility = 0
+            anomalies = []
+        
+        # Сравнение с фактическими значениями если есть
+        accuracy = None
+        if actual_values is not None and len(actual_values) == len(predictions):
+            mae = np.mean(np.abs(predictions - actual_values))
+            accuracy = 1.0 / (1.0 + mae)
+        
+        return {
+            'trend': trend,
+            'volatility': float(volatility),
+            'anomalies': anomalies,
+            'prediction_range': {
+                'min': float(np.min(predictions)),
+                'max': float(np.max(predictions)),
+                'mean': float(np.mean(predictions))
+            },
+            'accuracy': accuracy,
+            'confidence': confidence,
+            'timestamp': datetime.utcnow().isoformat()
+        }
+    
+    def _explain_prediction(self, predictions: np.ndarray, insight: Dict[str, Any]) -> str:
+        """Генерация текстового объяснения предсказания"""
+        
+        trend = insight.get('trend', 'unknown')
+        volatility = insight.get('volatility', 0)
+        anomalies = insight.get('anomalies', [])
+        
+        explanation_parts = []
+        
+        # Объяснение тренда
+        if trend == "improving":
+            explanation_parts.append("Система предсказывает улучшение состояния канала.")
+        elif trend == "degrading":
+            explanation_parts.append("Обнаружена тенденция к деградации канала.")
+        else:
+            explanation_parts.append("Состояние канала остается стабильным.")
+        
+        # Объяснение волатильности
+        if volatility > 0.5:
+            explanation_parts.append("Высокая волатильность указывает на нестабильность канала.")
+        elif volatility > 0.2:
+            explanation_parts.append("Умеренная волатильность наблюдается в предсказаниях.")
+        else:
+            explanation_parts.append("Предсказания демонстрируют низкую волатильность.")
+        
+        # Объяснение аномалий
+        if anomalies:
+            explanation_parts.append(f"Обнаружено {len(anomalies)} аномальных точек в предсказании.")
+        
+        # Добавление рекомендации
+        if trend == "degrading" and volatility > 0.3:
+            explanation_parts.append("Рекомендуется провести диагностику канала.")
+        
+        return " ".join(explanation_parts)
+    
+    def _auto_save_logs(self):
+        """Автосохранение логов"""
+        try:
+            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M")
+            log_file = self.log_dir / f"explanations_{timestamp}.json"
+            
+            logs_to_save = {
+                'timestamp': datetime.utcnow().isoformat(),
+                'total_entries': len(self.decision_logs),
+                'recent_decisions': list(self.decision_logs)[-100:],
+                'feature_importance_summary': self._summarize_feature_importance(),
+                'insight_statistics': self._analyze_insights()
+            }
+            
+            with open(log_file, 'w', encoding='utf-8') as f:
+                json.dump(logs_to_save, f, indent=2, ensure_ascii=False, default=str)
+                
+        except Exception as e:
+            print(f"[EXPLAINABILITY] Ошибка автосохранения: {e}")
+    
+    def _summarize_feature_importance(self) -> Dict[str, Any]:
+        """Суммаризация важности признаков"""
+        summary = {}
+        
+        for channel_id, importance_history in self.feature_importance_history.items():
+            if importance_history:
+                # Берем последние записи
+                recent_history = importance_history[-10:]
+                all_importances = []
+                
+                for timestamp, importances in recent_history:
+                    all_importances.extend(importances)
+                
+                if all_importances:
+                    summary[channel_id] = {
+                        'avg_importance': statistics.mean(all_importances),
+                        'max_importance': max(all_importances),
+                        'stability': 1.0 - (statistics.stdev(all_importances) / (statistics.mean(all_importances) + 1e-10))
+                    }
+        
+        return summary
+    
+    def _analyze_insights(self) -> Dict[str, Any]:
+        """Анализ инсайтов"""
+        if not self.prediction_insights:
+            return {}
+        
+        insights = list(self.prediction_insights)
+        
+        trend_counts = defaultdict(int)
+        anomaly_counts = []
+        confidence_values = []
+        
+        for insight in insights:
+            trend_counts[insight.get('trend', 'unknown')] += 1
+            
+            if 'anomalies' in insight:
+                anomaly_counts.append(len(insight['anomalies']))
+            
+            if 'confidence' in insight:
+                confidence_values.append(insight['confidence'])
+        
+        return {
+            'trend_distribution': dict(trend_counts),
+            'avg_anomalies_per_prediction': statistics.mean(anomaly_counts) if anomaly_counts else 0,
+            'avg_confidence': statistics.mean(confidence_values) if confidence_values else 0,
+            'total_insights_analyzed': len(insights)
+        }
+    
+    def get_explainability_report(self, channel_id: str = None) -> Dict[str, Any]:
+        """Отчет по объяснимости"""
+        
+        if channel_id:
+            # Отчет для конкретного канала
+            channel_logs = [
+                log for log in self.decision_logs 
+                if log['channel_id'] == channel_id
+            ]
+            
+            if not channel_logs:
+                return {"error": f"No logs for channel {channel_id}"}
+            
+            recent_logs = channel_logs[-10:]
+            
+            # Анализ важности признаков для этого канала
+            feature_history = self.feature_importance_history.get(channel_id, [])
+            
+            return {
+                'channel_id': channel_id,
+                'total_decisions_logged': len(channel_logs),
+                'recent_decisions': recent_logs,
+                'feature_importance_trend': self._analyze_feature_trend(feature_history),
+                'prediction_accuracy_trend': self._analyze_accuracy_trend(channel_logs),
+                'recommended_actions': self._generate_channel_recommendations(channel_logs)
+            }
+        
+        else:
+            # Общий отчет
+            return {
+                'timestamp': datetime.utcnow().isoformat(),
+                'total_decisions_logged': len(self.decision_logs),
+                'channels_monitored': list(set(
+                    log['channel_id'] for log in self.decision_logs
+                )),
+                'insight_statistics': self._analyze_insights(),
+                'feature_importance_summary': self._summarize_feature_importance(),
+                'model_confidence_distribution': self._analyze_confidence_distribution(),
+                'explainability_score': self._calculate_explainability_score()
+            }
+    
+    def _analyze_feature_trend(self, feature_history: List[Tuple[datetime, List[float]]]) -> Dict[str, Any]:
+        """Анализ тренда важности признаков"""
+        if not feature_history:
+            return {}
+        
+        # Берем последние 5 записей
+        recent = feature_history[-5:]
+        
+        # Усреднение по времени
+        all_importances = []
+        for timestamp, importances in recent:
+            all_importances.extend(importances)
+        
+        if not all_importances:
+            return {}
+        
+        return {
+            'average_importance': statistics.mean(all_importances),
+            'importance_volatility': statistics.stdev(all_importances) / (statistics.mean(all_importances) + 1e-10),
+            'trend': 'increasing' if len(all_importances) > 1 and all_importances[-1] > all_importances[0] * 1.1 else 'stable'
+        }
+    
+    def _analyze_accuracy_trend(self, channel_logs: List[Dict]) -> Dict[str, Any]:
+        """Анализ тренда точности предсказаний"""
+        if not channel_logs:
+            return {}
+        
+        accuracies = []
+        for log in channel_logs:
+            if 'actual_values' in log and log['actual_values'] is not None:
+                # Упрощенный расчет точности
+                predictions = np.array(log['predictions'])
+                actuals = np.array(log['actual_values'])
+                
+                if len(predictions) == len(actuals):
+                    mae = np.mean(np.abs(predictions - actuals))
+                    accuracy = 1.0 / (1.0 + mae)
+                    accuracies.append(accuracy)
+        
+        if not accuracies:
+            return {}
+        
+        return {
+            'average_accuracy': statistics.mean(accuracies),
+            'accuracy_trend': 'improving' if len(accuracies) > 1 and accuracies[-1] > accuracies[0] else 'stable',
+            'accuracy_stability': 1.0 - (statistics.stdev(accuracies) / (statistics.mean(accuracies) + 1e-10))
+        }
+    
+    def _analyze_confidence_distribution(self) -> Dict[str, Any]:
+        """Анализ распределения уверенности модели"""
+        confidences = [log.get('confidence', 0) for log in self.decision_logs if 'confidence' in log]
+        
+        if not confidences:
+            return {}
+        
+        return {
+            'average_confidence': statistics.mean(confidences),
+            'confidence_std': statistics.stdev(confidences) if len(confidences) > 1 else 0,
+            'high_confidence_percentage': len([c for c in confidences if c > 0.8]) / len(confidences) * 100,
+            'low_confidence_percentage': len([c for c in confidences if c < 0.3]) / len(confidences) * 100
+        }
+    
+    def _calculate_explainability_score(self) -> float:
+        """Расчет оценки объяснимости"""
+        score = 0.5  # Базовая оценка
+        
+        # Факторы увеличивающие оценку
+       
