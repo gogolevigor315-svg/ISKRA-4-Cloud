@@ -48,7 +48,7 @@ lz4==4.3.3
 # ======================= МОНИТОРИНГ И ДИАГНОСТИКА =======================
 
 psutil==6.0.0
-prometheus-client==0.21.2
+prometheus-client==0.23.1
 python-json-logger==3.2.0
 structlog==24.4.0
 
