@@ -880,4 +880,4 @@ class AdvancedArchitectureLoader:
         # Фаза 4: Автоматическое связывание
         phase4_start = time.perf_counter()
         self._auto_link_modules()
-        self.profiler_data["phases"]["linking"] = (time.perf_counter() - phase4
+        self.profiler_data["phases"]["linking"] = time.perf_counter() - phase4
