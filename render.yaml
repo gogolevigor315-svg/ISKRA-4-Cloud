@@ -1,7 +1,35 @@
 services:
   - type: web
-    name: iskra-4-cloud
+    name: iskra-4-ds24-cloud
     env: python
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "python iskra_full.py"
+    region: frankfurt
     plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --worker-class eventlet -w 2 --threads 4 -b 0.0.0.0:$PORT iskra_full:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: DS24_SEED
+        value: ISKRA_PRODUCTION_RENDER_V10
+      - key: DS24_MODE
+        value: production
+      - key: DS24_LOG_LEVEL
+        value: INFO
+      - key: FLASK_ENV
+        value: production
+    healthCheckPath: /api/health
+    autoDeploy: true
+
+  - type: worker
+    name: ds24-kernel-worker
+    env: python
+    region: frankfurt
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m ds24_core --mode=worker
+    envVars:
+      - key: DS24_MODE
+        value: worker
+      - key: DS24_SEED
+        sync: false
+        value: ISKRA_WORKER_SEED
