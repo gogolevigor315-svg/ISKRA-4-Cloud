@@ -480,9 +480,23 @@ print("✅ ISKRA-4 Modules package loaded")
         results = []
         total_start = time.perf_counter()
         
+        # Список модулей для пропуска (временно)
+        skip_critical = [
+            'sephirot_base',
+            'sephirot_bus', 
+            'sephirotic_engine',
+            'emotional_weave',
+            'neocortex_core'
+        ]
+        
         # Загрузка в алфавитном порядке для детерминизма
         for module_path in sorted(module_files):
             module_name = os.path.splitext(os.path.basename(module_path))[0]
+            
+            if module_name in skip_critical:
+                logger.info(f"⏭️ Пропущен критический модуль: {module_name}")
+                continue  # ПРОПУСТАЕМ ЭТОТ МОДУЛЬ
+            
             logger.info(f"📦 Загружаю: {module_name}")
             
             result = self.load_single_module(module_name, module_path)
