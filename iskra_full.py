@@ -506,10 +506,8 @@ print("✅ ISKRA-4 Modules package loaded")
         # Список модулей для пропуска (временно)
         skip_critical = [
             'sephirot_base',
-            'sephirot_bus', 
-            'sephirotic_engine',
-            'emotional_weave',
-            'neocortex_core'
+            'sephirot_bus',
+            'sephirotic_engine'
         ]
         
         # Загрузка в алфавитном порядке для детерминизма
