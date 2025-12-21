@@ -1,6 +1,8 @@
-# neocortex_core.py
-# LUCID LAYER - САМОСОЗНАНИЕ И КОНТЕКСТУАЛЬНАЯ ЭТИКА
-# Архитектура DS24, версия 4.3
+# neocortex_core.py - ЧАСТЬ 1/2
+# Все классы, которые используются в NeoCortexCore, определены ДО него
+# Проверено через python -m py_compile
+
+from __future__ import annotations  # Ключевая строка для forward declarations
 
 import asyncio
 import json
@@ -434,7 +436,7 @@ class LucidControlLayer:
         current_state = self.current_state['primary']
         possible_transitions = []
         
-        # Определение возможных переходы
+        # Определение возможных переходов
         if current_state == 'focusing':
             possible_transitions = ['introspecting', 'hypothesizing', 'uncertain']
         elif current_state == 'dreaming':
