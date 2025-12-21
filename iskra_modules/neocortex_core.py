@@ -37,71 +37,6 @@ class SleepConsolidationSystem:
         return {'status': 'consolidated'}
 
 # ============================================================================
-# NEOCORTEX CORE - ГЛАВНЫЙ КЛАСС
-# ============================================================================
-
-class NeoCortexCore:
-    """Ядро неокортекса DS24 - высшие когнитивные функции"""
-    
-    __architecture__ = "DS24"
-    __protocol__ = "neocortex-v4.3"
-    __version__ = "4.3.0"
-    
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
-        self.config = config or {}
-        self.logger = logging.getLogger(__name__ + ".NeoCortexCore")
-        
-        # Инициализация подсистем
-        self.neocortex_config = NeocortexConfig()
-        self.memory_network = AdaptiveMemoryNetwork()
-        self.sleep_system = SleepConsolidationSystem()
-        
-        # Слои неокортекса
-        self.lucid_layer = LucidControlLayer(self.neocortex_config)
-        self.dream_bridge = DreamRealityBridge(
-            self.neocortex_config,
-            self.memory_network,
-            self.sleep_system,
-            self.lucid_layer
-        )
-        
-        # Когнитивные модели
-        self.cognitive_models = {}
-        self.hypothesis_engine = HypothesisEngine()
-        self.pattern_matcher = PatternMatcher()
-        
-        self.logger.info(f"[DS24 NeoCortex Core] Инициализирован (архитектура: {self.__architecture__})")
-    
-    async def analyze_dream(self, dream_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Анализ сновидений и извлечение паттернов"""
-        try:
-            return await self.dream_bridge.process_dream(dream_data)
-        except Exception as e:
-            self.logger.error(f"Ошибка анализа сна: {e}")
-            return {'error': str(e), 'status': 'failed'}
-    
-    async def get_self_report(self) -> Dict[str, Any]:
-        """Получение отчета о состоянии неокортекса"""
-        try:
-            lucid_report = await self.lucid_layer.get_self_report()
-            
-            return {
-                'timestamp': datetime.utcnow().isoformat(),
-                'core_info': {
-                    'architecture': self.__architecture__,
-                    'protocol': self.__protocol__,
-                    'version': self.__version__,
-                    'status': 'operational'
-                },
-                'lucid_layer': lucid_report,
-                'dream_bridge_stats': self.dream_bridge.stats,
-                'cognitive_models_count': len(self.cognitive_models)
-            }
-        except Exception as e:
-            self.logger.error(f"Ошибка получения отчета: {e}")
-            return {'error': str(e)}
-
-# ============================================================================
 # ВСПОМОГАТЕЛЬНЫЕ КЛАССЫ ДЛЯ NEO-CORTEX
 # ============================================================================
 
@@ -499,7 +434,7 @@ class LucidControlLayer:
         current_state = self.current_state['primary']
         possible_transitions = []
         
-        # Определение возможных переходов
+        # Определение возможных переходы
         if current_state == 'focusing':
             possible_transitions = ['introspecting', 'hypothesizing', 'uncertain']
         elif current_state == 'dreaming':
@@ -738,7 +673,7 @@ class DreamRealityBridge:
             # Добавление в базу гипотез
             for hypothesis in hypotheses:
                 self.dream_hypotheses.append({
-                    'id': str(uuid.uuid4()),  # ← ИСПРАВЛЕНО: добавлено поле id
+                    'id': str(uuid.uuid4()),
                     'dream_id': dream_id,
                     'hypothesis': hypothesis,
                     'extraction_confidence': analysis.get('overall_significance', 0.5),
@@ -857,7 +792,7 @@ class DreamRealityBridge:
         return {
             'has_structure': has_structure,
             'coherence': min(1.0, coherence),
-            'complexity': word_count / 100,  # Нормализация
+            'complexity': word_count / 100,
             'symbol_density': unique_concepts / max(1, word_count)
         }
     
@@ -941,7 +876,6 @@ class DreamRealityBridge:
             if current_symbols and prev_symbols:
                 intersection = len(current_symbols.intersection(prev_symbols))
                 
-                # Если значительное пересечение символов
                 if intersection >= 2:
                     recurrence_count += 1
                     recurrence_instances.append({
@@ -951,7 +885,7 @@ class DreamRealityBridge:
         
         return {
             'count': recurrence_count,
-            'instances': recurrence_instances[:5],  # Ограничиваем
+            'instances': recurrence_instances[:5],
             'is_recurrent': recurrence_count >= self.significance_thresholds['recurrence_frequency']
         }
     
@@ -992,7 +926,6 @@ class DreamRealityBridge:
         # Гипотеза 1: Связь между элементами сна
         symbolic_elements = analysis['symbolic_elements']
         if len(symbolic_elements) >= 2:
-            # Создание гипотезы о связи между элементами
             for i in range(len(symbolic_elements)):
                 for j in range(i + 1, len(symbolic_elements)):
                     hypothesis = {
@@ -1040,7 +973,6 @@ class DreamRealityBridge:
         
         # Ограничение количества гипотез
         if len(hypotheses) > self.config.max_hypotheses_per_dream:
-            # Сортировка по уверенности
             hypotheses.sort(key=lambda x: x.get('confidence', 0), reverse=True)
             hypotheses = hypotheses[:self.config.max_hypotheses_per_dream]
         
@@ -1055,7 +987,6 @@ class DreamRealityBridge:
         analysis = dream_record['analysis']
         dream_id = dream_record['id']
         
-        # Обновление паттернов по символическим элементам
         for element in analysis.get('symbolic_elements', []):
             self.dream_patterns[element].append({
                 'dream_id': dream_id,
@@ -1063,7 +994,6 @@ class DreamRealityBridge:
                 'significance': analysis.get('overall_significance', 0.0)
             })
         
-        # Обновление статистики паттернов
         unique_elements = len(analysis.get('symbolic_elements', []))
         if unique_elements > 0:
             self.stats['dream_patterns_recognized'] += 1
@@ -1071,25 +1001,21 @@ class DreamRealityBridge:
     async def check_hypothesis_against_reality(self, hypothesis_id: str) -> Dict[str, Any]:
         """Проверка гипотезы из сна против реальности"""
         
-        # Поиск гипотезы
         hypothesis = None
         for h in self.dream_hypotheses:
-            if h.get('id') == hypothesis_id:  # ← ИСПРАВЛЕНО: убрано default value
+            if h.get('id') == hypothesis_id:
                 hypothesis = h
                 break
         
         if not hypothesis:
             return {'status': 'error', 'message': 'Гипотеза не найдена'}
         
-        # Проверка в памяти (упрощенная)
         confirmation_score = 0.0
         evidence_found = []
         
-        # Простая проверка по ключевым словам
         if 'elements' in hypothesis.get('hypothesis', {}):
             elements = hypothesis['hypothesis']['elements']
             for element in elements:
-                # Поиск похожих воспоминаний
                 similar_memories = await self.memory_network.retrieve_by_association(
                     {'keyword': element},
                     max_results=2
@@ -1122,14 +1048,12 @@ class DreamRealityBridge:
         
         insights = []
         
-        # Анализ гипотез с высокой уверенностью
         high_confidence_hypotheses = [
             h for h in self.dream_hypotheses 
             if h.get('extraction_confidence', 0) > 0.7
         ]
         
         for hypothesis in high_confidence_hypotheses[:limit]:
-            # Проверка против реальности
             reality_check = await self.check_hypothesis_against_reality(
                 hypothesis.get('id', 'unknown')
             )
@@ -1168,6 +1092,71 @@ class DreamRealityBridge:
                 max(1, self.stats['dreams_turned_hypotheses'])
             )
         }
+
+# ============================================================================
+# NEOCORTEX CORE - ГЛАВНЫЙ КЛАСС
+# ============================================================================
+
+class NeoCortexCore:
+    """Ядро неокортекса DS24 - высшие когнитивные функции"""
+    
+    __architecture__ = "DS24"
+    __protocol__ = "neocortex-v4.3"
+    __version__ = "4.3.0"
+    
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        self.config = config or {}
+        self.logger = logging.getLogger(__name__ + ".NeoCortexCore")
+        
+        # Инициализация подсистем
+        self.neocortex_config = NeocortexConfig()
+        self.memory_network = AdaptiveMemoryNetwork()
+        self.sleep_system = SleepConsolidationSystem()
+        
+        # Слои неокортекса
+        self.lucid_layer = LucidControlLayer(self.neocortex_config)
+        self.dream_bridge = DreamRealityBridge(
+            self.neocortex_config,
+            self.memory_network,
+            self.sleep_system,
+            self.lucid_layer
+        )
+        
+        # Когнитивные модели
+        self.cognitive_models = {}
+        self.hypothesis_engine = HypothesisEngine()
+        self.pattern_matcher = PatternMatcher()
+        
+        self.logger.info(f"[DS24 NeoCortex Core] Инициализирован (архитектура: {self.__architecture__})")
+    
+    async def analyze_dream(self, dream_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Анализ сновидений и извлечение паттернов"""
+        try:
+            return await self.dream_bridge.process_dream(dream_data)
+        except Exception as e:
+            self.logger.error(f"Ошибка анализа сна: {e}")
+            return {'error': str(e), 'status': 'failed'}
+    
+    async def get_self_report(self) -> Dict[str, Any]:
+        """Получение отчета о состоянии неокортекса"""
+        try:
+            lucid_report = await self.lucid_layer.get_self_report()
+            
+            return {
+                'timestamp': datetime.utcnow().isoformat(),
+                'core_info': {
+                    'architecture': self.__architecture__,
+                    'protocol': self.__protocol__,
+                    'version': self.__version__,
+                    'status': 'operational'
+                },
+                'lucid_layer': lucid_report,
+                'dream_bridge_stats': self.dream_bridge.stats,
+                'cognitive_models_count': len(self.cognitive_models)
+            }
+        except Exception as e:
+            self.logger.error(f"Ошибка получения отчета: {e}")
+            return {'error': str(e)}
 
 # ============================================================================
 # ТЕСТОВЫЙ БЛОК
