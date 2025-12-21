@@ -1,5 +1,134 @@
-# neocortex_core_v4_3.py
+# neocortex_core.py
 # LUCID LAYER - САМОСОЗНАНИЕ И КОНТЕКСТУАЛЬНАЯ ЭТИКА
+# Архитектура DS24, версия 4.3
+
+import asyncio
+import json
+import logging
+import random
+import uuid
+from collections import deque, defaultdict
+from datetime import datetime
+from typing import Dict, List, Any, Optional, Tuple, Set
+
+# Конфигурация логирования
+logger = logging.getLogger(__name__)
+
+# ============================================================================
+# ВСПОМОГАТЕЛЬНЫЕ КЛАССЫ (ЗАГЛУШКИ)
+# ============================================================================
+
+class NeocortexConfig:
+    """Конфигурация неокортекса"""
+    def __init__(self):
+        self.lucid_layer_enabled = True
+        self.dream_processing_enabled = True
+        self.max_hypotheses_per_dream = 10
+        self.state_monitor_interval = 1.0
+
+class AdaptiveMemoryNetwork:
+    """Адаптивная сеть памяти (заглушка)"""
+    async def retrieve_by_association(self, context: Dict, max_results: int = 3) -> List[Dict]:
+        return []
+
+class SleepConsolidationSystem:
+    """Система консолидации сна (заглушка)"""
+    async def consolidate(self, dream_data: Dict) -> Dict:
+        return {'status': 'consolidated'}
+
+# ============================================================================
+# NEOCORTEX CORE - ГЛАВНЫЙ КЛАСС
+# ============================================================================
+
+class NeoCortexCore:
+    """Ядро неокортекса DS24 - высшие когнитивные функции"""
+    
+    __architecture__ = "DS24"
+    __protocol__ = "neocortex-v4.3"
+    __version__ = "4.3.0"
+    
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        self.config = config or {}
+        self.logger = logging.getLogger(__name__ + ".NeoCortexCore")
+        
+        # Инициализация подсистем
+        self.neocortex_config = NeocortexConfig()
+        self.memory_network = AdaptiveMemoryNetwork()
+        self.sleep_system = SleepConsolidationSystem()
+        
+        # Слои неокортекса
+        self.lucid_layer = LucidControlLayer(self.neocortex_config)
+        self.dream_bridge = DreamRealityBridge(
+            self.neocortex_config,
+            self.memory_network,
+            self.sleep_system,
+            self.lucid_layer
+        )
+        
+        # Когнитивные модели
+        self.cognitive_models = {}
+        self.hypothesis_engine = HypothesisEngine()
+        self.pattern_matcher = PatternMatcher()
+        
+        self.logger.info(f"[DS24 NeoCortex Core] Инициализирован (архитектура: {self.__architecture__})")
+    
+    async def analyze_dream(self, dream_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Анализ сновидений и извлечение паттернов"""
+        try:
+            return await self.dream_bridge.process_dream(dream_data)
+        except Exception as e:
+            self.logger.error(f"Ошибка анализа сна: {e}")
+            return {'error': str(e), 'status': 'failed'}
+    
+    async def get_self_report(self) -> Dict[str, Any]:
+        """Получение отчета о состоянии неокортекса"""
+        try:
+            lucid_report = await self.lucid_layer.get_self_report()
+            
+            return {
+                'timestamp': datetime.utcnow().isoformat(),
+                'core_info': {
+                    'architecture': self.__architecture__,
+                    'protocol': self.__protocol__,
+                    'version': self.__version__,
+                    'status': 'operational'
+                },
+                'lucid_layer': lucid_report,
+                'dream_bridge_stats': self.dream_bridge.stats,
+                'cognitive_models_count': len(self.cognitive_models)
+            }
+        except Exception as e:
+            self.logger.error(f"Ошибка получения отчета: {e}")
+            return {'error': str(e)}
+
+# ============================================================================
+# ВСПОМОГАТЕЛЬНЫЕ КЛАССЫ ДЛЯ NEO-CORTEX
+# ============================================================================
+
+class HypothesisEngine:
+    """Движок генерации гипотез"""
+    def __init__(self):
+        self.hypotheses = []
+        self.confidence_threshold = 0.6
+    
+    def generate_hypothesis(self, data: Dict, context: Dict) -> Dict:
+        """Генерация гипотезы на основе данных"""
+        return {
+            'type': 'general',
+            'content': f"Гипотеза на основе {len(data)} точек данных",
+            'confidence': 0.7,
+            'evidence': data.get('evidence', {}),
+            'timestamp': datetime.utcnow()
+        }
+
+class PatternMatcher:
+    """Сопоставитель паттернов"""
+    def __init__(self):
+        self.patterns = []
+    
+    def match_pattern(self, data: Dict, pattern_type: str = 'any') -> List[Dict]:
+        """Сопоставление паттернов в данных"""
+        return []
 
 # ============================================================================
 # LUCID CONTROL LAYER - СЛОЙ ОСОЗНАННОСТИ
@@ -216,7 +345,7 @@ class LucidControlLayer:
             self.internal_dialogue.append({
                 'timestamp': datetime.utcnow(),
                 'type': 'inconsistency_warning',
-                'content': f"Обнаружена несогласованность: {', '.join(inconsidences)}",
+                'content': f"Обнаружена несогласованность: {', '.join(inconsistencies)}",
                 'certainty': 0.8
             })
     
@@ -335,7 +464,6 @@ class LucidControlLayer:
         template = random.choice(questions)
         
         # Получение реальных концептов из семантической сети
-        # (в реальной реализации здесь было бы обращение к сети)
         concepts = ['время', 'память', 'эмоция', 'внимание', 'обучение']
         
         return template.format(
@@ -610,6 +738,7 @@ class DreamRealityBridge:
             # Добавление в базу гипотез
             for hypothesis in hypotheses:
                 self.dream_hypotheses.append({
+                    'id': str(uuid.uuid4()),  # ← ИСПРАВЛЕНО: добавлено поле id
                     'dream_id': dream_id,
                     'hypothesis': hypothesis,
                     'extraction_confidence': analysis.get('overall_significance', 0.5),
@@ -872,4 +1001,201 @@ class DreamRealityBridge:
                         'dream_context': dream.get('context', {}),
                         'confidence': analysis.get('overall_significance', 0.5) * 0.8,
                         'evidence': {
-                           
+                            'source': 'dream_analysis',
+                            'strength': 0.5,
+                            'shared_context': dream.get('context', {}),
+                            'emotional_correlation': analysis['emotional_content'].get('intensity', 0.0)
+                        }
+                    }
+                    hypotheses.append(hypothesis)
+        
+        # Гипотеза 2: Эмоциональные паттерны
+        emotional_content = analysis['emotional_content']
+        if emotional_content['intensity'] > 0.7:
+            hypotheses.append({
+                'type': 'emotional_pattern',
+                'description': f"Сильный эмоциональный паттерн: интенсивность={emotional_content['intensity']:.2f}",
+                'confidence': emotional_content['intensity'] * 0.9,
+                'evidence': {
+                    'source': 'emotional_analysis',
+                    'valence': emotional_content['valence'],
+                    'arousal': emotional_content['arousal'],
+                    'complexity': emotional_content['complexity']
+                }
+            })
+        
+        # Гипотеза 3: Связи с реальностью
+        reality_connections = analysis['connection_to_reality']
+        if reality_connections['strength'] > 0.4:
+            hypotheses.append({
+                'type': 'reality_connection',
+                'description': f"Связь с реальностью: сила={reality_connections['strength']:.2f}, связей={reality_connections['count']}",
+                'confidence': reality_connections['strength'],
+                'evidence': {
+                    'source': 'reality_bridge',
+                    'connections': reality_connections['connections'][:3],
+                    'total_strength': reality_connections['strength']
+                }
+            })
+        
+        # Ограничение количества гипотез
+        if len(hypotheses) > self.config.max_hypotheses_per_dream:
+            # Сортировка по уверенности
+            hypotheses.sort(key=lambda x: x.get('confidence', 0), reverse=True)
+            hypotheses = hypotheses[:self.config.max_hypotheses_per_dream]
+        
+        return hypotheses
+    
+    async def _update_dream_patterns(self, dream_record: Dict[str, Any]):
+        """Обновление паттернов снов на основе нового сна"""
+        
+        if not dream_record['is_significant']:
+            return
+        
+        analysis = dream_record['analysis']
+        dream_id = dream_record['id']
+        
+        # Обновление паттернов по символическим элементам
+        for element in analysis.get('symbolic_elements', []):
+            self.dream_patterns[element].append({
+                'dream_id': dream_id,
+                'timestamp': dream_record['timestamp'],
+                'significance': analysis.get('overall_significance', 0.0)
+            })
+        
+        # Обновление статистики паттернов
+        unique_elements = len(analysis.get('symbolic_elements', []))
+        if unique_elements > 0:
+            self.stats['dream_patterns_recognized'] += 1
+    
+    async def check_hypothesis_against_reality(self, hypothesis_id: str) -> Dict[str, Any]:
+        """Проверка гипотезы из сна против реальности"""
+        
+        # Поиск гипотезы
+        hypothesis = None
+        for h in self.dream_hypotheses:
+            if h.get('id') == hypothesis_id:  # ← ИСПРАВЛЕНО: убрано default value
+                hypothesis = h
+                break
+        
+        if not hypothesis:
+            return {'status': 'error', 'message': 'Гипотеза не найдена'}
+        
+        # Проверка в памяти (упрощенная)
+        confirmation_score = 0.0
+        evidence_found = []
+        
+        # Простая проверка по ключевым словам
+        if 'elements' in hypothesis.get('hypothesis', {}):
+            elements = hypothesis['hypothesis']['elements']
+            for element in elements:
+                # Поиск похожих воспоминаний
+                similar_memories = await self.memory_network.retrieve_by_association(
+                    {'keyword': element},
+                    max_results=2
+                )
+                
+                if similar_memories:
+                    confirmation_score += 0.3
+                    evidence_found.append({
+                        'element': element,
+                        'memories_found': len(similar_memories),
+                        'max_similarity': max([m.get('similarity', 0) for m in similar_memories])
+                    })
+        
+        result = {
+            'hypothesis_id': hypothesis_id,
+            'original_confidence': hypothesis.get('extraction_confidence', 0.0),
+            'reality_confirmation_score': confirmation_score,
+            'evidence_found': evidence_found,
+            'is_confirmed': confirmation_score > 0.5,
+            'checked_at': datetime.utcnow().isoformat()
+        }
+        
+        if result['is_confirmed']:
+            self.stats['reality_confirmations'] += 1
+        
+        return result
+    
+    async def get_dream_insights(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Получение инсайтов из снов"""
+        
+        insights = []
+        
+        # Анализ гипотез с высокой уверенностью
+        high_confidence_hypotheses = [
+            h for h in self.dream_hypotheses 
+            if h.get('extraction_confidence', 0) > 0.7
+        ]
+        
+        for hypothesis in high_confidence_hypotheses[:limit]:
+            # Проверка против реальности
+            reality_check = await self.check_hypothesis_against_reality(
+                hypothesis.get('id', 'unknown')
+            )
+            
+            if reality_check.get('is_confirmed', False):
+                insight = {
+                    'insight_type': 'confirmed_hypothesis',
+                    'hypothesis': hypothesis['hypothesis'],
+                    'original_confidence': hypothesis['extraction_confidence'],
+                    'reality_confirmation': reality_check['reality_confirmation_score'],
+                    'evidence': reality_check['evidence_found'],
+                    'timestamp': hypothesis['timestamp'],
+                    'dream_id': hypothesis['dream_id']
+                }
+                insights.append(insight)
+                
+                self.stats['dream_insights_used'] += 1
+        
+        return insights
+    
+    async def get_stats_report(self) -> Dict[str, Any]:
+        """Получение отчета статистики"""
+        
+        return {
+            'timestamp': datetime.utcnow().isoformat(),
+            'dream_processing': self.stats,
+            'dream_database_size': len(self.dream_database),
+            'dream_hypotheses_count': len(self.dream_hypotheses),
+            'unique_dream_patterns': len(self.dream_patterns),
+            'avg_hypotheses_per_dream': (
+                self.stats['dreams_turned_hypotheses'] / 
+                max(1, self.stats['total_dreams_processed'])
+            ),
+            'confirmation_rate': (
+                self.stats['reality_confirmations'] / 
+                max(1, self.stats['dreams_turned_hypotheses'])
+            )
+        }
+
+# ============================================================================
+# ТЕСТОВЫЙ БЛОК
+# ============================================================================
+
+if __name__ == "__main__":
+    import asyncio
+    
+    async def test_module():
+        print("🧪 Тестирование модуля neocortex_core...")
+        
+        # Создание экземпляра
+        core = NeoCortexCore()
+        
+        # Тест анализа сна
+        test_dream = {
+            'data': {'type': 'symbolic', 'content': 'летать над городом'},
+            'context': {'dream_element': 'полет', 'emotional_tone': 'радость'},
+            'emotional_state': {'valence': 0.8, 'arousal': 0.6}
+        }
+        
+        result = await core.analyze_dream(test_dream)
+        print(f"✅ Результат анализа сна: {result.get('is_significant', False)}")
+        
+        # Тест отчета
+        report = await core.get_self_report()
+        print(f"✅ Отчет получен: {report.get('core_info', {}).get('status', 'unknown')}")
+        
+        print("🧪 Тестирование завершено успешно!")
+    
+    asyncio.run(test_module())
