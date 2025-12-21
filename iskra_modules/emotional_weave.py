@@ -1004,7 +1004,6 @@ def get_audit():
 @app.route('/module/<module_name>/<command>', methods=['POST'])
 def module_command(module_name, command):
     """Execute command on specific module"""
-    # This is a simplified version - in production would dynamically import modules
     if module_name == "emotional_weave":
         try:
             data = request.get_json() or {}
