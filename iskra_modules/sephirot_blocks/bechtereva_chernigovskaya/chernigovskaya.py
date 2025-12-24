@@ -1568,7 +1568,7 @@ class LinguisticImaginationEngine:
                 signal_norm = np.array(signal_vector)
                 if signal_norm.max() != signal_norm.min():
                     signal_norm = (signal_norm - signal_norm.min()) / (signal_norm.max() - signal_norm.min())
-                                else:
+                else:
                     signal_norm = np.ones_like(signal_norm) * 0.5
             
             symbols = list(self.symbol_library.keys())
