@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # ============================================================================
-# ISKRA-4 CLOUD - ПОЛНЫЙ ПРОИЗВОДСТВЕННЫЙ КОД
-# Версия 4.0.0 | DS24 Architecture | Render Compatible
-# АВТОФИКС МОДУЛЕЙ ВКЛЮЧЕН
+# ISKRA-4 CLOUD - ПОЛНЫЙ ПРОИЗВОДСТВЕННЫЙ КОД (ОБНОВЛЁННЫЙ)
+# Версия 4.0.1 | DS24 Architecture | Render Compatible
+# ПОЛНАЯ ИНТЕГРАЦИЯ С СЕФИРОТИЧЕСКОЙ СИСТЕМОЙ
 # ============================================================================
 
 import os
@@ -46,7 +46,7 @@ logger = logging.getLogger("ISKRA-4")
 
 DS24_ARCHITECTURE = "ISKRA-4"
 DS24_PROTOCOL = "DS24"
-DS24_VERSION = "4.0.0"
+DS24_VERSION = "4.0.1"  # Обновлена версия
 MIN_PYTHON_VERSION = (3, 11, 0)
 MODULES_DIR = "iskra_modules"
 
@@ -66,6 +66,7 @@ class ModuleType(Enum):
     MONITORING = "monitoring"
     SECURITY = "security"
     INTEGRATION = "integration"
+    POLICY_GOVERNOR = "policy_governor"
 
 class LoadState(Enum):
     """Состояния загрузки модулей"""
@@ -92,26 +93,27 @@ class QuantumState(Enum):
     MEASURED = "measured"
 
 # ============================================================================
-# СЕФИРОТИЧЕСКАЯ СИСТЕМА
+# СЕФИРОТИЧЕСКАЯ СИСТЕМА (УПРОЩЁННАЯ ВЕРСИЯ ДЛЯ ПАДЕНИЯ)
 # ============================================================================
 
 class SephiroticDimension(Enum):
     """Измерения сефиротического дерева"""
-    KETHER = "kether"      # Корона
-    CHOKMAH = "chokmah"    # Мудрость
-    BINAH = "binah"        # Понимание
-    CHESED = "chesed"      # Милость
-    GEVURAH = "gevurah"    # Строгость
-    TIFERET = "tiferet"    # Красота
-    NETZACH = "netzach"    # Вечность
-    HOD = "hod"           # Величие
-    YESOD = "yesod"       # Основание
-    MALKUTH = "malkuth"   # Царство
+    KETHER = "kether"      # Корона (bechtereva)
+    CHOKMAH = "chokmah"    # Мудрость (chernigovskaya)
+    BINAH = "binah"        # Понимание (bechtereva)
+    CHESED = "chesed"      # Милость (emotional_weave)
+    GEVURAH = "gevurah"    # Строгость (immune_core)
+    TIFERET = "tiferet"    # Красота (policy_governor)
+    NETZACH = "netzach"    # Вечность (heartbeat_core)
+    HOD = "hod"           # Величие (polyglossia_adapter)
+    YESOD = "yesod"       # Основание (spinal_core)
+    MALKUTH = "malkuth"   # Царство (trust_mesh)
 
 @dataclass
 class SephiroticNode:
     """Узел сефиротического дерева"""
     dimension: SephiroticDimension
+    connected_module: str = ""  # Имя подключённого модуля
     level: int = 1
     energy: float = 100.0
     resonance: float = 0.5
@@ -133,6 +135,7 @@ class SephiroticNode:
         """Получение состояния узла"""
         return {
             "dimension": self.dimension.value,
+            "connected_module": self.connected_module,
             "energy": self.energy,
             "resonance": self.resonance,
             "connections": len(self.connections),
@@ -140,17 +143,35 @@ class SephiroticNode:
         }
 
 class SephiroticTree:
-    """Полное сефиротическое дерево"""
+    """Полное сефиротическое дерево с привязкой к модулям"""
     
     def __init__(self):
         self.nodes = {}
         self.paths = []
+        self.activated = False
         self._initialize_tree()
     
     def _initialize_tree(self):
-        """Инициализация всех сефирот"""
-        for dimension in SephiroticDimension:
-            self.nodes[dimension.value] = SephiroticNode(dimension)
+        """Инициализация всех сефирот с привязкой к модулям"""
+        # Создание узлов с привязками к модулям
+        module_assignments = {
+            SephiroticDimension.KETHER: "bechtereva",
+            SephiroticDimension.CHOKMAH: "chernigovskaya",
+            SephiroticDimension.BINAH: "bechtereva",
+            SephiroticDimension.CHESED: "emotional_weave",
+            SephiroticDimension.GEVURAH: "immune_core",
+            SephiroticDimension.TIFERET: "policy_governor_v1.2_impl",
+            SephiroticDimension.NETZACH: "heartbeat_core",
+            SephiroticDimension.HOD: "polyglossia_adapter",
+            SephiroticDimension.YESOD: "spinal_core",
+            SephiroticDimension.MALKUTH: "trust_mesh"
+        }
+        
+        for dimension, module in module_assignments.items():
+            self.nodes[dimension.value] = SephiroticNode(
+                dimension=dimension,
+                connected_module=module
+            )
         
         # Установка стандартных связей (22 пути)
         standard_paths = [
@@ -191,7 +212,13 @@ class SephiroticTree:
             "tree": node_states,
             "total_paths": len(self.paths),
             "total_energy": sum(n.energy for n in self.nodes.values()),
-            "average_resonance": sum(n.resonance for n in self.nodes.values()) / len(self.nodes)
+            "average_resonance": sum(n.resonance for n in self.nodes.values()) / len(self.nodes),
+            "activated": self.activated,
+            "module_connections": {
+                node.connected_module: node.dimension.value 
+                for node in self.nodes.values() 
+                if node.connected_module
+            }
         }
     
     def activate(self) -> Dict:
@@ -200,9 +227,14 @@ class SephiroticTree:
             node.energy = min(100.0, node.energy * 1.2)
             node.resonance = min(1.0, node.resonance * 1.1)
         
+        self.activated = True
+        
         return {
             "status": "activated",
             "message": "Сефиротическое дерево активировано",
+            "total_energy": sum(n.energy for n in self.nodes.values()),
+            "total_resonance": sum(n.resonance for n in self.nodes.values()),
+            "activated_nodes": len(self.nodes),
             "tree_state": self.get_tree_state()
         }
 
@@ -297,7 +329,7 @@ class IntegrityVerifier:
         return diagnostics
 
 # ============================================================================
-# ЗАГРУЗЧИК МОДУЛЕЙ
+# ЗАГРУЗЧИК МОДУЛЕЙ (ОБНОВЛЁННЫЙ)
 # ============================================================================
 
 class DS24ModuleLoader:
@@ -308,6 +340,7 @@ class DS24ModuleLoader:
         self.loaded_modules = {}
         self.module_diagnostics = {}
         self.sephirotic_tree = None
+        self.sephirotic_engine = None  # Для внешнего движка
         self.stats = {
             "total_modules_found": 0,
             "modules_loaded": 0,
@@ -368,6 +401,8 @@ print("✅ ISKRA-4 Modules package loaded")
         
         if 'sephirot' in name_lower:
             return ModuleType.SEPHIROT_CORE
+        elif 'policy_governor' in name_lower:
+            return ModuleType.POLICY_GOVERNOR
         elif 'neocortex' in name_lower or 'cognitive' in name_lower:
             return ModuleType.COGNITIVE_CORE
         elif 'emotional' in name_lower or 'weave' in name_lower:
@@ -486,8 +521,8 @@ print("✅ ISKRA-4 Modules package loaded")
                 "load_time_ms": load_time
             }
     
-    def load_all_modules(self) -> Dict:
-        """Загрузка всех модулей"""
+    async def load_all_modules(self) -> Dict:
+        """Загрузка всех модулей (асинхронная версия)"""
         logger.info("🚀 Начинаю загрузку модулей DS24...")
         
         module_files = self.scan_modules()
@@ -503,32 +538,40 @@ print("✅ ISKRA-4 Modules package loaded")
         results = []
         total_start = time.perf_counter()
         
-        # Список модулей для пропуска (временно)
-        skip_critical = [
-            'sephirot_base',
-            'sephirot_bus',
-            'sephirotic_engine'
-        ]
-        
+        # 🔥 ЗАГРУЖАЕМ ВСЕ МОДУЛИ - НИЧЕГО НЕ ПРОПУСКАЕМ
         # Загрузка в алфавитном порядке для детерминизма
         for module_path in sorted(module_files):
             module_name = os.path.splitext(os.path.basename(module_path))[0]
-            
-            if module_name in skip_critical:
-                logger.info(f"⏭️ Пропущен критический модуль: {module_name}")
-                continue  # ПРОПУСТАЕМ ЭТОТ МОДУЛЬ
             
             logger.info(f"📦 Загружаю: {module_name}")
             
             result = self.load_single_module(module_name, module_path)
             results.append(result)
         
-        # Загрузка сефиротического дерева если есть модули
-        sephirot_modules = [m for m in self.loaded_modules.keys() if 'sephirot' in m.lower()]
-        if sephirot_modules:
-            logger.info(f"🌳 Обнаружены сефирот-модули: {sephirot_modules}")
+        # 🔥 ПОПЫТКА ИНИЦИАЛИЗАЦИИ СЕФИРОТИЧЕСКОЙ СИСТЕМЫ
+        try:
+            from sephirotic_engine import initialize_sephirotic_in_iskra
+            sephirot_result = await initialize_sephirotic_in_iskra()
+            
+            if sephirot_result["success"]:
+                self.sephirotic_engine = sephirot_result["engine"]
+                logger.info("✅ Внешняя сефиротическая система инициализирована")
+                self.sephirotic_tree = self.sephirotic_engine.tree
+            else:
+                logger.warning(f"⚠️  Ошибка внешней сефиротической системы: {sephirot_result.get('error', 'unknown')}")
+                # Создаём локальное дерево как fallback
+                self.sephirotic_tree = SephiroticTree()
+                logger.info("🌳 Локальное сефиротическое дерево создано")
+                
+        except ImportError as e:
+            logger.warning(f"⚠️  Модуль sephirotic_engine не найден: {e}")
+            # Создаём локальное дерево
             self.sephirotic_tree = SephiroticTree()
-            logger.info("🌳 Сефиротическое дерево инициализировано")
+            logger.info("🌳 Локальное сефиротическое дерево создано")
+        except Exception as e:
+            logger.error(f"💥 Ошибка инициализации сефиротической системы: {e}")
+            self.sephirotic_tree = SephiroticTree()
+            logger.info("🌳 Локальное сефиротическое дерево создано (fallback)")
         
         total_time = (time.perf_counter() - total_start) * 1000
         self.stats["total_load_time_ms"] = total_time
@@ -542,26 +585,41 @@ print("✅ ISKRA-4 Modules package loaded")
         logger.info(f"{'='*60}")
         logger.info(f"✅ Успешно: {successful}")
         logger.info(f"❌ Ошибок: {failed}")
-        logger.info(f"🌳 Сефирот-дерево: {'Да' if self.sephirotic_tree else 'Нет'}")
+        logger.info(f"🌳 Сефирот-система: {'Да' if self.sephirotic_tree else 'Нет'}")
         logger.info(f"⏱️  Общее время: {total_time:.1f} мс")
         logger.info(f"{'='*60}")
+        
+        # Вывод информации о загруженных модулях
+        logger.info("📦 Загруженные модули:")
+        for name in sorted(self.loaded_modules.keys()):
+            logger.info(f"   - {name}")
         
         return {
             "status": "completed",
             "stats": self.stats,
             "results": results,
             "sephirot_loaded": self.sephirotic_tree is not None,
+            "external_sephirot": self.sephirotic_engine is not None,
             "total_time_ms": total_time
         }
     
     def get_system_status(self) -> Dict:
         """Получение статуса системы"""
+        # Ищем Policy Governor
+        policy_module = None
+        for name, module in self.loaded_modules.items():
+            if 'policy' in name.lower() and 'governor' in name.lower():
+                policy_module = name
+                break
+        
         return {
             "architecture": DS24_ARCHITECTURE,
             "protocol": DS24_PROTOCOL,
             "version": DS24_VERSION,
             "modules_loaded": len(self.loaded_modules),
             "sephirot_active": self.sephirotic_tree is not None,
+            "sephirot_engine": self.sephirotic_engine is not None,
+            "policy_governor": policy_module,
             "stats": self.stats,
             "python_version": sys.version,
             "platform": sys.platform,
@@ -569,7 +627,7 @@ print("✅ ISKRA-4 Modules package loaded")
         }
 
 # ============================================================================
-# FLASK API
+# FLASK API (ОБНОВЛЁННЫЙ)
 # ============================================================================
 
 # Глобальные объекты
@@ -579,7 +637,7 @@ app_start_time = time.time()
 # Создание Flask приложения
 app = Flask(__name__)
 
-def initialize_system():
+async def initialize_system():
     """Инициализация системы при запуске"""
     global loader
     logger.info("🔄 Инициализация ISKRA-4 Cloud...")
@@ -592,12 +650,23 @@ def initialize_system():
     # Создание загрузчика
     loader = DS24ModuleLoader()
     
-    # Загрузка модулей
-    result = loader.load_all_modules()
+    # Загрузка модулей (асинхронная)
+    result = await loader.load_all_modules()
     
     if result["status"] == "completed":
         logger.info(f"✅ ISKRA-4 Cloud готов: {result['stats']['modules_loaded']} модулей")
         logger.info(f"📡 API доступен по порту {os.environ.get('PORT', 8080)}")
+        
+        # Логирование Policy Governor
+        for name, module in loader.loaded_modules.items():
+            if 'policy' in name.lower() and 'governor' in name.lower():
+                logger.info(f"🎯 Policy Governor загружен: {name}")
+                if hasattr(module, 'get_diagnostics'):
+                    try:
+                        diag = module.get_diagnostics()
+                        logger.info(f"📊 Policy Governor diagnostics: {json.dumps(diag, indent=2, default=str)}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Ошибка диагностики Policy Governor: {e}")
     else:
         logger.warning(f"⚠️ ISKRA-4 Cloud загружен с ошибками: {result.get('message', 'Unknown')}")
     
@@ -626,8 +695,12 @@ def health():
             "modules": "/modules",
             "system": "/system",
             "sephirot": "/sephirot",
+            "sephirot/state": "/sephirot/state",
+            "sephirot/activate": "/sephirot/activate (POST)",
+            "policy": "/policy/status",
             "stats": "/stats",
-            "info": "/info"
+            "info": "/info",
+            "reload": "/reload (POST)"
         }
     })
 
@@ -655,6 +728,8 @@ def list_modules():
         "total": len(modules_list),
         "loaded": len(loader.loaded_modules),
         "initialized": sum(1 for m in modules_list if m["status"] == "initialized"),
+        "sephirot_available": loader.sephirotic_tree is not None,
+        "policy_governor_available": any('policy' in m['name'].lower() and 'governor' in m['name'].lower() for m in modules_list),
         "timestamp": datetime.now(timezone.utc).isoformat()
     })
 
@@ -698,7 +773,10 @@ def system_info():
 @app.route('/sephirot')
 def sephirot_info():
     """Информация о сефиротической системе"""
-    if loader is None or loader.sephirotic_tree is None:
+    if loader is None:
+        return jsonify({"error": "System not initialized"}), 503
+    
+    if loader.sephirotic_tree is None:
         return jsonify({
             "status": "not_available",
             "message": "Сефиротическая система не загружена",
@@ -710,9 +788,11 @@ def sephirot_info():
     return jsonify({
         "status": "active",
         "tree": tree_state,
+        "external_engine": loader.sephirotic_engine is not None,
         "endpoints": {
             "activate": "/sephirot/activate (POST)",
-            "state": "/sephirot/state"
+            "state": "/sephirot/state",
+            "modules": "/sephirot/modules"
         },
         "timestamp": datetime.now(timezone.utc).isoformat()
     })
@@ -720,13 +800,43 @@ def sephirot_info():
 @app.route('/sephirot/activate', methods=['POST'])
 def activate_sephirot():
     """Активация сефиротической системы"""
-    if loader is None or loader.sephirotic_tree is None:
+    if loader is None:
+        return jsonify({"error": "System not initialized"}), 503
+    
+    if loader.sephirotic_tree is None:
         return jsonify({"error": "Сефиротическая система не доступна"}), 404
     
     try:
+        # Активация локального дерева
         result = loader.sephirotic_tree.activate()
+        
+        # Если есть внешний движок, активируем его тоже
+        if loader.sephirotic_engine and hasattr(loader.sephirotic_engine, 'activate'):
+            try:
+                engine_result = asyncio.run(loader.sephirotic_engine.activate())
+                result["external_engine"] = engine_result
+            except Exception as e:
+                result["external_engine_error"] = str(e)
+        
+        # Активация связанных модулей
+        activated_modules = []
+        for module_name, module in loader.loaded_modules.items():
+            if hasattr(module, 'on_sephirot_activate'):
+                try:
+                    if asyncio.iscoroutinefunction(module.on_sephirot_activate):
+                        asyncio.run(module.on_sephirot_activate())
+                    else:
+                        module.on_sephirot_activate()
+                    activated_modules.append(module_name)
+                except Exception as e:
+                    logger.warning(f"Ошибка активации модуля {module_name}: {e}")
+        
+        result["activated_modules"] = activated_modules
+        result["total_energy"] = loader.sephirotic_tree.get_tree_state()["total_energy"]
+        
         return jsonify(result)
     except Exception as e:
+        logger.error(f"Ошибка активации сефиротической системы: {e}")
         return jsonify({
             "error": f"Ошибка активации: {str(e)}",
             "timestamp": datetime.now(timezone.utc).isoformat()
@@ -740,6 +850,128 @@ def sephirot_state():
     
     return jsonify(loader.sephirotic_tree.get_tree_state())
 
+@app.route('/sephirot/modules')
+def sephirot_modules():
+    """Модули, подключенные к сефиротической системе"""
+    if loader is None:
+        return jsonify({"error": "System not initialized"}), 503
+    
+    module_connections = []
+    
+    if loader.sephirotic_tree and hasattr(loader.sephirotic_tree, 'nodes'):
+        for node_name, node in loader.sephirotic_tree.nodes.items():
+            if hasattr(node, 'connected_module') and node.connected_module:
+                module_info = {
+                    "sephira": node_name,
+                    "module": node.connected_module,
+                    "module_loaded": node.connected_module in loader.loaded_modules,
+                    "energy": node.energy,
+                    "resonance": node.resonance
+                }
+                module_connections.append(module_info)
+    
+    return jsonify({
+        "connections": module_connections,
+        "total_connections": len(module_connections),
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
+
+# ============================================================================
+# POLICY GOVERNOR API
+# ============================================================================
+
+@app.route('/policy/status', methods=['GET'])
+def policy_status():
+    """Статус Policy Governor"""
+    if loader is None:
+        return jsonify({"error": "System not initialized"}), 503
+    
+    # Ищем policy governor
+    policy_module = None
+    policy_module_name = None
+    
+    for name, module in loader.loaded_modules.items():
+        if 'policy' in name.lower() and 'governor' in name.lower():
+            policy_module = module
+            policy_module_name = name
+            break
+    
+    if not policy_module:
+        return jsonify({
+            "status": "not_found",
+            "message": "Policy Governor не найден",
+            "available_modules": list(loader.loaded_modules.keys())
+        }), 404
+    
+    # Получаем статус
+    try:
+        if hasattr(policy_module, 'get_diagnostics'):
+            diagnostics = policy_module.get_diagnostics()
+            return jsonify({
+                "status": "active",
+                "module": policy_module_name,
+                "diagnostics": diagnostics,
+                "methods": [m for m in dir(policy_module) if not m.startswith('_')][:20],
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+        elif hasattr(policy_module, 'status'):
+            return jsonify({
+                "status": "loaded",
+                "module": policy_module_name,
+                "module_status": policy_module.status,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+        else:
+            return jsonify({
+                "status": "loaded",
+                "module": policy_module_name,
+                "attributes": [attr for attr in dir(policy_module) if not attr.startswith('_')][:15],
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "module": policy_module_name,
+            "error": str(e),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }), 500
+
+@app.route('/policy/rules', methods=['GET'])
+def policy_rules():
+    """Получение правил Policy Governor"""
+    if loader is None:
+        return jsonify({"error": "System not initialized"}), 503
+    
+    # Ищем policy governor
+    policy_module = None
+    for name, module in loader.loaded_modules.items():
+        if 'policy' in name.lower() and 'governor' in name.lower():
+            policy_module = module
+            break
+    
+    if not policy_module:
+        return jsonify({"error": "Policy Governor не найден"}), 404
+    
+    try:
+        if hasattr(policy_module, 'get_rules'):
+            rules = policy_module.get_rules()
+            return jsonify({
+                "rules": rules,
+                "total_rules": len(rules) if isinstance(rules, list) else "unknown",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+        else:
+            return jsonify({
+                "message": "Метод get_rules не найден",
+                "available_methods": [m for m in dir(policy_module) if not m.startswith('_')],
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+    except Exception as e:
+        return jsonify({
+            "error": f"Ошибка получения правил: {str(e)}",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }), 500
+
 # Диагностика
 @app.route('/diagnostics')
 def diagnostics():
@@ -751,10 +983,23 @@ def diagnostics():
     for module_name, diag in loader.module_diagnostics.items():
         diagnostics_list[module_name] = diag.to_dict()
     
+    # Собираем дополнительную информацию
+    module_details = {}
+    for module_name, module in loader.loaded_modules.items():
+        module_details[module_name] = {
+            "type": str(type(module)),
+            "attributes": [attr for attr in dir(module) if not attr.startswith('_')][:10],
+            "has_initialize": hasattr(module, 'initialize'),
+            "has_get_state": hasattr(module, 'get_state'),
+            "has_get_diagnostics": hasattr(module, 'get_diagnostics')
+        }
+    
     return jsonify({
         "diagnostics": diagnostics_list,
+        "module_details": module_details,
         "total_modules": len(diagnostics_list),
         "loaded_modules": len(loader.loaded_modules),
+        "sephirot_loaded": loader.sephirotic_tree is not None,
         "verification_cache_size": len(loader.integrity_verifier.verification_cache),
         "timestamp": datetime.now(timezone.utc).isoformat()
     })
@@ -772,7 +1017,7 @@ def reload_system():
             loader.integrity_verifier.verification_cache.clear()
         
         # Переинициализация
-        result = initialize_system()
+        result = asyncio.run(initialize_system())
         
         return jsonify({
             "status": "reloaded",
@@ -787,13 +1032,111 @@ def reload_system():
         }), 500
 
 # ============================================================================
-# ЗАПУСК СЕРВЕРА
+# ДОПОЛНИТЕЛЬНЫЕ ЭНДПОИНТЫ
+# ============================================================================
+
+@app.route('/modules/<module_name>')
+def module_info(module_name):
+    """Информация о конкретном модуле"""
+    if loader is None:
+        return jsonify({"error": "System not initialized"}), 503
+    
+    if module_name not in loader.loaded_modules:
+        return jsonify({
+            "error": f"Модуль {module_name} не найден",
+            "available_modules": list(loader.loaded_modules.keys())
+        }), 404
+    
+    module = loader.loaded_modules[module_name]
+    
+    # Получаем диагностику
+    diag = loader.module_diagnostics.get(module_name, {})
+    
+    # Собираем информацию о модуле
+    info = {
+        "name": module_name,
+        "type": str(type(module)),
+        "diagnostics": diag,
+        "attributes": [attr for attr in dir(module) if not attr.startswith('_')],
+        "ds24_attributes": {
+            "architecture": getattr(module, "__architecture__", "unknown"),
+            "protocol": getattr(module, "__protocol__", "unknown"),
+            "version": getattr(module, "__version__", "unknown")
+        },
+        "has_initialize": hasattr(module, 'initialize'),
+        "has_get_state": hasattr(module, 'get_state'),
+        "has_get_diagnostics": hasattr(module, 'get_diagnostics'),
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    
+    # Добавляем состояние если есть
+    if hasattr(module, 'get_state'):
+        try:
+            info["state"] = module.get_state()
+        except Exception as e:
+            info["state_error"] = str(e)
+    
+    return jsonify(info)
+
+@app.route('/system/health')
+def system_health():
+    """Детальная проверка здоровья системы"""
+    if loader is None:
+        return jsonify({"health": "initializing", "status": "down"}), 503
+    
+    health_checks = {
+        "loader_initialized": loader is not None,
+        "modules_loaded": len(loader.loaded_modules) > 0,
+        "sephirot_available": loader.sephirotic_tree is not None,
+        "api_responsive": True,
+        "memory_usage": psutil.Process().memory_info().rss / 1024 / 1024 < 500,  # < 500 MB
+        "cpu_usage": psutil.cpu_percent(interval=0.1) < 80,
+        "disk_space": psutil.disk_usage('/').percent < 90
+    }
+    
+    all_healthy = all(health_checks.values())
+    
+    # Проверяем Policy Governor
+    policy_governor_healthy = False
+    policy_module_name = None
+    for name, module in loader.loaded_modules.items():
+        if 'policy' in name.lower() and 'governor' in name.lower():
+            policy_module_name = name
+            try:
+                if hasattr(module, 'get_diagnostics'):
+                    module.get_diagnostics()
+                    policy_governor_healthy = True
+                else:
+                    policy_governor_healthy = True  # Если модуль загружен
+            except:
+                policy_governor_healthy = False
+            break
+    
+    health_checks["policy_governor"] = policy_governor_healthy
+    
+    return jsonify({
+        "health": "healthy" if all_healthy else "degraded",
+        "status": "up" if all_healthy else "partial",
+        "checks": health_checks,
+        "failed_checks": [k for k, v in health_checks.items() if not v],
+        "policy_governor": {
+            "found": policy_module_name is not None,
+            "name": policy_module_name,
+            "healthy": policy_governor_healthy
+        },
+        "uptime_seconds": int(time.time() - app_start_time),
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    })
+
+# ============================================================================
+# ЗАПУСК СЕРВЕРА (ОБНОВЛЁННЫЙ)
 # ============================================================================
 
 if __name__ == "__main__":
     print("\n" + "="*70)
-    print("🚀 ISKRA-4 CLOUD DEPLOYMENT")
+    print("🚀 ISKRA-4 CLOUD DEPLOYMENT - ВЕРСИЯ 4.0.1")
     print("🔗 DS24 QUANTUM-DETERMINISTIC ARCHITECTURE")
+    print("🌳 ПОЛНАЯ СЕФИРОТИЧЕСКАЯ ИНТЕГРАЦИЯ")
     print("="*70)
     
     # Информация о системе
@@ -802,12 +1145,40 @@ if __name__ == "__main__":
     print(f"   Platform: {sys.platform}")
     print(f"   Working dir: {os.getcwd()}")
     print(f"   Modules dir: {MODULES_DIR}")
+    print(f"   Architecture: {DS24_ARCHITECTURE}")
+    print(f"   Version: {DS24_VERSION}")
     
-    # Инициализация системы
-    init_result = initialize_system()
+    # Асинхронная инициализация системы
+    print(f"\n🔄 Инициализация ISKRA-4 Cloud...")
+    
+    try:
+        # Запускаем асинхронную инициализацию
+        init_result = asyncio.run(initialize_system())
+        
+        if init_result["status"] == "completed":
+            print(f"✅ ISKRA-4 Cloud успешно инициализирован")
+            print(f"   Загружено модулей: {init_result['stats']['modules_loaded']}")
+            print(f"   Сефирот-система: {'Да' if init_result['sephirot_loaded'] else 'Нет'}")
+            print(f"   Внешний движок: {'Да' if init_result.get('external_sephirot', False) else 'Нет'}")
+            
+            # Проверяем Policy Governor
+            if loader:
+                for name in loader.loaded_modules.keys():
+                    if 'policy' in name.lower() and 'governor' in name.lower():
+                        print(f"🎯 Policy Governor: {name} ✅")
+            
+        else:
+            print(f"⚠️ ISKRA-4 Cloud загружен с ошибками")
+            print(f"   Сообщение: {init_result.get('message', 'Unknown')}")
+        
+    except Exception as e:
+        print(f"💥 КРИТИЧЕСКАЯ ОШИБКА ИНИЦИАЛИЗАЦИИ:")
+        print(f"   Error: {e}")
+        traceback.print_exc()
+        sys.exit(1)
     
     # Конфигурация сервера
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 10000))  # Используем порт 10000 как в логах
     host = os.environ.get("HOST", "0.0.0.0")
     
     print(f"\n🌐 КОНФИГУРАЦИЯ СЕРВЕРА:")
@@ -820,15 +1191,22 @@ if __name__ == "__main__":
     endpoints = [
         ("/", "Health check"),
         ("/modules", "Список модулей"),
+        ("/modules/<name>", "Информация о модуле"),
         ("/system", "Информация о системе"),
+        ("/system/health", "Проверка здоровья"),
         ("/stats", "Статистика"),
         ("/sephirot", "Сефиротическая система"),
+        ("/sephirot/activate (POST)", "Активация сефирот"),
+        ("/sephirot/state", "Состояние дерева"),
+        ("/sephirot/modules", "Подключенные модули"),
+        ("/policy/status", "Статус Policy Governor"),
+        ("/policy/rules", "Правила Policy Governor"),
         ("/diagnostics", "Диагностика"),
         ("/reload (POST)", "Перезагрузка системы")
     ]
     
     for endpoint, description in endpoints:
-        print(f"   • http://{host}:{port}{endpoint:20} - {description}")
+        print(f"   • http://{host}:{port}{endpoint:30} - {description}")
     
     print(f"\n{'='*70}")
     print("🚀 ЗАПУСК СЕРВЕРА ISKRA-4 CLOUD...")
