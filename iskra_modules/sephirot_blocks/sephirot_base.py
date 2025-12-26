@@ -1939,5 +1939,5 @@ if __name__ == "__main__":
     # Запуск теста
     asyncio.run(test_sephirotic_system())
                
-        return max(1, min(10, adjusted_priority))
+    return max(1, min(10, adjusted_priority))
 
