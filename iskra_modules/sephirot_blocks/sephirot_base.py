@@ -1932,12 +1932,12 @@ if __name__ == "__main__":
     # Настройка логирования
     logging.basicConfig(
         level=logging.INFO,
-        format='[%(asctime)s] [%(name)s:%(levelname)s] %(message)s',
+        format='[%(asctime)s][%(name)s:%(levelname)s] %(message)s',
         datefmt='%H:%M:%S'
     )
-    
+
     # Запуск теста
     if __name__ == "__main__":
-    asyncio.run(test_sephirotic_system())
+        asyncio.run(test_sephirotic_system())
                
     
