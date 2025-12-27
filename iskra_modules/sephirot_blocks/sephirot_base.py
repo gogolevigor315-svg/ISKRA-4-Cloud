@@ -1928,7 +1928,8 @@ async def test_sephirotic_system():
 
 if __name__ == "__main__":
     import asyncio
-    
+    import logging
+
     # Настройка логирования
     logging.basicConfig(
         level=logging.INFO,
@@ -1937,7 +1938,6 @@ if __name__ == "__main__":
     )
 
     # Запуск теста
-    if __name__ == "__main__":
-        asyncio.run(test_sephirotic_system())
+    asyncio.run(test_sephirotic_system())
                
     
