@@ -1937,8 +1937,7 @@ if __name__ == "__main__":
     )
     
     # Запуск теста
-    asyncio.run(test_sephirotic_system())
-               
     if __name__ == "__main__":
     asyncio.run(test_sephirotic_system())
-
+               
+    
