@@ -913,16 +913,27 @@ def create_secure_flask_app(kernel: TransactionalDS24Kernel, config: DS24Config)
     
     @app.route('/dashboard')
     def dashboard():
-        """Интерактивный дашборд."""
-        return render_template_string('''
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>DS24 Quantum Dashboard</title>
-            <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-            <style>
-                body { font-family: 'Courier New', monospace; background: #0a0a0a; color: #00ff00; }
-                .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-                .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-                .card { background: #1a1a1a; border: 1px solid #00ff00; padding: 15px; border-radius: 5px; }
-               
+    """Интерактивный дашборд."""
+    return render_template_string('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>DS24 Quantum Dashboard</title>
+        <style>
+            body { font-family: 'Courier New', monospace; background: #0a0a0a; color: #00ff00; }
+            .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+            .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+            .card { background: #1a1a1a; border: 1px solid #00ff00; padding: 15px; border-radius: 5px; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>DS24 Dashboard</h1>
+            <div class="grid">
+                <div class="card">Module Status</div>
+                <div class="card">System Metrics</div>
+            </div>
+        </div>
+    </body>
+    </html>
+    ''')
