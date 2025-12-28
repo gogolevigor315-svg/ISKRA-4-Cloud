@@ -39,7 +39,7 @@ class Sephirot(Enum):
     
     def __init__(self, level, name, description, connected_module):
         self.level = level
-        self.name = name
+        self.display_name = name
         self.description = description
         self.connected_module = connected_module
 
