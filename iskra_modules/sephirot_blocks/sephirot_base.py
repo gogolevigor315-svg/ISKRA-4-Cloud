@@ -372,7 +372,7 @@ class SephiroticNode:
         :param bus: Шина связи (опционально)
         """
         self.sephira = sephira
-        self.name = sephira.name
+        self.name = sephira.display_name
         self.level = sephira.level
         self.description = sephira.description
         self.connected_module = sephira.connected_module
