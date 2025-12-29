@@ -710,7 +710,7 @@ class KetherCore:
             "method": creation_method
         })
         
-    self.logger.debug(f"Экземпляр {module_name} пересоздан за {recreate_time:.2f}c методом {creation_method}")
+        self.logger.debug(f"Экземпляр {module_name} пересоздан за {recreate_time:.2f}c методом {creation_method}")
     
         except Exception as e:
             error_msg = str(e)
@@ -719,11 +719,11 @@ class KetherCore:
                 "stage": "recreate",
                 "status": "error",
                 "error": error_msg
-        })
+            })
         
-        self.logger.error(f"Ошибка пересоздания {module_name}: {error_msg}")
-        module_info.is_active = False
-        module_info.instance = None    
+            self.logger.error(f"Ошибка пересоздания {module_name}: {error_msg}")
+            module_info.is_active = False
+            module_info.instance = None    
 
         return {
             "success": False,
