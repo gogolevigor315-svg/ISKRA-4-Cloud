@@ -914,8 +914,7 @@ def create_secure_flask_app(kernel: TransactionalDS24Kernel, config: DS24Config)
     @app.route('/dashboard')
     def dashboard():
         """Интерактивный дашборд."""
-    return render_template_string('''
-    <!DOCTYPE html>
+        return render_template_string('''<!DOCTYPE html>
     <html>
     <head>
         <title>DS24 Quantum Dashboard</title>
@@ -935,5 +934,4 @@ def create_secure_flask_app(kernel: TransactionalDS24Kernel, config: DS24Config)
             </div>
         </div>
     </body>
-    </html>
-    ''')
+    </html>''')
