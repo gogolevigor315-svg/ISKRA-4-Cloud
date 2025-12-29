@@ -913,7 +913,7 @@ def create_secure_flask_app(kernel: TransactionalDS24Kernel, config: DS24Config)
     
     @app.route('/dashboard')
     def dashboard():
-    """Интерактивный дашборд."""
+        """Интерактивный дашборд."""
     return render_template_string('''
     <!DOCTYPE html>
     <html>
