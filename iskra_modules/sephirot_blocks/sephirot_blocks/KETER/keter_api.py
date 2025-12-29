@@ -921,22 +921,22 @@ class KetherAPI:
         }
     
     async def _api_distribute_energy(self, context: Dict) -> Dict[str, Any]:
-    """Распределение энергии через API"""
-    data = context.get("data", {})
+        """Распределение энергии через API"""
+        data = context.get("data", {})
     
-    required = ["source", "target", "amount"]
-    missing = [field for field in required if field not in data]
-    if missing:
-        return {
-            "error": "missing_parameters",
-            "message": f"Missing required parameters: {missing}",
-            "required": required,
-            "timestamp": time.time()
-        }
+        required = ["source", "target", "amount"]
+        missing = [field for field in required if field not in data]
+        if missing:
+            return {
+                "error": "missing_parameters",
+                "message": f"Missing required parameters: {missing}",
+                "required": required,
+                "timestamp": time.time()
+            }
     
-    source = data["source"]
-    target = data["target"]
-    amount = float(data["amount"])
+        source = data["source"]
+        target = data["target"]
+        amount = float(data["amount"])
     
     return await self.core.distribute_energy(source, target, amount)
 
