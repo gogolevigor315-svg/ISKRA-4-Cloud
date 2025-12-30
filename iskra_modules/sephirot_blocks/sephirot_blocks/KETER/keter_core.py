@@ -710,8 +710,9 @@ class KetherCore:
             "method": creation_method
         })
         
-        self.logger.debug(f"Экземпляр {module_name} пересоздан за {recreate_time:.2f}c методом {creation_method}")
-    
+        try:
+           self.logger.debug(f"Экземпляр {module_name} пересоздан за {recreate_time:.2f}c методом {creation_method}")
+        
         except Exception as e:
             error_msg = str(e)
             recovery_log.append({
