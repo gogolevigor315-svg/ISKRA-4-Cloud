@@ -1842,7 +1842,7 @@ class KetherCore:
             diagnostics["tests"]["recovery"]["health"] in ["healthy", "warning"]
         ]
         
-                passed_tests = sum(1 for result in test_results if result)
+        passed_tests = sum(1 for result in test_results if result)
         total_tests = len(test_results)
         
         diagnostics["summary"] = {
