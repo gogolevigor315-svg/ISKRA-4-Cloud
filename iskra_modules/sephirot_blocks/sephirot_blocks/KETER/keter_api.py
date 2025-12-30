@@ -940,7 +940,7 @@ class KetherAPI:
     amount = float(data["amount"])
     
     return await self.core.distribute_energy(source, target, amount)
-    
+}  
 async def _api_recharge_energy(self, context: Dict) -> Dict[str, Any]:
     """Пополнение энергии через API"""
     data = context.get("data", {})
