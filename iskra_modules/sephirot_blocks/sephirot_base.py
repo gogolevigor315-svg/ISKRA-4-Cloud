@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 sephirot_base.py - ПОЛНАЯ РЕАЛИЗАЦИЯ СЕФИРОТИЧЕСКОЙ СИСТЕМЫ DS24
-Версия: 4.0.0 Production
-Интеграция: bechtereva + chernigovskaya + 10 сефирот
+Версия: 4.0.1 Production
+Исправлено: Добавлен ISephiraModule, исправлены импорты
 """
 
 import json
@@ -21,13 +21,50 @@ import time
 import uuid
 
 # ================================================================
+# БАЗОВЫЕ ИНТЕРФЕЙСЫ ДЛЯ СЕФИРОТ
+# ================================================================
+
+class ISephiraModule:
+    """
+    БАЗОВЫЙ ИНТЕРФЕЙС ДЛЯ ВСЕХ СЕФИРОТ-МОДУЛЕЙ
+    Обязателен для обратной совместимости с KETER, CHOKMAH, DAAT
+    """
+    
+    @abstractmethod
+    async def activate(self) -> Dict[str, Any]:
+        """Активация сефиры - обязательный метод"""
+        raise NotImplementedError
+    
+    @abstractmethod
+    def get_state(self) -> Dict[str, Any]:
+        """Получение состояния сефиры - обязательный метод"""
+        raise NotImplementedError
+    
+    @abstractmethod
+    async def receive(self, signal_package: Any) -> Any:
+        """Получение сигнала - обязательный метод"""
+        raise NotImplementedError
+    
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """Имя сефиры - обязательное свойство"""
+        raise NotImplementedError
+    
+    @property
+    @abstractmethod
+    def sephira(self) -> 'Sephirot':
+        """Тип сефиры - обязательное свойство"""
+        raise NotImplementedError
+
+# ================================================================
 # КОНСТАНТЫ СЕФИРОТИЧЕСКОЙ СИСТЕМЫ
 # ================================================================
 
 class Sephirot(Enum):
     """10 сефирот Древа Жизни"""
     KETER = (1, "Венец", "Сознание", "bechtereva")
-    CHOKHMAH = (2, "Мудрость", "Интуиция", "chernigovskaya")
+    CHOKMAH = (2, "Мудрость", "Интуиция", "chernigovskaya")
     BINAH = (3, "Понимание", "Анализ", "bechtereva")
     CHESED = (4, "Милость", "Экспансия", "emotional_weave")
     GEVURAH = (5, "Строгость", "Ограничение", "immune_core")
@@ -241,6 +278,57 @@ class SignalPackage:
         package.metadata = data.get("metadata", {})
         return package
 
+# ================================================================
+# ФУНКЦИЯ TOPOLOGICAL_SORT ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ
+# ================================================================
+
+def topological_sort(sephirot_dag: Dict) -> List:
+    """
+    ТОПОЛОГИЧЕСКАЯ СОРТИРОВКА ДЛЯ DAG СЕФИРОТ
+    Обязательная функция для обратной совместимости с KETER
+    """
+    try:
+        from collections import deque
+        
+        if not sephirot_dag:
+            return []
+        
+        # Инициализация степеней входа
+        in_degree = {node: 0 for node in sephirot_dag}
+        for node in sephirot_dag:
+            for neighbor in sephirot_dag.get(node, []):
+                in_degree[neighbor] = in_degree.get(neighbor, 0) + 1
+        
+        # Очередь узлов без входящих ребер
+        queue = deque([node for node in in_degree if in_degree[node] == 0])
+        result = []
+        
+        # Алгоритм Кана
+        while queue:
+            node = queue.popleft()
+            result.append(node)
+            
+            for neighbor in sephirot_dag.get(node, []):
+                in_degree[neighbor] -= 1
+                if in_degree[neighbor] == 0:
+                    queue.append(neighbor)
+        
+        # Проверка на циклы
+        if len(result) != len(sephirot_dag):
+            print("⚠️  Предупреждение: граф содержит циклы, возвращаю частичный порядок")
+            return list(sephirot_dag.keys())
+        
+        return result
+        
+    except Exception as e:
+        print(f"⚠️  Ошибка в topological_sort: {e}")
+        # Возвращаем простой список в случае ошибки
+        return list(sephirot_dag.keys())
+
+# ================================================================
+# АДАПТИВНАЯ ОЧЕРЕДЬ
+# ================================================================
+
 class AdaptiveQueue:
     """Адаптивная очередь с автоочисткой"""
     
@@ -260,7 +348,8 @@ class AdaptiveQueue:
     
     async def start(self):
         """Запуск фоновой очистки"""
-        self._cleanup_task = asyncio.create_task(self._cleanup_worker())
+        if not self._cleanup_task:
+            self._cleanup_task = asyncio.create_task(self._cleanup_worker())
     
     async def stop(self):
         """Остановка очистки"""
@@ -270,6 +359,7 @@ class AdaptiveQueue:
                 await self._cleanup_task
             except asyncio.CancelledError:
                 pass
+            self._cleanup_task = None
     
     async def put(self, item: Any, priority: int = 5) -> bool:
         """Добавление элемента с приоритетом"""
@@ -311,12 +401,14 @@ class AdaptiveQueue:
             while not self._queue.empty():
                 priority, enqueued_at, item = await self._queue.get()
                 
+                # Удаляем старые низкоприоритетные элементы
                 if time.time() - enqueued_at > 30.0 and priority > 7:
                     removed_count += 1
                     continue
                 
                 temp_items.append((priority, enqueued_at, item))
             
+            # Возвращаем оставшиеся элементы
             for item in temp_items:
                 await self._queue.put(item)
             
@@ -324,6 +416,7 @@ class AdaptiveQueue:
             return removed_count > 0
             
         except Exception as e:
+            # Восстанавливаем элементы в случае ошибки
             for item in temp_items:
                 await self._queue.put(item)
             raise
@@ -350,15 +443,16 @@ class AdaptiveQueue:
         }
 
 # ================================================================
-# ЯДРО СЕФИРОТИЧЕСКОГО УЗЛА
+# ЯДРО СЕФИРОТИЧЕСКОГО УЗЛА (РЕАЛИЗУЕТ ISephiraModule)
 # ================================================================
 
-class SephiroticNode:
+class SephiroticNode(ISephiraModule):
     """
-    Сефиротический узел - связь с модулями Бехтеревой и Черниговской
+    Сефиротический узел - реализация интерфейса ISephiraModule
+    Связь с модулями Бехтеревой и Черниговской
     """
     
-    VERSION = "4.0.0"
+    VERSION = "4.0.1"
     MAX_QUEUE_SIZE = 250
     MAX_MEMORY_LOGS = 500
     DEFAULT_TTL = 60.0
@@ -368,14 +462,14 @@ class SephiroticNode:
     
     def __init__(self, sephira: Sephirot, bus=None):
         """
-        :param sephira: Сефира (KETER, CHOKHMAH и т.д.)
+        :param sephira: Сефира (KETER, CHOKMAH и т.д.)
         :param bus: Шина связи (опционально)
         """
-        self.sephira = sephira
-        self.name = sephira.display_name
-        self.level = sephira.level
-        self.description = sephira.description
-        self.connected_module = sephira.connected_module
+        self._sephira = sephira
+        self._name = sephira.display_name
+        self._level = sephira.level
+        self._description = sephira.description
+        self._connected_module = sephira.connected_module
         self.bus = bus
         
         # Инициализация состояний
@@ -388,7 +482,38 @@ class SephiroticNode:
         self._initialize_system_components()
         
         # Запуск инициализации
-        asyncio.create_task(self._async_initialization())
+        self._init_task = asyncio.create_task(self._async_initialization())
+    
+    # ================================================================
+    # РЕАЛИЗАЦИЯ ИНТЕРФЕЙСА ISephiraModule
+    # ================================================================
+    
+    @property
+    def name(self) -> str:
+        return self._name
+    
+    @property
+    def sephira(self) -> Sephirot:
+        return self._sephira
+    
+    async def activate(self) -> Dict[str, Any]:
+        """Активация сефиры - реализация интерфейса"""
+        return await self._activate_core()
+    
+    def get_state(self) -> Dict[str, Any]:
+        """Получение состояния сефиры - реализация интерфейса"""
+        return self._get_basic_state()
+    
+    async def receive(self, signal_package: Any) -> Any:
+        """Получение сигнала - реализация интерфейса"""
+        if isinstance(signal_package, dict):
+            # Конвертация dict в SignalPackage
+            signal_package = SignalPackage.from_transport_dict(signal_package)
+        return await self.receive_signal(signal_package)
+    
+    # ================================================================
+    # ВНУТРЕННИЕ МЕТОДЫ
+    # ================================================================
     
     def _initialize_states(self):
         """Инициализация всех состояний узла"""
@@ -449,17 +574,17 @@ class SephiroticNode:
         
         # Метрики
         self.metrics = {
-            "node": self.name,
+            "node": self._name,
             "version": self.VERSION,
-            "sephira": self.sephira.value,
-            "connected_module": self.connected_module,
+            "sephira": self._sephira.value,
+            "connected_module": self._connected_module,
             "start_time": datetime.utcnow().isoformat(),
             "status": self.status.value
         }
     
     def _setup_logger(self) -> logging.Logger:
         """Настройка логгера"""
-        logger = logging.getLogger(f"Sephirot.{self.name}")
+        logger = logging.getLogger(f"Sephirot.{self._name}")
         
         if not logger.handlers:
             logger.setLevel(logging.INFO)
@@ -504,7 +629,7 @@ class SephiroticNode:
     async def _async_initialization(self):
         """Асинхронная инициализация узла"""
         try:
-            self.logger.info(f"Инициализация сефиротического узла {self.name}")
+            self.logger.info(f"Инициализация сефиротического узла {self._name}")
             self.status = NodeStatus.INITIALIZING
             
             # Запуск очереди
@@ -524,17 +649,17 @@ class SephiroticNode:
             self.status = NodeStatus.ACTIVE
             self.activation_time = datetime.utcnow().isoformat()
             
-            self.logger.info(f"Сефиротический узел {self.name} активирован")
+            self.logger.info(f"Сефиротический узел {self._name} активирован")
             
             # Эмитация heartbeat
             await self._emit_async(SignalPackage(
                 type=SignalType.HEARTBEAT,
-                source=self.name,
+                source=self._name,
                 payload={
                     "event": "sephirot_activated",
-                    "sephira": self.name,
-                    "level": self.level,
-                    "module": self.connected_module
+                    "sephira": self._name,
+                    "level": self._level,
+                    "module": self._connected_module
                 }
             ))
             
@@ -554,8 +679,8 @@ class SephiroticNode:
             self._health_monitor()
         ]
         
-        for task in tasks:
-            task_obj = asyncio.create_task(task)
+        for task_func in tasks:
+            task_obj = asyncio.create_task(task_func())
             self._background_tasks.add(task_obj)
             task_obj.add_done_callback(self._background_tasks.discard)
     
@@ -563,9 +688,10 @@ class SephiroticNode:
     # ОСНОВНЫЕ МЕТОДЫ ОБРАБОТКИ СИГНАЛОВ
     # ================================================================
     
-    async def receive(self, signal_package: SignalPackage) -> SignalPackage:
+    async def receive_signal(self, signal_package: SignalPackage) -> SignalPackage:
         """
         Основной метод приёма сигналов.
+        Совместим с интерфейсом ISephiraModule.
         """
         if not self._is_initialized or self._is_suspended:
             return self._create_error_response(
@@ -589,7 +715,7 @@ class SephiroticNode:
         # Ответ о принятии
         ack_response = SignalPackage(
             type=SignalType.FEEDBACK,
-            source=self.name,
+            source=self._name,
             target=signal_package.source,
             payload={
                 "status": "queued",
@@ -603,7 +729,7 @@ class SephiroticNode:
     
     async def _signal_processor(self):
         """Процессор сигналов из адаптивной очереди"""
-        self.logger.info(f"Процессор сигналов запущен для {self.name}")
+        self.logger.info(f"Процессор сигналов запущен для {self._name}")
         
         while not self._shutdown_event.is_set():
             try:
@@ -618,8 +744,8 @@ class SephiroticNode:
                 self.total_signals_processed += 1
                 
                 # Сохранение в историю
-                signal_package.add_processing_node(self.name)
-                signal_package.add_resonance_trace(self.name, self.resonance)
+                signal_package.add_processing_node(self._name)
+                signal_package.add_resonance_trace(self._name, self.resonance)
                 self.signal_history.append({
                     "timestamp": datetime.utcnow().isoformat(),
                     "signal": signal_package.id,
@@ -677,11 +803,11 @@ class SephiroticNode:
             # Создание ответа
             response = SignalPackage(
                 type=SignalType.FEEDBACK,
-                source=self.name,
+                source=self._name,
                 target=signal_package.source,
                 payload={
                     "original_id": signal_package.id,
-                    "processed_by": self.name,
+                    "processed_by": self._name,
                     "handler": signal_package.type.name,
                     "result": handler_result,
                     "resonance_feedback": resonance_feedback,
@@ -721,8 +847,8 @@ class SephiroticNode:
             SignalType.ERROR: 2,
             SignalType.HEARTBEAT: 3,
             SignalType.SYNC: 4,
-            SignalType.NEURO: 5,          # Приоритет для нейро-сигналов
-            SignalType.SEMIOTIC: 5,       # Приоритет для семиотики
+            SignalType.NEURO: 5,
+            SignalType.SEMIOTIC: 5,
             SignalType.INTENTION: 5,
             SignalType.RESONANCE: 6,
             SignalType.EMOTIONAL: 7,
@@ -740,12 +866,13 @@ class SephiroticNode:
         base_priority = priority_map.get(signal_package.type, 10)
         resonance_factor = 1.0 - (self.resonance * 0.5)
         adjusted_priority = int(base_priority * resonance_factor)
-
+        return max(1, min(10, adjusted_priority))
+    
     # ================================================================
-    # ОБРАБОТЧИКИ СИГНАЛОВ (ИНТЕГРАЦИЯ С МОДУЛЯМИ)
+    # ОБРАБОТЧИКИ СИГНАЛОВ (сокращённо для экономии места)
     # ================================================================
     
-    async def _handle_neuro(self, signal_package: SignalPackage) -> Dict[str, Any]:
+        async def _handle_neuro(self, signal_package: SignalPackage) -> Dict[str, Any]:
         """Обработка нейро-сигналов от модуля Бехтеревой"""
         self.logger.info(f"Обработка NEURO сигнала от {signal_package.source}")
         
@@ -753,20 +880,20 @@ class SephiroticNode:
         neuro_data = signal_package.payload.get("neuro_data", {})
         
         # В зависимости от сефиры обрабатываем по-разному
-        if self.sephira == Sephirot.KETER:
+        if self._sephira == Sephirot.KETER:
             # KETER: интеграция высшего сознания
             processed = {
                 "action": "conscious_integration",
-                "sephira": self.name,
+                "sephira": self._name,
                 "neuro_coherence": neuro_data.get("coherence", 0.0),
                 "cognitive_load": neuro_data.get("load", 0.0),
                 "timestamp": datetime.utcnow().isoformat()
             }
-        elif self.sephira == Sephirot.BINAH:
+        elif self._sephira == Sephirot.BINAH:
             # BINAH: аналитическая обработка
             processed = {
                 "action": "analytical_processing",
-                "sephira": self.name,
+                "sephira": self._name,
                 "patterns_detected": neuro_data.get("patterns", []),
                 "analysis_depth": neuro_data.get("depth", 1.0),
                 "timestamp": datetime.utcnow().isoformat()
@@ -775,7 +902,7 @@ class SephiroticNode:
             # Остальные сефиры пропускают с минимальной обработкой
             processed = {
                 "action": "neuro_passthrough",
-                "sephira": self.name,
+                "sephira": self._name,
                 "original_data": neuro_data,
                 "energy_boost": 0.05,
                 "timestamp": datetime.utcnow().isoformat()
@@ -786,7 +913,7 @@ class SephiroticNode:
         
         return {
             "status": "neuro_processed",
-            "sephira": self.name,
+            "sephira": self._name,
             "result": processed,
             "resonance_increase": 0.1
         }
@@ -797,21 +924,21 @@ class SephiroticNode:
         
         semiotic_data = signal_package.payload.get("semiotic_data", {})
         
-        if self.sephira == Sephirot.CHOKHMAH:
-            # CHOKHMAH: мудрость и интуиция
+        if self._sephira == Sephirot.CHOKMAH:
+            # CHOKMAH: мудрость и интуиция
             processed = {
                 "action": "wisdom_integration",
-                "sephira": self.name,
+                "sephira": self._name,
                 "semiotic_patterns": semiotic_data.get("patterns", []),
                 "intuition_level": semiotic_data.get("intuition_score", 0.0),
                 "meaning_extracted": semiotic_data.get("meaning", ""),
                 "timestamp": datetime.utcnow().isoformat()
             }
-        elif self.sephira == Sephirot.HOD:
+        elif self._sephira == Sephirot.HOD:
             # HOD: коммуникация и передача
             processed = {
                 "action": "communication_bridge",
-                "sephira": self.name,
+                "sephira": self._name,
                 "message_complexity": semiotic_data.get("complexity", 1),
                 "translation_required": semiotic_data.get("needs_translation", False),
                 "timestamp": datetime.utcnow().isoformat()
@@ -819,7 +946,7 @@ class SephiroticNode:
         else:
             processed = {
                 "action": "semiotic_passthrough",
-                "sephira": self.name,
+                "sephira": self._name,
                 "original_data": semiotic_data,
                 "coherence_boost": 0.08,
                 "timestamp": datetime.utcnow().isoformat()
@@ -830,118 +957,390 @@ class SephiroticNode:
         
         return {
             "status": "semiotic_processed",
-            "sephira": self.name,
+            "sephira": self._name,
             "result": processed,
             "coherence_increase": 0.15
         }
     
     async def _handle_emotional(self, signal_package: SignalPackage) -> Dict[str, Any]:
         """Обработка эмоциональных сигналов"""
-        return {"status": "emotional_processed", "sephira": self.name}
+        emotional_data = signal_package.payload.get("emotional_data", {})
+        
+        processed = {
+            "action": "emotional_processing",
+            "sephira": self._name,
+            "emotion_type": emotional_data.get("type", "neutral"),
+            "intensity": emotional_data.get("intensity", 0.0),
+            "valence": emotional_data.get("valence", 0.0),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        # Эмоции влияют на энергию
+        intensity = emotional_data.get("intensity", 0.0)
+        self.energy = min(1.0, self.energy + (intensity * 0.05))
+        
+        return {
+            "status": "emotional_processed",
+            "sephira": self._name,
+            "result": processed,
+            "energy_boost": intensity * 0.05
+        }
     
     async def _handle_cognitive(self, signal_package: SignalPackage) -> Dict[str, Any]:
         """Обработка когнитивных сигналов"""
-        return {"status": "cognitive_processed", "sephira": self.name}
+        cognitive_data = signal_package.payload.get("cognitive_data", {})
+        
+        processed = {
+            "action": "cognitive_processing",
+            "sephira": self._name,
+            "complexity": cognitive_data.get("complexity", 1.0),
+            "clarity": cognitive_data.get("clarity", 0.5),
+            "load": cognitive_data.get("load", 0.0),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        # Когнитивная нагрузка влияет на стабильность
+        load = cognitive_data.get("load", 0.0)
+        self.stability = max(0.1, self.stability - (load * 0.1))
+        
+        return {
+            "status": "cognitive_processed",
+            "sephira": self._name,
+            "result": processed,
+            "stability_impact": -load * 0.1
+        }
     
     async def _handle_intention(self, signal_package: SignalPackage) -> Dict[str, Any]:
         """Обработка интенциональных сигналов"""
-        return {"status": "intention_processed", "sephira": self.name}
+        intention_data = signal_package.payload.get("intention_data", {})
+        
+        processed = {
+            "action": "intention_processing",
+            "sephira": self._name,
+            "intention_type": intention_data.get("type", "unknown"),
+            "strength": intention_data.get("strength", 0.0),
+            "target": intention_data.get("target", ""),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        # Намерения усиливают волю
+        self.willpower = min(1.0, self.willpower + 0.1)
+        
+        return {
+            "status": "intention_processed",
+            "sephira": self._name,
+            "result": processed,
+            "willpower_boost": 0.1
+        }
     
     async def _handle_heartbeat(self, signal_package: SignalPackage) -> Dict[str, Any]:
         """Обработка heartbeat сигналов"""
         # Обновление энергии от heartbeat
         self.energy = min(1.0, self.energy + 0.05)
+        
+        # Поддержание связей
+        for link in self.quantum_links.values():
+            if link.coherence > 0.3:
+                link.evolve(1.0)
+        
         return {
             "status": "heartbeat_ack",
-            "sephira": self.name,
+            "sephira": self._name,
             "current_energy": self.energy,
-            "resonance": self.resonance
+            "resonance": self.resonance,
+            "active_links": len(self.quantum_links)
         }
     
     async def _handle_resonance(self, signal_package: SignalPackage) -> Dict[str, Any]:
         """Обработка резонансных сигналов"""
         incoming_resonance = signal_package.payload.get("resonance", 0.0)
-        # Синхронизация резонанса
-        self.resonance = (self.resonance + incoming_resonance) / 2.0
+        resonance_source = signal_package.payload.get("source", "unknown")
+        
+        # Синхронизация резонанса (взвешенное среднее)
+        weight = 0.7  # Больший вес нашему текущему резонансу
+        self.resonance = (self.resonance * weight + incoming_resonance * (1 - weight))
+        
+        # Обновление истории
+        self.resonance_history.append({
+            "timestamp": datetime.utcnow().isoformat(),
+            "value": self.resonance,
+            "source": resonance_source,
+            "incoming": incoming_resonance
+        })
+        
         return {
             "status": "resonance_synced",
-            "sephira": self.name,
-            "new_resonance": self.resonance
+            "sephira": self._name,
+            "new_resonance": self.resonance,
+            "source": resonance_source
         }
     
     async def _handle_command(self, signal_package: SignalPackage) -> Dict[str, Any]:
         """Обработка команд управления"""
         command = signal_package.payload.get("command", "")
+        params = signal_package.payload.get("params", {})
+        
         if command == "activate":
             await self._activate_core()
-            return {"status": "activated", "sephira": self.name}
+            return {"status": "activated", "sephira": self._name}
         elif command == "deactivate":
             await self._deactivate_core()
-            return {"status": "deactivated", "sephira": self.name}
+            return {"status": "deactivated", "sephira": self._name}
+        elif command == "set_resonance":
+            value = params.get("value", 0.5)
+            self.resonance = max(0.0, min(1.0, value))
+            return {"status": "resonance_set", "sephira": self._name, "value": self.resonance}
+        elif command == "boost_energy":
+            amount = params.get("amount", 0.2)
+            self.energy = min(1.0, self.energy + amount)
+            return {"status": "energy_boosted", "sephira": self._name, "new_energy": self.energy}
+        elif command == "create_link":
+            target = params.get("target", "")
+            if target:
+                return await self._create_link(target)
+            else:
+                return {"status": "invalid_target", "sephira": self._name}
         else:
-            return {"status": "unknown_command", "sephira": self.name}
+            return {"status": "unknown_command", "sephira": self._name, "command": command}
     
     async def _handle_data(self, signal_package: SignalPackage) -> Dict[str, Any]:
         """Обработка данных"""
-        return {"status": "data_processed", "sephira": self.name}
+        data = signal_package.payload.get("data", {})
+        
+        processed = {
+            "action": "data_processing",
+            "sephira": self._name,
+            "data_type": type(data).__name__,
+            "size": len(str(data)),
+            "processed": True,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        # Простая обработка данных
+        if isinstance(data, dict):
+            processed["keys"] = list(data.keys())
+        elif isinstance(data, list):
+            processed["length"] = len(data)
+        
+        return {
+            "status": "data_processed",
+            "sephira": self._name,
+            "result": processed
+        }
     
     async def _handle_error(self, signal_package: SignalPackage) -> Dict[str, Any]:
         """Обработка ошибок"""
         error_msg = signal_package.payload.get("error", "Unknown error")
-        self.logger.error(f"Ошибка получена: {error_msg}")
-        return {"status": "error_logged", "sephira": self.name}
+        error_code = signal_package.payload.get("code", "UNKNOWN")
+        
+        self.logger.error(f"Ошибка получена: {error_code} - {error_msg}")
+        
+        self._error_log.append({
+            "timestamp": datetime.utcnow().isoformat(),
+            "code": error_code,
+            "message": error_msg,
+            "source": signal_package.source
+        })
+        
+        # Ошибки снижают стабильность
+        self.stability = max(0.1, self.stability - 0.05)
+        
+        return {
+            "status": "error_logged",
+            "sephira": self._name,
+            "error_code": error_code,
+            "stability_impact": -0.05
+        }
     
     async def _handle_synthesis(self, signal_package: SignalPackage) -> Dict[str, Any]:
         """Обработка синтеза"""
-        return {"status": "synthesis_processed", "sephira": self.name}
+        synthesis_data = signal_package.payload.get("synthesis_data", {})
+        
+        processed = {
+            "action": "synthesis_processing",
+            "sephira": self._name,
+            "elements_count": len(synthesis_data.get("elements", [])),
+            "integration_level": synthesis_data.get("integration", 0.0),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        # Синтез улучшает когерентность
+        self.coherence = min(1.0, self.coherence + 0.1)
+        
+        return {
+            "status": "synthesis_processed",
+            "sephira": self._name,
+            "result": processed,
+            "coherence_boost": 0.1
+        }
     
     async def _handle_energy(self, signal_package: SignalPackage) -> Dict[str, Any]:
         """Обработка энергетических сигналов"""
         energy_transfer = signal_package.payload.get("energy", 0.0)
+        transfer_type = signal_package.payload.get("type", "transfer")
+        
+        old_energy = self.energy
         self.energy = max(0.0, min(1.0, self.energy + energy_transfer))
+        
+        self.energy_history.append({
+            "timestamp": datetime.utcnow().isoformat(),
+            "old": old_energy,
+            "new": self.energy,
+            "delta": energy_transfer,
+            "type": transfer_type,
+            "source": signal_package.source
+        })
+        
         return {
             "status": "energy_updated",
-            "sephira": self.name,
-            "new_energy": self.energy
+            "sephira": self._name,
+            "old_energy": old_energy,
+            "new_energy": self.energy,
+            "delta": energy_transfer,
+            "type": transfer_type
         }
     
     async def _handle_sync(self, signal_package: SignalPackage) -> Dict[str, Any]:
         """Обработка синхронизации"""
-        return {"status": "synced", "sephira": self.name}
+        sync_data = signal_package.payload.get("sync_data", {})
+        
+        processed = {
+            "action": "sync_processing",
+            "sephira": self._name,
+            "sync_type": sync_data.get("type", "full"),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        # Синхронизация улучшает стабильность
+        self.stability = min(1.0, self.stability + 0.05)
+        
+        return {
+            "status": "synced",
+            "sephira": self._name,
+            "result": processed,
+            "stability_boost": 0.05
+        }
     
     async def _handle_metric(self, signal_package: SignalPackage) -> Dict[str, Any]:
         """Обработка метрик"""
-        return {"status": "metric_processed", "sephira": self.name}
+        metrics_data = signal_package.payload.get("metrics", {})
+        
+        # Обновляем собственные метрики
+        self.metrics.update(metrics_data)
+        self.metrics["last_external_update"] = datetime.utcnow().isoformat()
+        
+        processed = {
+            "action": "metrics_processing",
+            "sephira": self._name,
+            "metrics_received": len(metrics_data),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        return {
+            "status": "metric_processed",
+            "sephira": self._name,
+            "result": processed,
+            "metrics_updated": len(metrics_data)
+        }
     
     async def _handle_broadcast(self, signal_package: SignalPackage) -> Dict[str, Any]:
         """Обработка широковещательных сообщений"""
-        return {"status": "broadcast_received", "sephira": self.name}
+        broadcast_data = signal_package.payload.get("broadcast_data", {})
+        
+        processed = {
+            "action": "broadcast_reception",
+            "sephira": self._name,
+            "origin": signal_package.source,
+            "message_type": broadcast_data.get("type", "general"),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        return {
+            "status": "broadcast_received",
+            "sephira": self._name,
+            "result": processed
+        }
     
     async def _handle_feedback(self, signal_package: SignalPackage) -> Dict[str, Any]:
         """Обработка обратной связи"""
-        return {"status": "feedback_processed", "sephira": self.name}
+        feedback_data = signal_package.payload.get("feedback_data", {})
+        
+        processed = {
+            "action": "feedback_processing",
+            "sephira": self._name,
+            "quality": feedback_data.get("quality", 0.5),
+            "suggestions": feedback_data.get("suggestions", []),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        # Обратная связь улучшает когерентность
+        quality = feedback_data.get("quality", 0.5)
+        self.coherence = min(1.0, self.coherence + (quality * 0.05))
+        
+        return {
+            "status": "feedback_processed",
+            "sephira": self._name,
+            "result": processed,
+            "coherence_boost": quality * 0.05
+        }
     
     async def _handle_control(self, signal_package: SignalPackage) -> Dict[str, Any]:
         """Обработка управляющих сигналов"""
-        return {"status": "control_processed", "sephira": self.name}
+        control_data = signal_package.payload.get("control_data", {})
+        
+        processed = {
+            "action": "control_processing",
+            "sephira": self._name,
+            "control_type": control_data.get("type", "direct"),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        return {
+            "status": "control_processed",
+            "sephira": self._name,
+            "result": processed
+        }
     
     async def _handle_sephirotic(self, signal_package: SignalPackage) -> Dict[str, Any]:
         """Обработка внутренних сефиротических сигналов"""
         action = signal_package.payload.get("action", "")
+        params = signal_package.payload.get("params", {})
         
         if action == "link_request":
-            target_node = signal_package.payload.get("target_node", "")
+            target_node = params.get("target_node", "")
             return await self._create_link(target_node)
         elif action == "energy_request":
-            amount = signal_package.payload.get("amount", 0.1)
+            amount = params.get("amount", 0.1)
             return await self._transfer_energy(amount, signal_package.source)
+        elif action == "state_request":
+            return self._get_detailed_state()
+        elif action == "health_check":
+            return {
+                "status": "healthy",
+                "sephira": self._name,
+                "resonance": self.resonance,
+                "energy": self.energy,
+                "stability": self.stability
+            }
         else:
-            return {"status": "sephirotic_action_unknown", "sephira": self.name}
+            return {"status": "sephirotic_action_unknown", "sephira": self._name, "action": action}
     
     async def _handle_unknown(self, signal_package: SignalPackage) -> Dict[str, Any]:
         """Обработка неизвестных сигналов"""
         self.logger.warning(f"Неизвестный тип сигнала: {signal_package.type}")
-        return {"status": "unknown_signal_type", "sephira": self.name}
+        
+        processed = {
+            "action": "unknown_signal_handling",
+            "sephira": self._name,
+            "signal_type": signal_package.type.name,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        return {
+            "status": "unknown_signal_type",
+            "sephira": self._name,
+            "result": processed
+        }
     
     # ================================================================
     # СИСТЕМА РЕЗОНАНСНОЙ ОБРАТНОЙ СВЯЗИ
@@ -1054,7 +1453,7 @@ class SephiroticNode:
                 if self.bus and hasattr(self.bus, 'transmit'):
                     feedback_package = SignalPackage(
                         type=SignalType.FEEDBACK,
-                        source=self.name,
+                        source=self._name,
                         target=link.target,
                         payload={
                             "feedback_type": "resonance_propagation",
@@ -1085,10 +1484,10 @@ class SephiroticNode:
         
         signal_package = SignalPackage(
             type=signal_type,
-            source=self.name,
+            source=self._name,
             payload=payload,
             metadata={
-                "broadcast_origin": self.name,
+                "broadcast_origin": self._name,
                 "broadcast_time": datetime.utcnow().isoformat()
             }
         )
@@ -1121,13 +1520,13 @@ class SephiroticNode:
         """Создание ответа с ошибкой"""
         return SignalPackage(
             type=SignalType.ERROR,
-            source=self.name,
+            source=self._name,
             target=original_package.source,
             payload={
                 "error_code": error_code,
                 "error_message": error_message,
                 "original_id": original_package.id,
-                "sephira": self.name,
+                "sephira": self._name,
                 "timestamp": datetime.utcnow().isoformat()
             }
         )
@@ -1138,26 +1537,32 @@ class SephiroticNode:
     
     async def _activate_core(self):
         """Активация ядра узла"""
-        self.logger.info(f"Активация ядра {self.name}")
+        self.logger.info(f"Активация ядра {self._name}")
         self.energy = 0.9
         self.resonance = 0.3
         self.coherence = 0.8
+        self.stability = 0.9
+        self.willpower = 0.7
         
         # Создание связей с соответствующими модулями
-        if self.connected_module:
-            await self._create_link(self.connected_module)
+        if self._connected_module:
+            await self._create_link(self._connected_module)
+        
+        return {"status": "core_activated", "sephira": self._name}
     
     async def _deactivate_core(self):
         """Деактивация ядра узла"""
-        self.logger.info(f"Деактивация ядра {self.name}")
+        self.logger.info(f"Деактивация ядра {self._name}")
         self.energy = 0.1
         self.resonance = 0.1
         self._is_suspended = True
+        
+        return {"status": "core_deactivated", "sephira": self._name}
     
     async def _create_link(self, target_node: str) -> Dict[str, Any]:
         """Создание квантовой связи с другим узлом"""
         if target_node in self.quantum_links:
-            return {"status": "link_exists", "sephira": self.name}
+            return {"status": "link_exists", "sephira": self._name}
         
         link = QuantumLink(target=target_node)
         self.quantum_links[target_node] = link
@@ -1166,7 +1571,7 @@ class SephiroticNode:
         
         return {
             "status": "link_created",
-            "sephira": self.name,
+            "sephira": self._name,
             "target": target_node,
             "strength": link.strength,
             "coherence": link.coherence
@@ -1177,7 +1582,7 @@ class SephiroticNode:
         if self.energy < amount + 0.1:
             return {
                 "status": "insufficient_energy",
-                "sephira": self.name,
+                "sephira": self._name,
                 "available": self.energy,
                 "requested": amount
             }
@@ -1188,11 +1593,11 @@ class SephiroticNode:
         if self.bus:
             energy_package = SignalPackage(
                 type=SignalType.ENERGY,
-                source=self.name,
+                source=self._name,
                 target=target,
                 payload={
                     "energy_transfer": amount,
-                    "source_sephira": self.name,
+                    "source_sephira": self._name,
                     "timestamp": datetime.utcnow().isoformat()
                 }
             )
@@ -1200,7 +1605,7 @@ class SephiroticNode:
         
         return {
             "status": "energy_transferred",
-            "sephira": self.name,
+            "sephira": self._name,
             "amount": amount,
             "target": target,
             "remaining_energy": self.energy
@@ -1212,7 +1617,7 @@ class SephiroticNode:
     
     async def _resonance_dynamics(self):
         """Фоновая задача: динамика резонанса"""
-        self.logger.info(f"Запущена динамика резонанса для {self.name}")
+        self.logger.info(f"Запущена динамика резонанса для {self._name}")
         
         while not self._shutdown_event.is_set():
             try:
@@ -1240,7 +1645,7 @@ class SephiroticNode:
     
     async def _energy_manager(self):
         """Фоновая задача: управление энергией"""
-        self.logger.info(f"Запущен менеджер энергии для {self.name}")
+        self.logger.info(f"Запущен менеджер энергии для {self._name}")
         
         while not self._shutdown_event.is_set():
             try:
@@ -1269,7 +1674,7 @@ class SephiroticNode:
     
     async def _metrics_collector(self):
         """Фоновая задача: сбор метрик"""
-        self.logger.info(f"Запущен сборщик метрик для {self.name}")
+        self.logger.info(f"Запущен сборщик метрик для {self._name}")
         
         while not self._shutdown_event.is_set():
             try:
@@ -1281,6 +1686,7 @@ class SephiroticNode:
                     "energy": self.energy,
                     "coherence": self.coherence,
                     "stability": self.stability,
+                    "willpower": self.willpower,
                     "active_links": len(self.quantum_links),
                     "queue_size": self.signal_queue.qsize(),
                     "signals_processed": self.total_signals_processed,
@@ -1298,9 +1704,9 @@ class SephiroticNode:
                 if self.bus and self.cycle_count % 10 == 0:
                     metrics_package = SignalPackage(
                         type=SignalType.METRIC,
-                        source=self.name,
+                        source=self._name,
                         payload={
-                            "sephira": self.name,
+                            "sephira": self._name,
                             "metrics": current_metrics,
                             "timestamp": datetime.utcnow().isoformat()
                         }
@@ -1315,7 +1721,7 @@ class SephiroticNode:
     
     async def _link_maintainer(self):
         """Фоновая задача: обслуживание связей"""
-        self.logger.info(f"Запущен обслуживатель связей для {self.name}")
+        self.logger.info(f"Запущен обслуживатель связей для {self._name}")
         
         while not self._shutdown_event.is_set():
             try:
@@ -1339,7 +1745,7 @@ class SephiroticNode:
     
     async def _health_monitor(self):
         """Фоновая задача: мониторинг здоровья"""
-        self.logger.info(f"Запущен мониторинг здоровья для {self.name}")
+        self.logger.info(f"Запущен мониторинг здоровья для {self._name}")
         
         while not self._shutdown_event.is_set():
             try:
@@ -1355,7 +1761,7 @@ class SephiroticNode:
                 else:
                     self.status = NodeStatus.ACTIVE
                 
-                # Логирование ошибок
+                                # Логирование ошибок
                 if self._error_log:
                     recent_errors = list(self._error_log)[-5:]
                     self.logger.debug(f"Последние 5 ошибок: {recent_errors}")
@@ -1372,7 +1778,7 @@ class SephiroticNode:
     
     async def shutdown(self):
         """Корректное завершение работы узла"""
-        self.logger.info(f"Завершение работы узла {self.name}")
+        self.logger.info(f"Завершение работы узла {self._name}")
         self._is_terminating = True
         self.status = NodeStatus.TERMINATING
         
@@ -1383,22 +1789,29 @@ class SephiroticNode:
         # Остановка очереди
         await self.signal_queue.stop()
         
+        # Отмена задачи инициализации
+        if self._init_task and not self._init_task.done():
+            self._init_task.cancel()
+        
         self.status = NodeStatus.TERMINATED
-        self.logger.info(f"Узел {self.name} завершил работу")
+        self.logger.info(f"Узел {self._name} завершил работу")
+        
+        return {"status": "shutdown_complete", "sephira": self._name}
     
-    def get_state(self) -> Dict[str, Any]:
-        """Получение текущего состояния узла"""
+    def _get_basic_state(self) -> Dict[str, Any]:
+        """Получение базового состояния узла"""
         return {
-            "name": self.name,
-            "sephira": self.sephira.name,
-            "level": self.level,
-            "description": self.description,
-            "connected_module": self.connected_module,
+            "name": self._name,
+            "sephira": self._sephira.name,
+            "level": self._level,
+            "description": self._description,
+            "connected_module": self._connected_module,
             "status": self.status.value,
             "resonance": self.resonance,
             "energy": self.energy,
             "coherence": self.coherence,
             "stability": self.stability,
+            "willpower": self.willpower,
             "activation_time": self.activation_time,
             "active_links": [link.target for link in self.quantum_links.values()],
             "queue_size": self.signal_queue.qsize(),
@@ -1406,9 +1819,9 @@ class SephiroticNode:
             "metrics": self.metrics
         }
     
-    def get_detailed_state(self) -> Dict[str, Any]:
+    def _get_detailed_state(self) -> Dict[str, Any]:
         """Получение детального состояния"""
-        state = self.get_state()
+        state = self._get_basic_state()
         state.update({
             "quantum_links": {
                 target: link.get_quantum_state()
@@ -1418,7 +1831,13 @@ class SephiroticNode:
             "queue_stats": self.signal_queue.get_stats(),
             "recent_errors": list(self._error_log)[-10:],
             "resonance_history": list(self.resonance_history)[-20:],
-            "energy_history": list(self.energy_history)[-20:]
+            "energy_history": list(self.energy_history)[-20:],
+            "signal_history": list(self.signal_history)[-10:],
+            "processing_times": list(self._processing_times)[-10:],
+            "background_tasks": len(self._background_tasks),
+            "is_initialized": self._is_initialized,
+            "is_terminating": self._is_terminating,
+            "is_suspended": self._is_suspended
         })
         return state
     
@@ -1428,11 +1847,23 @@ class SephiroticNode:
     
     async def boost_energy(self, amount: float = 0.2) -> Dict[str, Any]:
         """Увеличение энергии узла"""
+        old_energy = self.energy
         self.energy = min(1.0, self.energy + amount)
+        
+        self.energy_history.append({
+            "timestamp": datetime.utcnow().isoformat(),
+            "old": old_energy,
+            "new": self.energy,
+            "delta": amount,
+            "type": "manual_boost",
+            "source": "external"
+        })
+        
         return {
             "status": "energy_boosted",
-            "sephira": self.name,
+            "sephira": self._name,
             "amount": amount,
+            "old_energy": old_energy,
             "new_energy": self.energy
         }
     
@@ -1440,11 +1871,81 @@ class SephiroticNode:
         """Установка резонанса (для тестирования)"""
         old_value = self.resonance
         self.resonance = max(0.0, min(1.0, value))
+        
+        self.resonance_history.append({
+            "timestamp": datetime.utcnow().isoformat(),
+            "old": old_value,
+            "new": self.resonance,
+            "delta": value - old_value,
+            "source": "manual_set"
+        })
+        
         return {
             "status": "resonance_set",
-            "sephira": self.name,
+            "sephira": self._name,
             "old_value": old_value,
             "new_value": self.resonance
+        }
+    
+    async def get_health_report(self) -> Dict[str, Any]:
+        """Получение отчёта о здоровье узла"""
+        phase, phase_perfection = ResonancePhase.from_value(self.resonance)
+        
+        return {
+            "status": self.status.value,
+            "sephira": self._name,
+            "health_indicators": {
+                "energy": {
+                    "value": self.energy,
+                    "status": "good" if self.energy > 0.5 else "warning" if self.energy > 0.2 else "critical"
+                },
+                "resonance": {
+                    "value": self.resonance,
+                    "phase": phase.description,
+                    "phase_perfection": phase_perfection,
+                    "status": "good" if self.resonance > 0.5 else "warning" if self.resonance > 0.2 else "critical"
+                },
+                "coherence": {
+                    "value": self.coherence,
+                    "status": "good" if self.coherence > 0.7 else "warning" if self.coherence > 0.4 else "critical"
+                },
+                "stability": {
+                    "value": self.stability,
+                    "status": "good" if self.stability > 0.7 else "warning" if self.stability > 0.4 else "critical"
+                }
+            },
+            "active_connections": len(self.quantum_links),
+            "signals_processed": self.total_signals_processed,
+            "queue_status": {
+                "current": self.signal_queue.qsize(),
+                "max": self.MAX_QUEUE_SIZE,
+                "percent": (self.signal_queue.qsize() / self.MAX_QUEUE_SIZE) * 100
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    
+    async def reset_node(self) -> Dict[str, Any]:
+        """Сброс узла к начальному состоянию"""
+        self.logger.info(f"Сброс узла {self._name}")
+        
+        # Сохраняем старые значения для отчёта
+        old_state = self._get_basic_state()
+        
+        # Останавливаем текущую работу
+        await self.shutdown()
+        
+        # Сбрасываем состояния
+        self._initialize_states()
+        self._initialize_data_structures()
+        
+        # Перезапускаем
+        self._init_task = asyncio.create_task(self._async_initialization())
+        
+        return {
+            "status": "node_reset",
+            "sephira": self._name,
+            "old_state": old_state,
+            "new_state": self._get_basic_state()
         }
 
 # ================================================================
@@ -1483,8 +1984,8 @@ class SephiroticTree:
     async def _establish_sephirotic_connections(self):
         """Установка канонических связей между сефиротами"""
         connections = {
-            "KETER": ["CHOKHMAH", "BINAH"],
-            "CHOKHMAH": ["BINAH"],
+            "KETER": ["CHOKMAH", "BINAH"],
+            "CHOKMAH": ["BINAH"],
             "BINAH": ["CHESED", "GEVURAH"],
             "CHESED": ["TIFERET"],
             "GEVURAH": ["TIFERET"],
@@ -1505,24 +2006,36 @@ class SephiroticTree:
         """Активация всех сефирот"""
         self.logger.info("Активация всех сефирот")
         
+        activation_results = {}
         for name, node in self.nodes.items():
             if node.status != NodeStatus.ACTIVE:
-                await node._activate_core()
+                result = await node._activate_core()
+                activation_results[name] = result
         
         self.logger.info("Все сефироты активированы")
-        return {"status": "all_activated", "count": len(self.nodes)}
+        return {
+            "status": "all_activated", 
+            "count": len(self.nodes),
+            "results": activation_results
+        }
     
     async def shutdown_all(self):
         """Завершение работы всех сефирот"""
         self.logger.info("Завершение работы всех сефирот")
         
+        shutdown_results = {}
         for name, node in self.nodes.items():
             if node.status != NodeStatus.TERMINATED:
-                await node.shutdown()
+                result = await node.shutdown()
+                shutdown_results[name] = result
         
         self.initialized = False
         self.logger.info("Все сефироты завершили работу")
-        return {"status": "all_shutdown", "count": len(self.nodes)}
+        return {
+            "status": "all_shutdown", 
+            "count": len(self.nodes),
+            "results": shutdown_results
+        }
     
     def get_node(self, name: str) -> Optional[SephiroticNode]:
         """Получение узла по имени"""
@@ -1536,24 +2049,42 @@ class SephiroticTree:
         nodes_state = {}
         total_energy = 0.0
         total_resonance = 0.0
+        total_coherence = 0.0
         
         for name, node in self.nodes.items():
-            state = node.get_state()
+            state = node._get_basic_state()
             nodes_state[name] = state
             total_energy += state["energy"]
             total_resonance += state["resonance"]
+            total_coherence += state["coherence"]
         
-        avg_energy = total_energy / len(self.nodes) if self.nodes else 0.0
-        avg_resonance = total_resonance / len(self.nodes) if self.nodes else 0.0
+        node_count = len(self.nodes)
+        avg_energy = total_energy / node_count if node_count > 0 else 0.0
+        avg_resonance = total_resonance / node_count if node_count > 0 else 0.0
+        avg_coherence = total_coherence / node_count if node_count > 0 else 0.0
+        
+        # Определение общего состояния дерева
+        overall_status = "healthy"
+        if avg_energy < 0.3:
+            overall_status = "critical"
+        elif avg_energy < 0.6:
+            overall_status = "warning"
         
         return {
             "status": "active",
+            "overall_status": overall_status,
             "initialized": True,
-            "node_count": len(self.nodes),
+            "node_count": node_count,
             "total_energy": total_energy,
             "total_resonance": total_resonance,
             "avg_energy": avg_energy,
             "avg_resonance": avg_resonance,
+            "avg_coherence": avg_coherence,
+            "tree_health": {
+                "energy_score": avg_energy,
+                "resonance_score": avg_resonance,
+                "coherence_score": avg_coherence
+            },
             "nodes": nodes_state
         }
     
@@ -1566,10 +2097,32 @@ class SephiroticTree:
         
         detailed_nodes = {}
         for name, node in self.nodes.items():
-            detailed_nodes[name] = node.get_detailed_state()
+            detailed_nodes[name] = node._get_detailed_state()
         
         base_state["detailed_nodes"] = detailed_nodes
         return base_state
+    
+    async def broadcast_to_tree(self, signal_type: SignalType, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Широковещательная рассылка по всему дереву"""
+        if not self.initialized:
+            return {"status": "tree_not_initialized"}
+        
+        results = {}
+        for name, node in self.nodes.items():
+            signal_package = SignalPackage(
+                type=signal_type,
+                source="SephiroticTree",
+                target=name,
+                payload=payload
+            )
+            response = await node.receive_signal(signal_package)
+            results[name] = response.payload
+        
+        return {
+            "status": "broadcast_completed",
+            "nodes_reached": len(results),
+            "results": results
+        }
 
 # ================================================================
 # СИНГЛТОН ДВИЖКА СЕФИРОТИЧЕСКОЙ СИСТЕМЫ
@@ -1615,7 +2168,7 @@ class SephiroticEngine:
         
         result = await self.tree.activate_all()
         
-                # Отправка широковещательного сообщения об активации
+        # Отправка широковещательного сообщения об активации
         if self.bus and hasattr(self.bus, 'broadcast'):
             activation_package = SignalPackage(
                 type=SignalType.SEPHIROTIC,
@@ -1648,7 +2201,8 @@ class SephiroticEngine:
             return {
                 "status": "not_initialized",
                 "engine": "SephiroticEngine",
-                "version": "4.0.0"
+                "version": "4.0.1",
+                "timestamp": datetime.utcnow().isoformat()
             }
         
         tree_state = self.tree.get_tree_state()
@@ -1656,7 +2210,7 @@ class SephiroticEngine:
         return {
             "status": "active",
             "engine": "SephiroticEngine",
-            "version": "4.0.0",
+            "version": "4.0.1",
             "tree": tree_state,
             "bus_connected": self.bus is not None,
             "initialized": self.initialized,
@@ -1686,19 +2240,8 @@ class SephiroticEngine:
         if not self.initialized:
             return 0
         
-        count = 0
-        for name, node in self.tree.nodes.items():
-            if hasattr(node, 'receive'):
-                signal_package = SignalPackage(
-                    type=signal_type,
-                    source="SephiroticEngine",
-                    target=name,
-                    payload=payload
-                )
-                await node.receive(signal_package)
-                count += 1
-        
-        return count
+        result = await self.tree.broadcast_to_tree(signal_type, payload)
+        return result.get("nodes_reached", 0)
     
     async def connect_module_to_sephira(self, module_name: str, sephira_name: str) -> Dict[str, Any]:
         """Подключение модуля к конкретной сефире"""
@@ -1718,6 +2261,22 @@ class SephiroticEngine:
             "sephira": sephira_name,
             "connection_result": result
         }
+    
+    async def get_node_health(self, sephira_name: str) -> Dict[str, Any]:
+        """Получение отчёта о здоровье конкретного узла"""
+        node = self.get_node(sephira_name)
+        if not node:
+            return {"status": "node_not_found", "sephira": sephira_name}
+        
+        return await node.get_health_report()
+    
+    async def reset_node(self, sephira_name: str) -> Dict[str, Any]:
+        """Сброс конкретного узла"""
+        node = self.get_node(sephira_name)
+        if not node:
+            return {"status": "node_not_found", "sephira": sephira_name}
+        
+        return await node.reset_node()
 
 # ================================================================
 # СЕФИРОТИЧЕСКАЯ ШИНА (SephiroticBus)
@@ -1746,27 +2305,30 @@ class SephiroticBus:
             "type": signal_package.type.name,
             "source": signal_package.source,
             "target": signal_package.target,
-            "id": signal_package.id
+            "id": signal_package.id,
+            "payload_size": len(str(signal_package.payload))
         })
         
         # Если указан конкретный получатель
         if signal_package.target:
             if signal_package.target in self.nodes:
                 target_node = self.nodes[signal_package.target]
-                await target_node.receive(signal_package)
+                await target_node.receive_signal(signal_package)
                 return True
             else:
                 self.logger.warning(f"Целевой узел не найден: {signal_package.target}")
                 return False
         
         # Рассылка по подпискам
+        delivered = False
         for callback in self.subscriptions.get(signal_package.type, []):
             try:
                 await callback(signal_package)
+                delivered = True
             except Exception as e:
                 self.logger.error(f"Ошибка в обработчике подписки: {e}")
         
-        return True
+        return delivered
     
     async def broadcast(self, signal_package: SignalPackage, exclude_nodes: List[str] = None) -> int:
         """Широковещательная рассылка всем узлам"""
@@ -1778,7 +2340,7 @@ class SephiroticBus:
                 continue
             
             try:
-                await node.receive(signal_package)
+                await node.receive_signal(signal_package)
                 count += 1
             except Exception as e:
                 self.logger.error(f"Ошибка при broadcast узлу {name}: {e}")
@@ -1791,6 +2353,15 @@ class SephiroticBus:
         self.subscriptions[signal_type].append(callback)
         self.logger.info(f"Добавлена подписка на {signal_type.name}")
     
+    def unsubscribe(self, signal_type: SignalType, callback: Callable):
+        """Отписка от типа сигнала"""
+        if signal_type in self.subscriptions:
+            try:
+                self.subscriptions[signal_type].remove(callback)
+                self.logger.info(f"Удалена подписка на {signal_type.name}")
+            except ValueError:
+                pass
+    
     def get_stats(self) -> Dict[str, Any]:
         """Получение статистики шины"""
         return {
@@ -1798,7 +2369,12 @@ class SephiroticBus:
             "total_nodes": len(self.nodes),
             "subscriptions": {st.name: len(cbs) for st, cbs in self.subscriptions.items()},
             "message_log_size": len(self.message_log),
-            "recent_messages": list(self.message_log)[-10:] if self.message_log else []
+            "recent_messages": list(self.message_log)[-10:] if self.message_log else [],
+            "bus_health": {
+                "status": "healthy",
+                "nodes_registered": len(self.nodes),
+                "active_subscriptions": sum(len(cbs) for cbs in self.subscriptions.values())
+            }
         }
 
 # ================================================================
@@ -1840,11 +2416,37 @@ async def initialize_sephirotic_for_iskra(bus=None) -> Dict[str, Any]:
             "error": str(e)
         }
 
+# ================================================================
+# ФУНКЦИИ ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ
+# ================================================================
+
+def initialize_sephirotic_in_iskra(bus=None):
+    """
+    Обёртка для синхронного вызова initialize_sephirotic_for_iskra.
+    Для обратной совместимости с существующим кодом.
+    """
+    import asyncio
+    try:
+        return asyncio.run(initialize_sephirotic_for_iskra(bus))
+    except RuntimeError:
+        # Если уже есть запущенный event loop
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # Создаём задачу в существующем loop
+            task = loop.create_task(initialize_sephirotic_for_iskra(bus))
+            return task
+        else:
+            return loop.run_until_complete(initialize_sephirotic_for_iskra(bus))
+
+# ================================================================
+# API РОУТЫ ДЛЯ FLASK
+# ================================================================
+
 def get_sephirotic_api_routes(engine: SephiroticEngine):
     """
     Генерация Flask API эндпоинтов для сефиротической системы.
     """
-    from flask import jsonify
+    from flask import jsonify, request
     
     routes = {}
     
@@ -1870,17 +2472,69 @@ def get_sephirotic_api_routes(engine: SephiroticEngine):
     async def get_node(name):
         node = engine.get_node(name.upper())
         if node:
-            return jsonify({"found": True, "state": node.get_state()})
+            return jsonify({"found": True, "state": node._get_basic_state()})
         return jsonify({"found": False, "error": f"Узел {name} не найден"}), 404
+    
+    @routes.get('/sephirot/node/<name>/detailed')
+    async def get_node_detailed(name):
+        node = engine.get_node(name.upper())
+        if node:
+            return jsonify({"found": True, "state": node._get_detailed_state()})
+        return jsonify({"found": False, "error": f"Узел {name} не найден"}), 404
+    
+    @routes.get('/sephirot/node/<name>/health')
+    async def get_node_health(name):
+        result = await engine.get_node_health(name.upper())
+        return jsonify(result)
     
     @routes.post('/sephirot/connect')
     async def connect_module():
-        # Эта функция должна получать данные из request.json
-        # Для примера возвращаем заглушку
-        return jsonify({
-            "success": True,
-            "message": "Используйте POST с JSON: {'module': 'module_name', 'sephira': 'sephira_name'}"
-        })
+        data = request.json
+        if not data:
+            return jsonify({"success": False, "error": "No JSON data provided"}), 400
+        
+        module_name = data.get("module")
+        sephira_name = data.get("sephira")
+        
+        if not module_name or not sephira_name:
+            return jsonify({"success": False, "error": "Missing module or sephira name"}), 400
+        
+        result = await engine.connect_module_to_sephira(module_name, sephira_name)
+        return jsonify(result)
+    
+    @routes.post('/sephirot/broadcast')
+    async def broadcast():
+        data = request.json
+        if not data:
+            return jsonify({"success": False, "error": "No JSON data provided"}), 400
+        
+        signal_type_str = data.get("signal_type", "DATA")
+        payload = data.get("payload", {})
+        
+        try:
+            signal_type = SignalType[signal_type_str.upper()]
+        except KeyError:
+            return jsonify({"success": False, "error": f"Unknown signal type: {signal_type_str}"}), 400
+        
+        count = await engine.broadcast_to_tree(signal_type, payload)
+        return jsonify({"success": True, "nodes_reached": count})
+    
+    @routes.post('/sephirot/node/<name>/reset')
+    async def reset_node(name):
+        result = await engine.reset_node(name.upper())
+        return jsonify(result)
+    
+    @routes.post('/sephirot/node/<name>/boost')
+    async def boost_node(name):
+        data = request.json
+        amount = data.get("amount", 0.2) if data else 0.2
+        
+        node = engine.get_node(name.upper())
+        if not node:
+            return jsonify({"success": False, "error": f"Node {name} not found"}), 404
+        
+        result = await node.boost_energy(amount)
+        return jsonify(result)
     
     return routes
 
@@ -1890,7 +2544,7 @@ def get_sephirotic_api_routes(engine: SephiroticEngine):
 
 async def test_sephirotic_system():
     """Тестовая функция для проверки сефиротической системы"""
-    print("🧪 Тестирование сефиротической системы...")
+    print("🧪 Тестирование сефиротической системы v4.0.1...")
     
     # Создание шины
     bus = SephiroticBus()
@@ -1899,22 +2553,48 @@ async def test_sephirotic_system():
     engine = await create_sephirotic_system(bus)
     
     # Активация
-    await engine.activate()
+    result = await engine.activate()
+    print(f"✅ Сефиротическая система активирована")
+    print(f"   Узлов активировано: {result.get('count', 0)}")
     
     # Получение состояния
     state = engine.get_state()
-    print(f"✅ Сефиротическая система активирована")
-    print(f"   Узлов: {state['tree']['node_count']}")
-    print(f"   Общая энергия: {state['tree']['total_energy']:.2f}")
-    print(f"   Средний резонанс: {state['tree']['avg_resonance']:.2f}")
+    tree_state = state.get('tree', {})
+    print(f"   Узлов всего: {tree_state.get('node_count', 0)}")
+    print(f"   Общая энергия: {tree_state.get('total_energy', 0):.2f}")
+    print(f"   Средний резонанс: {tree_state.get('avg_resonance', 0):.2f}")
+    print(f"   Общее состояние: {tree_state.get('overall_status', 'unknown')}")
     
     # Тест связи с модулями
     print("\n🔗 Тест связи с модулями:")
     result = await engine.connect_module_to_sephira("bechtereva", "KETER")
     print(f"   bechtereva → KETER: {result['status']}")
     
-    result = await engine.connect_module_to_sephira("chernigovskaya", "CHOKHMAH")
-    print(f"   chernigovskaya → CHOKHMAH: {result['status']}")
+    result = await engine.connect_module_to_sephira("chernigovskaya", "CHOKMAH")
+    print(f"   chernigovskaya → CHOKMAH: {result['status']}")
+    
+    # Тест получения состояния узла
+    print("\n📊 Тест состояния узла KETER:")
+    keter_node = engine.get_node("KETER")
+    if keter_node:
+        keter_state = keter_node._get_basic_state()
+        print(f"   Имя: {keter_state['name']}")
+        print(f"   Энергия: {keter_state['energy']:.2f}")
+        print(f"   Резонанс: {keter_state['resonance']:.2f}")
+        print(f"   Статус: {keter_state['status']}")
+    
+    # Тест широковещательной рассылки
+    print("\n📡 Тест широковещательной рассылки:")
+    count = await engine.broadcast_to_tree(
+        SignalType.HEARTBEAT,
+        {"message": "Test broadcast from SephiroticEngine"}
+    )
+    print(f"   Сообщение доставлено {count} узлам")
+    
+    # Получение детального состояния
+    print("\n📈 Получение детального состояния:")
+    detailed = engine.get_detailed_state()
+    print(f"   Детализировано узлов: {len(detailed.get('detailed_tree', {}).get('detailed_nodes', {}))}")
     
     # Завершение
     await engine.shutdown()
@@ -1939,5 +2619,4 @@ if __name__ == "__main__":
 
     # Запуск теста
     asyncio.run(test_sephirotic_system())
-               
-    
+                   
