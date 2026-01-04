@@ -873,7 +873,7 @@ class SephiroticNode(ISephiraModule):
     # ОБРАБОТЧИКИ СИГНАЛОВ (сокращённо для экономии места)
     # ================================================================
     
-        async def _handle_neuro(self, signal_package: SignalPackage) -> Dict[str, Any]:
+    async def _handle_neuro(self, signal_package: SignalPackage) -> Dict[str, Any]:
         """Обработка нейро-сигналов от модуля Бехтеревой"""
         self.logger.info(f"Обработка NEURO сигнала от {signal_package.source}")
         
