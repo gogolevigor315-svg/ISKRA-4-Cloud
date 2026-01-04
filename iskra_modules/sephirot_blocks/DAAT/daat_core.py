@@ -802,7 +802,7 @@ class DaatCore:
         
         return insights
     
-        async def get_resonance_history(self, limit: int = 50) -> List[Dict]:
+    async def get_resonance_history(self, limit: int = 50) -> List[Dict]:
         """Получение истории резонанса для визуализации"""
         if not self.resonance_history:
             return []
