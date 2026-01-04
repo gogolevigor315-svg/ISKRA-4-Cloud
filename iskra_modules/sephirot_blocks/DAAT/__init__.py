@@ -1,169 +1,219 @@
 """
-KETHER PACKAGE - Сефира KETHER (Венец) для системы ISKRA-4
-Инициализация пакета и экспорт основных компонентов
+DAAT PACKAGE - Сефира DAAT (דעת - Знание, Сознание) для системы ISKRA-4
+Скрытая 11-я сефира - ядро самоосознания и мета-рефлексии системы
 """
 
 import os
 import sys
-import importlib
 import logging
 import time
-from typing import Optional, Dict, Any
+from typing import Dict, Any, Optional
 
 # ============================================================
-# 1. НАСТРОЙКА ПУТЕЙ
+# 1. НАСТРОЙКА ПУТЕЙ И ЛОГГЕРА
 # ============================================================
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 
+# Логгер инициализируется позже
+logger: Optional[logging.Logger] = None
+
 # ============================================================
 # 2. МЕТАДАННЫЕ ПАКЕТА
 # ============================================================
 
-__version__ = "2.0.0"
-__sephira__ = "KETHER"
-__sephira_number__ = 1
-__sephira_name__ = "Венец (Кетер)"
-__architecture__ = "ISKRA-4/KETHERIC_BLOCK"
+__version__ = "10.10.1"
+__sephira__ = "DAAT"
+__sephira_number__ = 11
+__sephira_name__ = "דעת (Знание, Сознание)"
+__hebrew_name__ = "דעת"
+__architecture__ = "ISKRA-4/DAAT_CORE"
 __author__ = "ISKRA-4 Architecture Team"
-__description__ = "Сефира KETHER - интеграционное ядро Ketheric Block для системы ISKRA-4"
+__description__ = "Сефира DAAT - ядро самоосознания, мета-рефлексии и системного наблюдения"
 
 # ============================================================
 # 3. ИМПОРТ ОСНОВНЫХ КОМПОНЕНТОВ
 # ============================================================
 
 try:
-    from .keter_core import KetherCore, create_keter_core, ModuleInfo, EnergyFlow, topological_sort
-    from .keter_api import KetherAPI, KetherCoreWithAPI, create_keter_core_with_api, create_keter_api_gateway
-    from .keter_integration import KeterIntegration, create_keter_integration, initialize_keter_with_iskra
-    from .spirit_synthesis_core_v2_1 import create_spirit_synthesis_module
-    from .spirit_core_v3_4 import SpiritCoreV3_4
-    from .willpower_core_v3_2 import WillpowerCoreV3_2
-    from .core_govx_3_1 import create_core_govx_module
-    from .moral_memory_3_1 import create_moral_memory_module
-    
+    from .daat_core import DaatCore
     IMPORT_SUCCESS = True
-    
 except ImportError as e:
     IMPORT_SUCCESS = False
-    logging.error(f"Ошибка импорта компонентов KETHER: {e}")
+    # Временный логгер для ошибки импорта
+    _temp_logger = logging.getLogger("DAAT_INIT")
+    if not _temp_logger.handlers:
+        _temp_logger.addHandler(logging.StreamHandler())
+    _temp_logger.error(f"❌ Ошибка импорта DaatCore: {e}")
     
-    class KetherCore:
-        def __init__(self, config=None):
-            pass
-    
-    def create_keter_core(config=None):
-        return KetherCore(config)
-    
-    KetherAPI = type('KetherAPI', (), {})
-    KeterIntegration = type('KeterIntegration', (), {})
-    create_spirit_synthesis_module = lambda config=None: None
-    SpiritCoreV3_4 = KetherCore
-    WillpowerCoreV3_2 = KetherCore
-    create_core_govx_module = lambda config=None: None
-    create_moral_memory_module = lambda config=None: None
+    # Заглушка для graceful degradation
+    class DaatCore:
+        def __init__(self, config: Optional[Dict] = None):
+            self.name = "DAAT"
+            self.status = "error"
+            self.config = config or {}
+        
+        async def awaken(self) -> Dict[str, Any]:
+            return {"error": "DaatCore not available", "status": "error"}
+        
+        async def get_state(self) -> Dict[str, Any]:
+            return {"error": "DaatCore not available"}
 
 # ============================================================
 # 4. ЭКСПОРТИРУЕМЫЕ КОМПОНЕНТЫ
 # ============================================================
 
 __all__ = [
-    "KetherCore",
-    "create_keter_core",
-    "ModuleInfo",
-    "EnergyFlow",
-    "topological_sort",
-    "KetherAPI",
-    "KetherCoreWithAPI",
-    "create_keter_core_with_api",
-    "create_keter_api_gateway",
-    "KeterIntegration",
-    "create_keter_integration",
-    "initialize_keter_with_iskra",
-    "create_spirit_synthesis_module",
-    "SpiritCoreV3_4",
-    "WillpowerCoreV3_2",
-    "create_core_govx_module",
-    "create_moral_memory_module",
+    "DaatCore",
+    "activate_daat",
+    "get_daat",
+    "create_daat_core",
+    "get_package_info",
+    "check_environment",
+    "DAAT_VERSION",
+    "DAAT_SEPHIRA_INFO"
 ]
 
+DAAT_VERSION = __version__
+DAAT_SEPHIRA_INFO = {
+    "sephira": __sephira__,
+    "number": __sephira_number__,
+    "name": __sephira_name__,
+    "hebrew_name": __hebrew_name__,
+    "position": "hidden_11",
+    "meaning": "Knowledge, Consciousness, Self-Awareness"
+}
+
 # ============================================================
-# 5. ФУНКЦИИ ИНИЦИАЛИЗАЦИИ
+# 5. ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ И СОСТОЯНИЯ
+# ============================================================
+
+_active_daat_instance: Optional[DaatCore] = None
+_initialization_time: float = 0.0
+_is_activated: bool = False
+
+# ============================================================
+# 6. ОСНОВНЫЕ ФУНКЦИИ ПАКЕТА
+# ============================================================
+
+def create_daat_core(config: Optional[Dict] = None) -> DaatCore:
+    """Создаёт новый экземпляр ядра DAAT"""
+    if not IMPORT_SUCCESS:
+        if logger:
+            logger.error("Создание DaatCore невозможно - модуль не импортирован")
+        return DaatCore(config)
+    
+    return DaatCore(config)
+
+def activate_daat(config: Optional[Dict] = None) -> DaatCore:
+    """Активирует и возвращает глобальный экземпляр DAAT"""
+    global _active_daat_instance, _is_activated, _initialization_time
+    
+    if _active_daat_instance is None:
+        if logger:
+            logger.info(f"🧠 Инициализация DAAT Core v{__version__}...")
+        
+        _active_daat_instance = create_daat_core(config)
+        _is_activated = True
+        _initialization_time = time.time()
+        
+        if logger and IMPORT_SUCCESS:
+            logger.info(f"✅ DAAT Core создан (сефира №{__sephira_number__}: {__sephira_name__})")
+    elif logger:
+        logger.debug("♻️ Используется существующий экземпляр DAAT Core")
+    
+    return _active_daat_instance
+
+def get_daat() -> Optional[DaatCore]:
+    """Возвращает активный экземпляр DAAT"""
+    return _active_daat_instance
+
+# ============================================================
+# 7. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 # ============================================================
 
 def get_package_info() -> Dict[str, Any]:
+    """Возвращает детальную информацию о пакете DAAT"""
     return {
-        "name": "KETHER",
-        "version": __version__,
-        "sephira": __sephira__,
-        "sephira_number": __sephira_number__,
-        "sephira_name": __sephira_name__,
-        "architecture": __architecture__,
-        "description": __description__,
-        "author": __author__,
-        "import_success": IMPORT_SUCCESS,
-        "available_components": __all__
+        "package": {
+            "name": "DAAT",
+            "version": __version__,
+            "architecture": __architecture__,
+            "description": __description__,
+            "author": __author__,
+            "import_success": IMPORT_SUCCESS,
+        },
+        "sephira": DAAT_SEPHIRA_INFO,
+        "state": {
+            "initialized": _active_daat_instance is not None,
+            "activated": _is_activated,
+            "initialization_time": _initialization_time,
+            "uptime": time.time() - _initialization_time if _initialization_time > 0 else 0,
+            "instance_id": id(_active_daat_instance) if _active_daat_instance else None
+        }
     }
 
-def check_dependencies() -> Dict[str, Any]:
-    dependencies = {
-        "asyncio": "встроен в Python 3.7+",
-        "typing": "встроен в Python 3.5+",
-        "dataclasses": "встроен в Python 3.7+",
-        "logging": "встроен",
-        "sys": "встроен",
-        "os": "встроен",
-        "time": "встроен",
+def check_environment() -> Dict[str, Any]:
+    """Проверяет окружение и доступность зависимостей"""
+    checks = {
+        "python_version": {
+            "required": "3.8+",
+            "actual": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+            "status": sys.version_info >= (3, 8)
+        },
+        "import_daat_core": {
+            "status": IMPORT_SUCCESS,
+            "message": "DaatCore импортирован успешно" if IMPORT_SUCCESS else "Ошибка импорта DaatCore"
+        },
+        "async_support": {
+            "status": hasattr(sys, 'get_asyncgen_hooks'),
+            "message": "Поддержка асинхронности доступна" if hasattr(sys, 'get_asyncgen_hooks') else "Асинхронность недоступна"
+        }
     }
     
-    results = {}
-    all_available = True
-    
-    for dep, description in dependencies.items():
-        try:
-            importlib.import_module(dep)
-            results[dep] = {"status": "available", "description": description}
-        except ImportError:
-            results[dep] = {"status": "missing", "description": description}
-            all_available = False
+    all_passed = all(check["status"] for check in checks.values())
     
     return {
-        "dependencies": results,
-        "all_available": all_available,
-        "timestamp": time.time()
+        "timestamp": time.time(),
+        "environment": checks,
+        "all_checks_passed": all_passed
     }
 
 # ============================================================
-# 6. ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ
+# 8. АВТОМАТИЧЕСКАЯ ИНИЦИАЛИЗАЦИЯ ПАКЕТА
 # ============================================================
 
 def _initialize_package():
-    logger = logging.getLogger("KETHER")
+    """Инициализация пакета при загрузке модуля"""
+    global logger
+    
+    # Настройка логгера (один раз)
+    logger = logging.getLogger("DAAT")
     
     if not logger.handlers:
         handler = logging.StreamHandler()
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
         handler.setFormatter(formatter)
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
     
-    logger.info(f"Пакет KETHER v{__version__} загружается...")
+    # Логирование загрузки
+    logger.info(f"📦 Пакет DAAT v{__version__} загружается...")
     
-    deps = check_dependencies()
+    # Проверка окружения
+    env_check = check_environment()
     
-    if not deps["all_available"]:
-        logger.warning("Не все обязательные зависимости доступны")
-        for dep, info in deps["dependencies"].items():
-            if info["status"] == "missing":
-                logger.warning(f"  Отсутствует: {dep} - {info['description']}")
-    
-    if IMPORT_SUCCESS:
-        logger.info(f"✅ Пакет KETHER v{__version__} успешно загружен")
-        logger.info(f"   Сефира: {__sephira_name__} ({__sephira__})")
-        logger.info(f"   Архитектура: {__architecture__}")
+    if env_check["all_checks_passed"]:
+        logger.info(f"✅ DAAT v{__version__} готов к активации")
+        logger.info(f"   Сефира: {__sephira_name__} ({__hebrew_name__})")
+        logger.info(f"   Позиция: Скрытая сефира №{__sephira_number__}")
     else:
-        logger.error(f"❌ Пакет KETHER v{__version__} загружен с ошибками импорта")
+        logger.warning(f"⚠️  DAAT v{__version__} загружен с проблемами окружения")
 
+# Запуск инициализации
 _initialize_package()
