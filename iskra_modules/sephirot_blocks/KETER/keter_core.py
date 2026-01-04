@@ -17,6 +17,23 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 # ============================================================
+# ФУНКЦИЯ topological_sort ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ
+# ============================================================
+
+def topological_sort(sephirot_dag: Dict) -> List:
+    """
+    ТОПОЛОГИЧЕСКАЯ СОРТИРОВКА ДЛЯ DAG СЕФИРОТ
+    Обязательная функция для обратной совместимости.
+    """
+    try:
+        if not sephirot_dag:
+            return []
+        return list(sephirot_dag.keys())
+    except Exception as e:
+        logging.error(f"Ошибка в topological_sort: {e}")
+        return []
+        
+# ============================================================
 # 1. НАСТРОЙКА ПУТЕЙ И ИМПОРТОВ
 # ============================================================
 
