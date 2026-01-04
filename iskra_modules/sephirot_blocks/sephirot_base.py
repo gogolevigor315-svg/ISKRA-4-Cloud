@@ -2602,6 +2602,30 @@ async def test_sephirotic_system():
     print("\n✅ Тест завершён успешно")
     
     return state
+    
+# ================================================================
+# ЭКСПОРТ ДЛЯ ИМПОРТА ИЗ ДРУГИХ МОДУЛЕЙ  ← ВСТАВЬ ЗДЕСЬ
+# ================================================================
+
+__all__ = [
+    'ISephiraModule',
+    'Sephirot',
+    'SignalType',
+    'NodeStatus',
+    'ResonancePhase',
+    'QuantumLink',
+    'SignalPackage',
+    'topological_sort',
+    'AdaptiveQueue',
+    'SephiroticNode',
+    'SephiroticTree',
+    'SephiroticEngine',
+    'SephiroticBus',
+    'create_sephirotic_system',
+    'initialize_sephirotic_for_iskra',
+    'initialize_sephirotic_in_iskra',
+    'get_sephirotic_api_routes'
+]
 
 # ================================================================
 # ВЫЗОВ ТЕСТА ПРИ ПРЯМОМ ЗАПУСКЕ
