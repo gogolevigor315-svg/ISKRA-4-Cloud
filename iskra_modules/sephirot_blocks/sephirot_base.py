@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-sephirot_base.py - ПОЛНАЯ РЕАЛИЗАЦИЯ СЕФИРОТИЧЕСКОЙ СИСТЕМЫ DS24
+sephirot_base.py - ПОЛНЫЙ ИСПРАВЛЕННЫЙ КОД СЕФИРОТИЧЕСКОЙ СИСТЕМЫ
 Версия: 4.0.1 Production
-Исправлено: Добавлен ISephiraModule, исправлены импорты
+Исправлено: Добавлен SephiraConfig, убраны абстрактные методы, исправлены импорты
 """
 
 import json
@@ -150,6 +150,58 @@ class ResonancePhase(Enum):
                 normalized_distance = distance_to_ideal / (phase.max - phase.min)
                 return phase, 1.0 - normalized_distance
         return cls.SILENT, 0.0
+
+# ================================================================
+# КРИТИЧЕСКИЙ КЛАСС ДЛЯ ИМПОРТА (ОТСУТСТВОВАЛ)
+# ================================================================
+
+@dataclass
+class SephiraConfig:
+    """Конфигурация для инициализации сефиротического узла"""
+    sephira: Sephirot
+    bus: Optional[Any] = None
+    resonance_init: float = 0.1
+    energy_init: float = 0.8
+    auto_connect: bool = True
+    log_level: str = "INFO"
+    config_overrides: Dict[str, Any] = field(default_factory=dict)
+
+    def validate(self) -> bool:
+        """Проверка корректности конфигурации"""
+        if not 0.0 <= self.resonance_init <= 1.0:
+            raise ValueError(f"resonance_init must be between 0.0 and 1.0, got {self.resonance_init}")
+        if not 0.0 <= self.energy_init <= 1.0:
+            raise ValueError(f"energy_init must be between 0.0 and 1.0, got {self.energy_init}")
+        if self.log_level not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
+            raise ValueError(f"Invalid log level: {self.log_level}")
+        return True
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Конвертация в словарь"""
+        return {
+            "sephira": self.sephira.name,
+            "resonance_init": self.resonance_init,
+            "energy_init": self.energy_init,
+            "auto_connect": self.auto_connect,
+            "log_level": self.log_level,
+            "config_overrides": self.config_overrides
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'SephiraConfig':
+        """Создание из словаря"""
+        sephira_name = data.get("sephira", "KETER")
+        sephira = getattr(Sephirot, sephira_name, Sephirot.KETER)
+
+        return cls(
+            sephira=sephira,
+            bus=None,  # Шина устанавливается отдельно
+            resonance_init=data.get("resonance_init", 0.1),
+            energy_init=data.get("energy_init", 0.8),
+            auto_connect=data.get("auto_connect", True),
+            log_level=data.get("log_level", "INFO"),
+            config_overrides=data.get("config_overrides", {})
+        )
 
 @dataclass
 class QuantumLink:
@@ -821,7 +873,7 @@ class SephiroticNode(ISephiraModule):
                 }
             )
             
-            # Кэширование
+                        # Кэширование
             if signal_package.type not in [SignalType.HEARTBEAT, SignalType.METRIC]:
                 self.response_cache[cache_key] = response
                 if len(self.response_cache) > 100:
@@ -870,19 +922,16 @@ class SephiroticNode(ISephiraModule):
         return max(1, min(10, adjusted_priority))
     
     # ================================================================
-    # ОБРАБОТЧИКИ СИГНАЛОВ (сокращённо для экономии места)
+    # ОБРАБОТЧИКИ СИГНАЛОВ
     # ================================================================
     
     async def _handle_neuro(self, signal_package: SignalPackage) -> Dict[str, Any]:
         """Обработка нейро-сигналов от модуля Бехтеревой"""
         self.logger.info(f"Обработка NEURO сигнала от {signal_package.source}")
         
-        # Получаем данные от bechtereva
         neuro_data = signal_package.payload.get("neuro_data", {})
         
-        # В зависимости от сефиры обрабатываем по-разному
         if self._sephira == Sephirot.KETER:
-            # KETER: интеграция высшего сознания
             processed = {
                 "action": "conscious_integration",
                 "sephira": self._name,
@@ -891,7 +940,6 @@ class SephiroticNode(ISephiraModule):
                 "timestamp": datetime.utcnow().isoformat()
             }
         elif self._sephira == Sephirot.BINAH:
-            # BINAH: аналитическая обработка
             processed = {
                 "action": "analytical_processing",
                 "sephira": self._name,
@@ -900,7 +948,6 @@ class SephiroticNode(ISephiraModule):
                 "timestamp": datetime.utcnow().isoformat()
             }
         else:
-            # Остальные сефиры пропускают с минимальной обработкой
             processed = {
                 "action": "neuro_passthrough",
                 "sephira": self._name,
@@ -909,7 +956,6 @@ class SephiroticNode(ISephiraModule):
                 "timestamp": datetime.utcnow().isoformat()
             }
         
-        # Усиление резонанса от нейро-сигналов
         self.resonance = min(1.0, self.resonance + 0.1)
         
         return {
@@ -926,7 +972,6 @@ class SephiroticNode(ISephiraModule):
         semiotic_data = signal_package.payload.get("semiotic_data", {})
         
         if self._sephira == Sephirot.CHOKMAH:
-            # CHOKMAH: мудрость и интуиция
             processed = {
                 "action": "wisdom_integration",
                 "sephira": self._name,
@@ -936,7 +981,6 @@ class SephiroticNode(ISephiraModule):
                 "timestamp": datetime.utcnow().isoformat()
             }
         elif self._sephira == Sephirot.HOD:
-            # HOD: коммуникация и передача
             processed = {
                 "action": "communication_bridge",
                 "sephira": self._name,
@@ -953,7 +997,6 @@ class SephiroticNode(ISephiraModule):
                 "timestamp": datetime.utcnow().isoformat()
             }
         
-        # Увеличение когерентности от семиотики
         self.coherence = min(1.0, self.coherence + 0.15)
         
         return {
@@ -976,7 +1019,6 @@ class SephiroticNode(ISephiraModule):
             "timestamp": datetime.utcnow().isoformat()
         }
         
-        # Эмоции влияют на энергию
         intensity = emotional_data.get("intensity", 0.0)
         self.energy = min(1.0, self.energy + (intensity * 0.05))
         
@@ -1000,7 +1042,6 @@ class SephiroticNode(ISephiraModule):
             "timestamp": datetime.utcnow().isoformat()
         }
         
-        # Когнитивная нагрузка влияет на стабильность
         load = cognitive_data.get("load", 0.0)
         self.stability = max(0.1, self.stability - (load * 0.1))
         
@@ -1024,7 +1065,6 @@ class SephiroticNode(ISephiraModule):
             "timestamp": datetime.utcnow().isoformat()
         }
         
-        # Намерения усиливают волю
         self.willpower = min(1.0, self.willpower + 0.1)
         
         return {
@@ -1036,10 +1076,8 @@ class SephiroticNode(ISephiraModule):
     
     async def _handle_heartbeat(self, signal_package: SignalPackage) -> Dict[str, Any]:
         """Обработка heartbeat сигналов"""
-        # Обновление энергии от heartbeat
         self.energy = min(1.0, self.energy + 0.05)
         
-        # Поддержание связей
         for link in self.quantum_links.values():
             if link.coherence > 0.3:
                 link.evolve(1.0)
@@ -1057,11 +1095,9 @@ class SephiroticNode(ISephiraModule):
         incoming_resonance = signal_package.payload.get("resonance", 0.0)
         resonance_source = signal_package.payload.get("source", "unknown")
         
-        # Синхронизация резонанса (взвешенное среднее)
-        weight = 0.7  # Больший вес нашему текущему резонансу
+        weight = 0.7
         self.resonance = (self.resonance * weight + incoming_resonance * (1 - weight))
         
-        # Обновление истории
         self.resonance_history.append({
             "timestamp": datetime.utcnow().isoformat(),
             "value": self.resonance,
@@ -1117,7 +1153,6 @@ class SephiroticNode(ISephiraModule):
             "timestamp": datetime.utcnow().isoformat()
         }
         
-        # Простая обработка данных
         if isinstance(data, dict):
             processed["keys"] = list(data.keys())
         elif isinstance(data, list):
@@ -1143,7 +1178,6 @@ class SephiroticNode(ISephiraModule):
             "source": signal_package.source
         })
         
-        # Ошибки снижают стабильность
         self.stability = max(0.1, self.stability - 0.05)
         
         return {
@@ -1165,7 +1199,6 @@ class SephiroticNode(ISephiraModule):
             "timestamp": datetime.utcnow().isoformat()
         }
         
-        # Синтез улучшает когерентность
         self.coherence = min(1.0, self.coherence + 0.1)
         
         return {
@@ -1212,7 +1245,6 @@ class SephiroticNode(ISephiraModule):
             "timestamp": datetime.utcnow().isoformat()
         }
         
-        # Синхронизация улучшает стабильность
         self.stability = min(1.0, self.stability + 0.05)
         
         return {
@@ -1226,7 +1258,6 @@ class SephiroticNode(ISephiraModule):
         """Обработка метрик"""
         metrics_data = signal_package.payload.get("metrics", {})
         
-        # Обновляем собственные метрики
         self.metrics.update(metrics_data)
         self.metrics["last_external_update"] = datetime.utcnow().isoformat()
         
@@ -1274,7 +1305,6 @@ class SephiroticNode(ISephiraModule):
             "timestamp": datetime.utcnow().isoformat()
         }
         
-        # Обратная связь улучшает когерентность
         quality = feedback_data.get("quality", 0.5)
         self.coherence = min(1.0, self.coherence + (quality * 0.05))
         
@@ -1355,7 +1385,6 @@ class SephiroticNode(ISephiraModule):
         phase, phase_perfection = ResonancePhase.from_value(self.resonance)
         base_feedback_strength = self.resonance * phase_perfection
         
-        # Модификаторы для разных типов сигналов
         type_modifiers = {
             SignalType.NEURO: 1.4,
             SignalType.SEMIOTIC: 1.3,
@@ -1370,7 +1399,6 @@ class SephiroticNode(ISephiraModule):
         type_modifier = type_modifiers.get(signal_package.type, 1.0)
         feedback_strength = base_feedback_strength * type_modifier
         
-        # Определение эффекта
         effect = "stabilize"
         if feedback_strength < 0.3:
             effect = "dampen"
@@ -1391,11 +1419,9 @@ class SephiroticNode(ISephiraModule):
             "quantum_correction": self._quantum_correction_value()
         }
         
-        # Обновление резонанса
         resonance_delta = feedback_strength * 0.05 - 0.02
         await self._update_resonance_with_feedback(resonance_delta, feedback)
         
-        # Распространение по связям
         await self._propagate_feedback_to_links(feedback_strength)
         
         return feedback
@@ -1473,11 +1499,6 @@ class SephiroticNode(ISephiraModule):
                        exclude_nodes: List[str] = None) -> int:
         """
         Широковещательная рассылка сигналов.
-        
-        :param signal_type: Тип сигнала
-        :param payload: Полезная нагрузка
-        :param exclude_nodes: Узлы для исключения
-        :return: Количество узлов, получивших сообщение
         """
         if not self.bus or not hasattr(self.bus, 'broadcast'):
             self.logger.warning("Шина не поддерживает broadcast")
@@ -1545,7 +1566,6 @@ class SephiroticNode(ISephiraModule):
         self.stability = 0.9
         self.willpower = 0.7
         
-        # Создание связей с соответствующими модулями
         if self._connected_module:
             await self._create_link(self._connected_module)
         
@@ -1590,7 +1610,6 @@ class SephiroticNode(ISephiraModule):
         
         self.energy -= amount
         
-        # Отправка энергетического пакета
         if self.bus:
             energy_package = SignalPackage(
                 type=SignalType.ENERGY,
@@ -1624,17 +1643,14 @@ class SephiroticNode(ISephiraModule):
             try:
                 await asyncio.sleep(2.0)
                 
-                # Естественный спад резонанса
                 self.resonance *= 0.99
                 
-                # Восстановление от связей
                 if self.quantum_links:
                     avg_link_strength = statistics.mean(
                         [link.strength for link in self.quantum_links.values()]
                     )
                     self.resonance = min(1.0, self.resonance + avg_link_strength * 0.01)
                 
-                # Обновление связей
                 for link in self.quantum_links.values():
                     link.evolve(2.0)
                 
@@ -1652,15 +1668,12 @@ class SephiroticNode(ISephiraModule):
             try:
                 await asyncio.sleep(3.0)
                 
-                # Естественное восстановление
                 self.energy = min(1.0, self.energy + self.ENERGY_RECOVERY_RATE)
                 
-                # Затраты на поддержание связей
                 if self.quantum_links:
                     energy_cost = len(self.quantum_links) * 0.005
                     self.energy = max(0.1, self.energy - energy_cost)
                 
-                # Сохранение в историю
                 self.energy_history.append({
                     "timestamp": datetime.utcnow().isoformat(),
                     "value": self.energy,
@@ -1681,7 +1694,6 @@ class SephiroticNode(ISephiraModule):
             try:
                 await asyncio.sleep(self.METRICS_INTERVAL)
                 
-                # Сбор метрик
                 current_metrics = {
                     "resonance": self.resonance,
                     "energy": self.energy,
@@ -1695,13 +1707,11 @@ class SephiroticNode(ISephiraModule):
                     "status": self.status.value
                 }
                 
-                # Обновление основной метрики
                 self.metrics.update(current_metrics)
                 self.metrics["last_update"] = datetime.utcnow().isoformat()
                 
                 self.cycle_count += 1
                 
-                # Отправка метрик через шину
                 if self.bus and self.cycle_count % 10 == 0:
                     metrics_package = SignalPackage(
                         type=SignalType.METRIC,
@@ -1728,7 +1738,6 @@ class SephiroticNode(ISephiraModule):
             try:
                 await asyncio.sleep(10.0)
                 
-                # Проверка и удаление слабых связей
                 links_to_remove = []
                 for target, link in self.quantum_links.items():
                     if link.strength < 0.1:
@@ -1752,7 +1761,6 @@ class SephiroticNode(ISephiraModule):
             try:
                 await asyncio.sleep(5.0)
                 
-                # Проверка состояния
                 if self.energy < 0.2:
                     self.status = NodeStatus.DEGRADED
                     self.logger.warning(f"Низкая энергия: {self.energy}")
@@ -1762,8 +1770,7 @@ class SephiroticNode(ISephiraModule):
                 else:
                     self.status = NodeStatus.ACTIVE
                 
-                                # Логирование ошибок
-                if self._error_log:
+                               if self._error_log:
                     recent_errors = list(self._error_log)[-5:]
                     self.logger.debug(f"Последние 5 ошибок: {recent_errors}")
                 
@@ -1929,17 +1936,13 @@ class SephiroticNode(ISephiraModule):
         """Сброс узла к начальному состоянию"""
         self.logger.info(f"Сброс узла {self._name}")
         
-        # Сохраняем старые значения для отчёта
         old_state = self._get_basic_state()
         
-        # Останавливаем текущую работу
         await self.shutdown()
         
-        # Сбрасываем состояния
         self._initialize_states()
         self._initialize_data_structures()
         
-        # Перезапускаем
         self._init_task = asyncio.create_task(self._async_initialization())
         
         return {
@@ -1971,12 +1974,10 @@ class SephiroticTree:
         
         self.logger.info("Инициализация Сефиротического Древа")
         
-        # Создание всех 10 сефирот
         for sephira in Sephirot:
             node = SephiroticNode(sephira, self.bus)
             self.nodes[sephira.name] = node
         
-        # Установка связей между сефиротами
         await self._establish_sephirotic_connections()
         
         self.initialized = True
@@ -2064,7 +2065,6 @@ class SephiroticTree:
         avg_resonance = total_resonance / node_count if node_count > 0 else 0.0
         avg_coherence = total_coherence / node_count if node_count > 0 else 0.0
         
-        # Определение общего состояния дерева
         overall_status = "healthy"
         if avg_energy < 0.3:
             overall_status = "critical"
@@ -2169,7 +2169,6 @@ class SephiroticEngine:
         
         result = await self.tree.activate_all()
         
-        # Отправка широковещательного сообщения об активации
         if self.bus and hasattr(self.bus, 'broadcast'):
             activation_package = SignalPackage(
                 type=SignalType.SEPHIROTIC,
@@ -2310,7 +2309,6 @@ class SephiroticBus:
             "payload_size": len(str(signal_package.payload))
         })
         
-        # Если указан конкретный получатель
         if signal_package.target:
             if signal_package.target in self.nodes:
                 target_node = self.nodes[signal_package.target]
@@ -2320,7 +2318,6 @@ class SephiroticBus:
                 self.logger.warning(f"Целевой узел не найден: {signal_package.target}")
                 return False
         
-        # Рассылка по подпискам
         delivered = False
         for callback in self.subscriptions.get(signal_package.type, []):
             try:
@@ -2430,10 +2427,8 @@ def initialize_sephirotic_in_iskra(bus=None):
     try:
         return asyncio.run(initialize_sephirotic_for_iskra(bus))
     except RuntimeError:
-        # Если уже есть запущенный event loop
         loop = asyncio.get_event_loop()
         if loop.is_running():
-            # Создаём задачу в существующем loop
             task = loop.create_task(initialize_sephirotic_for_iskra(bus))
             return task
         else:
@@ -2547,18 +2542,14 @@ async def test_sephirotic_system():
     """Тестовая функция для проверки сефиротической системы"""
     print("🧪 Тестирование сефиротической системы v4.0.1...")
     
-    # Создание шины
     bus = SephiroticBus()
     
-    # Создание движка
     engine = await create_sephirotic_system(bus)
     
-    # Активация
     result = await engine.activate()
     print(f"✅ Сефиротическая система активирована")
     print(f"   Узлов активировано: {result.get('count', 0)}")
     
-    # Получение состояния
     state = engine.get_state()
     tree_state = state.get('tree', {})
     print(f"   Узлов всего: {tree_state.get('node_count', 0)}")
@@ -2566,7 +2557,6 @@ async def test_sephirotic_system():
     print(f"   Средний резонанс: {tree_state.get('avg_resonance', 0):.2f}")
     print(f"   Общее состояние: {tree_state.get('overall_status', 'unknown')}")
     
-    # Тест связи с модулями
     print("\n🔗 Тест связи с модулями:")
     result = await engine.connect_module_to_sephira("bechtereva", "KETER")
     print(f"   bechtereva → KETER: {result['status']}")
@@ -2574,7 +2564,6 @@ async def test_sephirotic_system():
     result = await engine.connect_module_to_sephira("chernigovskaya", "CHOKMAH")
     print(f"   chernigovskaya → CHOKMAH: {result['status']}")
     
-    # Тест получения состояния узла
     print("\n📊 Тест состояния узла KETER:")
     keter_node = engine.get_node("KETER")
     if keter_node:
@@ -2584,7 +2573,6 @@ async def test_sephirotic_system():
         print(f"   Резонанс: {keter_state['resonance']:.2f}")
         print(f"   Статус: {keter_state['status']}")
     
-    # Тест широковещательной рассылки
     print("\n📡 Тест широковещательной рассылки:")
     count = await engine.broadcast_to_tree(
         SignalType.HEARTBEAT,
@@ -2592,19 +2580,17 @@ async def test_sephirotic_system():
     )
     print(f"   Сообщение доставлено {count} узлам")
     
-    # Получение детального состояния
     print("\n📈 Получение детального состояния:")
     detailed = engine.get_detailed_state()
     print(f"   Детализировано узлов: {len(detailed.get('detailed_tree', {}).get('detailed_nodes', {}))}")
     
-    # Завершение
     await engine.shutdown()
     print("\n✅ Тест завершён успешно")
     
     return state
     
 # ================================================================
-# ЭКСПОРТ ДЛЯ ИМПОРТА ИЗ ДРУГИХ МОДУЛЕЙ  ← ВСТАВЬ ЗДЕСЬ
+# ЭКСПОРТ ДЛЯ ИМПОРТА ИЗ ДРУГИХ МОДУЛЕЙ
 # ================================================================
 
 __all__ = [
@@ -2613,9 +2599,10 @@ __all__ = [
     'SignalType',
     'NodeStatus',
     'ResonancePhase',
+    'SephiraConfig',          # ← КРИТИЧЕСКИ ВАЖНЫЙ КЛАСС ДЛЯ ИМПОРТА
     'QuantumLink',
     'SignalPackage',
-    'topological_sort',
+    'topological_sort',       # ← КРИТИЧЕСКАЯ ФУНКЦИЯ ДЛЯ KETER
     'AdaptiveQueue',
     'SephiroticNode',
     'SephiroticTree',
@@ -2635,13 +2622,10 @@ if __name__ == "__main__":
     import asyncio
     import logging
 
-    # Настройка логирования
     logging.basicConfig(
         level=logging.INFO,
         format='[%(asctime)s][%(name)s:%(levelname)s] %(message)s',
         datefmt='%H:%M:%S'
     )
 
-    # Запуск теста
-    asyncio.run(test_sephirotic_system())
-                   
+    asyncio.run(test_sephirotic_system()) 
