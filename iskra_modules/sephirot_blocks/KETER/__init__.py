@@ -217,5 +217,36 @@ def _initialize_package():
     else:
         logger.error(f"❌ Пакет KETHER v{__version__} загружен с ошибками импорта")
 
+logger.warning(f"   Функция activate_keter: ❌ не найдена")
+    else:
+        logger.error(f"❌ Пакет KETHER v{__version__} загружен с ошибками импорта")
+
+# ============================================================
+# 7. ФУНКЦИЯ ДЛЯ ВНЕШНЕГО ИСПОЛЬЗОВАНИЯ
+# ============================================================
+
+def get_keter():
+    """
+    Получение экземпляра KETER для внешних модулей
+    
+    Returns:
+        KetherCore или словарь с информацией
+    """
+    try:
+        from .keter_core import KetherCore
+        core = KetherCore()
+        return core
+    except ImportError:
+        return {
+            "status": "keter_not_available",
+            "message": "KetherCore не может быть загружен",
+            "fallback": True,
+            "version": __version__
+        }
+
+# Добавляем в __all__
+__all__.append('get_keter')
+
 # Выполняем инициализацию
 _initialize_package()
+
