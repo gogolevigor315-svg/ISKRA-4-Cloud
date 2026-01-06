@@ -13,12 +13,13 @@ logger = logging.getLogger(__name__)
 class WisdomCore:
     """Ядро CHOKMAH: управление состоянием и оркестрация модулей."""
     
-    def __init__(self):
+    def __init__(self, config=None):
         # Состояние сефиры
         self.name: str = "CHOKMAH"
         self.resonance: float = 0.3
         self.energy: float = 0.9
         self.status: str = "dormant"
+        self.config = config or {}
         
         # Модули (инициализируются при активации)
         self.intuition_matrix = None
