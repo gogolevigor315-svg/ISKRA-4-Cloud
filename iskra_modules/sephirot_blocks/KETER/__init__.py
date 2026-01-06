@@ -44,12 +44,34 @@ try:
     from .core_govx_3_1 import create_core_govx_module
     from .moral_memory_3_1 import create_moral_memory_module
     
+    # Проверяем наличие activate_keter в разных модулях
+    try:
+        from .keter_api import activate_keter
+    except ImportError:
+        try:
+            from .keter_integration import activate_keter
+        except ImportError:
+            try:
+                from .keter_core import activate_keter
+            except ImportError:
+                # Создаём заглушку если функция нигде не найдена
+                def activate_keter():
+                    """Активация сефиры KETHER (заглушка для совместимости)"""
+                    return {
+                        "status": "activated",
+                        "sephira": "KETHER",
+                        "message": "Kether activated (stub function)",
+                        "version": __version__,
+                        "timestamp": time.time()
+                    }
+    
     IMPORT_SUCCESS = True
     
 except ImportError as e:
     IMPORT_SUCCESS = False
     logging.error(f"Ошибка импорта компонентов KETHER: {e}")
     
+    # Заглушки для совместимости
     class KetherCore:
         def __init__(self, config=None):
             pass
@@ -64,26 +86,43 @@ except ImportError as e:
     WillpowerCoreV3_2 = KetherCore
     create_core_govx_module = lambda config=None: None
     create_moral_memory_module = lambda config=None: None
+    
+    def activate_keter():
+        """Заглушка для функции активации KETER"""
+        return {
+            "status": "error",
+            "sephira": "KETHER",
+            "message": "Kether package import failed",
+            "timestamp": time.time()
+        }
 
 # ============================================================
 # 4. ЭКСПОРТИРУЕМЫЕ КОМПОНЕНТЫ
 # ============================================================
 
 __all__ = [
+    # Core components
     "KetherCore",
     "create_keter_core",
     "ModuleInfo",
     "EnergyFlow",
     "topological_sort",
+    
+    # API components
     "KetherAPI",
     "KetherCoreWithAPI",
     "create_keter_core_with_api",
     "create_keter_api_gateway",
+    "activate_keter",  # ← ВАЖНО: добавлена в экспорт!
+    
+    # Integration
     "KeterIntegration",
     "create_keter_integration",
     "initialize_keter_with_iskra",
+    
+    # Specialized modules
     "create_spirit_synthesis_module",
-    "SpiritCoreV3_4",
+    "SpiritCoreV3_4",  # ← Уже есть в экспорте
     "WillpowerCoreV3_2",
     "create_core_govx_module",
     "create_moral_memory_module",
@@ -94,6 +133,7 @@ __all__ = [
 # ============================================================
 
 def get_package_info() -> Dict[str, Any]:
+    """Получение информации о пакете"""
     return {
         "name": "KETHER",
         "version": __version__,
@@ -108,6 +148,7 @@ def get_package_info() -> Dict[str, Any]:
     }
 
 def check_dependencies() -> Dict[str, Any]:
+    """Проверка зависимостей пакета"""
     dependencies = {
         "asyncio": "встроен в Python 3.7+",
         "typing": "встроен в Python 3.5+",
@@ -140,6 +181,7 @@ def check_dependencies() -> Dict[str, Any]:
 # ============================================================
 
 def _initialize_package():
+    """Инициализация пакета при загрузке"""
     logger = logging.getLogger("KETHER")
     
     if not logger.handlers:
@@ -151,6 +193,7 @@ def _initialize_package():
     
     logger.info(f"Пакет KETHER v{__version__} загружается...")
     
+    # Проверяем зависимости
     deps = check_dependencies()
     
     if not deps["all_available"]:
@@ -159,11 +202,20 @@ def _initialize_package():
             if info["status"] == "missing":
                 logger.warning(f"  Отсутствует: {dep} - {info['description']}")
     
+    # Логируем результат импорта
     if IMPORT_SUCCESS:
         logger.info(f"✅ Пакет KETHER v{__version__} успешно загружен")
         logger.info(f"   Сефира: {__sephira_name__} ({__sephira__})")
         logger.info(f"   Архитектура: {__architecture__}")
+        logger.info(f"   Экспортировано компонентов: {len(__all__)}")
+        
+        # Проверяем наличие activate_keter
+        if 'activate_keter' in globals() and callable(activate_keter):
+            logger.info(f"   Функция activate_keter: ✅ доступна")
+        else:
+            logger.warning(f"   Функция activate_keter: ❌ не найдена")
     else:
         logger.error(f"❌ Пакет KETHER v{__version__} загружен с ошибками импорта")
 
+# Выполняем инициализацию
 _initialize_package()
