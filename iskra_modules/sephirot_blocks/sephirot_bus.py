@@ -670,3 +670,6 @@ if __name__ == "__main__":
     print("\n📊 Детальный статус шины:")
     import json
     print(json.dumps(bus.get_detailed_status(), indent=2, ensure_ascii=False))
+
+# Обратная совместимость
+SephirotBus = SephiroticBus
