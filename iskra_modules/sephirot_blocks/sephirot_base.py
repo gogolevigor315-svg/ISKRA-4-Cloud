@@ -2542,6 +2542,11 @@ async def test_sephirotic_system():
     """Тестовая функция для проверки сефиротической системы"""
     print("🧪 Тестирование сефиротической системы v4.0.1...")
     
+    # ИМПОРТ НУЖНЫХ КЛАССОВ
+    from .sephirot_bus import SephiroticBus
+    from .sephirotic_engine import create_sephirotic_system
+    from .sephirot_base import SignalType  # если SignalType определён в этом же файле
+    
     bus = SephiroticBus()
     
     engine = await create_sephirotic_system(bus)
