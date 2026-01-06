@@ -731,6 +731,12 @@ async def _test_spirit_core_v34():
         # Выключение
         await module.shutdown()
 
+# ===============================================================
+# СОВМЕСТИМОСТЬ С ИМПОРТОМ
+# ===============================================================
+
+SpiritCoreV3_4 = SPIRIT_CORE_v34_KETER
+
 if __name__ == "__main__":
     import sys
     if "--test" in sys.argv:
