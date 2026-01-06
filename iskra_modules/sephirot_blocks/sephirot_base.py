@@ -1770,7 +1770,7 @@ class SephiroticNode(ISephiraModule):
                 else:
                     self.status = NodeStatus.ACTIVE
                 
-                               if self._error_log:
+                if self._error_log:
                     recent_errors = list(self._error_log)[-5:]
                     self.logger.debug(f"Последние 5 ошибок: {recent_errors}")
                 
