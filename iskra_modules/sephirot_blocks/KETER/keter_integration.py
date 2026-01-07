@@ -29,7 +29,10 @@ try:
     # Импортируем архитектуру ISKRA-4
     from sephirot_base import ISephiraModule, SephiraConfig, EnergyLevel
     from sephirot_bus import SephirotBus, EventMessage
-    from sephirotic_engine import SephiroticEngine, SephirotIntegration
+    import importlib
+    sephirotic_engine_module = importlib.import_module("iskra_modules.sephirot_blocks.sephirotic_engine")
+    SephiroticEngine = sephirotic_engine_module.SephiroticEngine
+    SephirotIntegration = getattr(sephirotic_engine_module, "SephirotIntegration", None)
     
     KETER_MODULES_AVAILABLE = True
     ISKRA_ARCHITECTURE_AVAILABLE = True
