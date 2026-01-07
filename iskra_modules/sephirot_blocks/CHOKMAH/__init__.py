@@ -1,6 +1,7 @@
 """
 CHOKMAH PACKAGE - Сефира CHOKMAH (חָכְמָה - Мудрость) для системы ISKRA-4
 Ядро интуитивного озарения и потокового понимания системы
+Обновлённая версия для совместимости с IntuitionMatrix 3.4
 """
 
 import os
@@ -36,7 +37,7 @@ __description__ = "Сефира CHOKMAH - ядро интуитивного оз
 
 try:
     from .wisdom_core import WisdomCore
-    from .intuition_matrix import IntuitionMatrix
+    from .intuition_matrix import IntuitionMatrixExecutor
     from .chokmah_api import ChokmahAPI
     from .chokmah_integration import ChokmahIntegration
     
@@ -56,7 +57,12 @@ except ImportError as e:
         async def resonate(self):
             pass
     
-    IntuitionMatrix = type('IntuitionMatrix', (), {})
+    class IntuitionMatrixExecutor:
+        def __init__(self):
+            self.matrix = None
+        def initialize(self):
+            return False
+    
     ChokmahAPI = type('ChokmahAPI', (), {})
     ChokmahIntegration = type('ChokmahIntegration', (), {})
 
@@ -66,7 +72,7 @@ except ImportError as e:
 
 __all__ = [
     "WisdomCore",
-    "IntuitionMatrix", 
+    "IntuitionMatrixExecutor",  # Изменили с IntuitionMatrix на Executor
     "ChokmahAPI",
     "ChokmahIntegration",
     "activate_chokmah",
@@ -80,7 +86,7 @@ __all__ = [
 # ============================================================
 
 _active_wisdom_core: Optional[WisdomCore] = None
-_active_intuition_matrix: Optional[IntuitionMatrix] = None
+_active_intuition_executor: Optional[IntuitionMatrixExecutor] = None  # Изменили тип
 
 # ============================================================
 # 6. ОСНОВНЫЕ ФУНКЦИИ ПАКЕТА
@@ -94,19 +100,28 @@ def create_wisdom_core(config: Optional[Dict] = None) -> WisdomCore:
         logging.getLogger("CHOKMAH").info("💡 Ядро мудрости CHOKMAH создано")
     return _active_wisdom_core
 
-def create_intuition_matrix(config: Optional[Dict] = None) -> IntuitionMatrix:
-    """Создаёт и возвращает матрицу интуиции"""
-    global _active_intuition_matrix
-    if _active_intuition_matrix is None:
-        _active_intuition_matrix = IntuitionMatrix(config)
-        logging.getLogger("CHOKMAH").info("🔮 Матрица интуиции инициализирована")
-    return _active_intuition_matrix
+def create_intuition_executor(config: Optional[Dict] = None) -> IntuitionMatrixExecutor:
+    """Создаёт и возвращает исполнитель матрицы интуиции"""
+    global _active_intuition_executor
+    if _active_intuition_executor is None:
+        try:
+            executor = IntuitionMatrixExecutor()
+            success = executor.initialize()
+            if not success:
+                raise RuntimeError("Failed to initialize IntuitionMatrixExecutor")
+            
+            _active_intuition_executor = executor
+            logging.getLogger("CHOKMAH").info("🔮 Исполнитель матрицы интуиции инициализирован")
+        except Exception as e:
+            logging.getLogger("CHOKMAH").error(f"❌ Ошибка создания исполнителя матрицы: {e}")
+            raise
+    return _active_intuition_executor
 
-def get_active_chokmah() -> Tuple[Optional[WisdomCore], Optional[IntuitionMatrix]]:
+def get_active_chokmah() -> Tuple[Optional[WisdomCore], Optional[IntuitionMatrixExecutor]]:
     """Возвращает активные компоненты CHOKMAH"""
-    return _active_wisdom_core, _active_intuition_matrix
+    return _active_wisdom_core, _active_intuition_executor
 
-async def activate_chokmah(config: Optional[Dict] = None) -> Tuple[WisdomCore, IntuitionMatrix]:
+async def activate_chokmah(config: Optional[Dict] = None) -> Tuple[WisdomCore, IntuitionMatrixExecutor]:
     """
     Асинхронная активация потока мудрости CHOKMAH
     
@@ -114,22 +129,23 @@ async def activate_chokmah(config: Optional[Dict] = None) -> Tuple[WisdomCore, I
         config: Конфигурация для инициализации
         
     Returns:
-        Кортеж (WisdomCore, IntuitionMatrix) — активированные компоненты
+        Кортеж (WisdomCore, IntuitionMatrixExecutor) — активированные компоненты
     """
     logger = logging.getLogger("CHOKMAH")
     logger.info("🌊 Активация CHOKMAH-STREAM...")
     
     wisdom_core = create_wisdom_core(config)
-    intuition_matrix = create_intuition_matrix(config)
+    intuition_executor = create_intuition_executor(config)
     
     try:
         await wisdom_core.initialize()
-        await intuition_matrix.initialize()
-        await wisdom_core.connect_matrix(intuition_matrix)
+        # У исполнителя нет async initialize, поэтому вызываем sync версию
+        # Если нужно, можно добавить async метод в класс
+        await wisdom_core.connect_matrix(intuition_executor.matrix)
         await wisdom_core.resonate()
         
         logger.info(f"✅ CHOKMAH-STREAM v{__version__} активирован")
-        return wisdom_core, intuition_matrix
+        return wisdom_core, intuition_executor
         
     except Exception as e:
         logger.error(f"❌ Ошибка активации CHOKMAH: {e}")
@@ -154,7 +170,7 @@ def get_package_info() -> Dict[str, Any]:
         "available_components": __all__,
         "active_components": {
             "wisdom_core": _active_wisdom_core is not None,
-            "intuition_matrix": _active_intuition_matrix is not None
+            "intuition_executor": _active_intuition_executor is not None
         }
     }
 
@@ -215,6 +231,7 @@ def _initialize_package():
         logger.info(f"✅ Пакет CHOKMAH v{__version__} успешно загружен")
         logger.info(f"   Сефира: {__sephira_name__} ({__sephira__})")
         logger.info(f"   Архитектура: {__architecture__}")
+        logger.info(f"   Используется IntuitionMatrixExecutor (v3.4)")
     else:
         logger.error(f"❌ Пакет CHOKMAH v{__version__} загружен с ошибками импорта")
 
