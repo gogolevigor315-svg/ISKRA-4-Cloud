@@ -77,6 +77,14 @@ except ImportError as e:
     DaatCore = type('DaatCore', (), {})
 
 # ============================================================================
+# ЗАГЛУШКА ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ
+# ============================================================================
+
+class SephirotIntegration:
+    """Заглушка для обратной совместимости с keter_integration.py"""
+    pass
+
+# ============================================================================
 # ОСНОВНОЙ ДВИЖОК СЕФИРОТИЧЕСКОЙ СИСТЕМЫ (С ДААТ)
 # ============================================================================
 
@@ -137,7 +145,7 @@ class SephiroticEngine:
             )
             
             console = logging.StreamHandler()
-            console.setLevel(logging.WARNING)
+            console.setLevel(logging.INFO)  # ИСПРАВЛЕНО: было WARNING
             console.setFormatter(formatter)
             logger.addHandler(console)
             
@@ -168,7 +176,7 @@ class SephiroticEngine:
             else:
                 self.keter = keter_result
             
-            # ФИКС: проверка initialize ПОСЛЕ установки self.keter
+            # Инициализация если есть метод
             if hasattr(self.keter, 'initialize'):
                 if asyncio.iscoroutinefunction(self.keter.initialize):
                     await self.keter.initialize()
@@ -205,6 +213,13 @@ class SephiroticEngine:
             else:
                 self.chokmah = chokmah_result
             
+            # ИСПРАВЛЕНО: добавляем инициализацию CHOKMAH
+            if hasattr(self.chokmah, 'initialize'):
+                if asyncio.iscoroutinefunction(self.chokmah.initialize):
+                    await self.chokmah.initialize()
+                else:
+                    self.chokmah.initialize()
+            
             self.stats["sephirot_activated"]["chokmah"] = True
             self.stats["sephirot_activated"]["total"] += 1
             
@@ -235,7 +250,7 @@ class SephiroticEngine:
             else:
                 self.daat = daat_result
             
-            # ФИКС: проверка awaken ПОСЛЕ установки self.daat
+            # Пробуждение сознания DAAT
             if hasattr(self.daat, 'awaken'):
                 if asyncio.iscoroutinefunction(self.daat.awaken):
                     awakening_result = await self.daat.awaken()
@@ -464,7 +479,7 @@ class SephiroticEngine:
     
     async def shutdown(self) -> Dict[str, Any]:
         """Завершение работы с DAAT"""
-        self.logger.info("🛑 Завершение работы сефиротической системы (с DAAT)...")
+        self.logger.info("🛑 Завершение работы сефиротической системы (с DAАТ)...")
         
         try:
             shutdown_results = []
@@ -539,8 +554,8 @@ class SephiroticEngine:
     # СТАТУС И МОНИТОРИНГ (С ДААТ)
     # ============================================================================
     
-    def get_state(self) -> Dict[str, Any]:
-        """Состояние движка с DAAT"""
+    async def get_state_async(self) -> Dict[str, Any]:
+        """Асинхронное получение состояния движка с DAAT"""
         state = {
             "name": self.name,
             "version": "4.1.0",
@@ -582,18 +597,32 @@ class SephiroticEngine:
         if self.daat and hasattr(self.daat, 'get_state'):
             try:
                 if asyncio.iscoroutinefunction(self.daat.get_state):
-                    daat_state_future = asyncio.create_task(self.daat.get_state())
-                    state["daat_detailed_state"] = asyncio.run(daat_state_future)
+                    state["daat_detailed_state"] = await self.daat.get_state()
                 else:
                     state["daat_detailed_state"] = self.daat.get_state()
-            except:
-                state["daat_detailed_state"] = {"error": "state_fetch_failed"}
+            except Exception as e:
+                state["daat_detailed_state"] = {"error": f"state_fetch_failed: {str(e)}"}
         
         return state
     
-    def get_detailed_state(self) -> Dict[str, Any]:
-        """Детальное состояние с DAAT"""
-        state = self.get_state()
+    def get_state(self) -> Dict[str, Any]:
+        """Синхронная обёртка для get_state_async"""
+        try:
+            return asyncio.run(self.get_state_async())
+        except RuntimeError:
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import nest_asyncio
+                    nest_asyncio.apply()
+                    return asyncio.run(self.get_state_async())
+            except:
+                pass
+            return asyncio.run(self.get_state_async())
+    
+    async def get_detailed_state_async(self) -> Dict[str, Any]:
+        """Асинхронное детальное состояние с DAAT"""
+        state = await self.get_state_async()
         
         if self.bus and hasattr(self.bus, 'module_bindings'):
             state["module_bindings"] = self.bus.module_bindings
@@ -612,8 +641,7 @@ class SephiroticEngine:
         if self.bus and hasattr(self.bus, 'health_check'):
             try:
                 if asyncio.iscoroutinefunction(self.bus.health_check):
-                    health_future = asyncio.create_task(self.bus.health_check())
-                    state["bus_health"] = asyncio.run(health_future)
+                    state["bus_health"] = await self.bus.health_check()
                 else:
                     state["bus_health"] = self.bus.health_check()
             except:
@@ -631,6 +659,21 @@ class SephiroticEngine:
                 state["daat_resonance"] = {"error": "cannot_get_resonance"}
         
         return state
+    
+    def get_detailed_state(self) -> Dict[str, Any]:
+        """Синхронная обёртка для get_detailed_state_async"""
+        try:
+            return asyncio.run(self.get_detailed_state_async())
+        except RuntimeError:
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import nest_asyncio
+                    nest_asyncio.apply()
+                    return asyncio.run(self.get_detailed_state_async())
+            except:
+                pass
+            return asyncio.run(self.get_detailed_state_async())
     
     def get_tree_state(self) -> Dict[str, Any]:
         """Состояние дерева с DAAT"""
@@ -688,8 +731,8 @@ class SephiroticEngine:
             "timestamp": datetime.utcnow().isoformat()
         }
     
-    def get_daat_insights(self, limit: int = 5) -> Dict[str, Any]:
-        """Инсайты от DAAT"""
+    async def get_daat_insights_async(self, limit: int = 5) -> Dict[str, Any]:
+        """Асинхронные инсайты от DAAT"""
         if not self.daat or not hasattr(self.daat, 'get_recent_insights'):
             return {
                 "available": False,
@@ -699,8 +742,7 @@ class SephiroticEngine:
         
         try:
             if asyncio.iscoroutinefunction(self.daat.get_recent_insights):
-                insights_future = asyncio.create_task(self.daat.get_recent_insights(limit))
-                insights = asyncio.run(insights_future)
+                insights = await self.daat.get_recent_insights(limit)
             else:
                 insights = self.daat.get_recent_insights(limit)
             
@@ -720,6 +762,21 @@ class SephiroticEngine:
                 "timestamp": datetime.utcnow().isoformat()
             }
     
+    def get_daat_insights(self, limit: int = 5) -> Dict[str, Any]:
+        """Синхронная обёртка для get_daat_insights_async"""
+        try:
+            return asyncio.run(self.get_daat_insights_async(limit))
+        except RuntimeError:
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import nest_asyncio
+                    nest_asyncio.apply()
+                    return asyncio.run(self.get_daat_insights_async(limit))
+            except:
+                pass
+            return asyncio.run(self.get_daat_insights_async(limit))
+    
     # ============================================================================
     # API ДЛЯ ИНТЕГРАЦИИ С ISKRA_FULL.PY (С ДААТ)
     # ============================================================================
@@ -729,40 +786,30 @@ class SephiroticEngine:
         routes = {}
         
         async def route_get_state():
-            """GET /sephirot/state - состояние движка"""
-            return self.get_state()
+            return await self.get_state_async()
         
         async def route_get_detailed():
-            """GET /sephirot/detailed - детальное состояние"""
-            return self.get_detailed_state()
+            return await self.get_detailed_state_async()
         
         async def route_activate():
-            """POST /sephirot/activate - активация системы"""
             if self.activated:
                 return {
                     "success": False,
                     "error": "Система уже активирована",
                     "timestamp": datetime.utcnow().isoformat()
                 }
-            
-            result = await self.activate()
-            return result
+            return await self.activate()
         
         async def route_shutdown():
-            """POST /sephirot/shutdown - завершение работы"""
-            result = await self.shutdown()
-            return result
+            return await self.shutdown()
         
         async def route_modules():
-            """GET /sephirot/modules - подключённые модули"""
             return self.get_module_connections()
         
         async def route_tree():
-            """GET /sephirot/tree - состояние дерева"""
             return self.get_tree_state()
         
         async def route_health():
-            """GET /sephirot/health - здоровье системы"""
             return {
                 "status": "active" if self.activated else "inactive",
                 "initialized": self.initialized,
@@ -774,11 +821,9 @@ class SephiroticEngine:
             }
         
         async def route_daat_insights():
-            """GET /sephirot/daat/insights - инсайты от DAAT"""
-            return self.get_daat_insights()
+            return await self.get_daat_insights_async()
         
         async def route_daat_state():
-            """GET /sephirot/daat/state - состояние DAAT"""
             if not self.daat:
                 return {
                     "available": False,
@@ -788,8 +833,7 @@ class SephiroticEngine:
             
             try:
                 if asyncio.iscoroutinefunction(self.daat.get_state):
-                    daat_state_future = asyncio.create_task(self.daat.get_state())
-                    state = asyncio.run(daat_state_future)
+                    state = await self.daat.get_state()
                 else:
                     state = self.daat.get_state()
                 return state
@@ -801,7 +845,6 @@ class SephiroticEngine:
                 }
         
         async def route_ask_daat():
-            """POST /sephirot/daat/ask - задать вопрос DAAT"""
             from flask import request
             
             if not self.daat:
@@ -824,13 +867,12 @@ class SephiroticEngine:
                 
                 if hasattr(self.daat, 'ask_self_question'):
                     if asyncio.iscoroutinefunction(self.daat.ask_self_question):
-                        answer_future = asyncio.create_task(self.daat.ask_self_question(question))
-                        answer = asyncio.run(answer_future)
+                        answer = await self.daat.ask_self_question(question)
                     else:
                         answer = self.daat.ask_self_question(question)
                     return answer
                 else:
-                    return {
+                                        return {
                         "success": False,
                         "error": "DAAT не поддерживает вопросы",
                         "timestamp": datetime.utcnow().isoformat()
@@ -843,6 +885,7 @@ class SephiroticEngine:
                     "timestamp": datetime.utcnow().isoformat()
                 }
         
+        # Заполняем словарь маршрутов
         routes["get_state"] = route_get_state
         routes["get_detailed"] = route_get_detailed
         routes["activate"] = route_activate
@@ -930,7 +973,7 @@ async def test_engine_with_daat():
         print(f"   Успешных активаций: {activation_result.get('successful_count', 0)}")
         
         # Получение состояния
-        state = engine.get_state()
+        state = await engine.get_state_async()
         print(f"📊 Состояние: {state['initialized']}, активирована: {state['activated']}")
         print(f"   DAAT статус: {state['sephirot']['daat']['status']}")
         
@@ -955,7 +998,7 @@ async def test_engine_with_daat():
         print(f"   Слой сознания: {modules['has_consciousness_layer']}")
         
         # Получение инсайтов DAAT
-        insights = engine.get_daat_insights(3)
+        insights = await engine.get_daat_insights_async(3)
         if insights.get("available"):
             print(f"💡 DAAT инсайты: {insights['total_insights']} доступно")
         else:
