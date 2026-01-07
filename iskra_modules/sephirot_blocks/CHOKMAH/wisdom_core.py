@@ -27,7 +27,7 @@ class WisdomCore:
         
         logger.info(f"Инициализировано ядро {self.name}")
 
-     async def initialize(self):
+    async def initialize(self):
         """
         Инициализация ядра мудрости.
         Вызывается из sephirotic_engine.py при активации CHOKMAH.
