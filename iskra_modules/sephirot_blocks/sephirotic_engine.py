@@ -7,6 +7,7 @@ sephirotic_engine.py - ЛЕГКОВЕСНЫЙ ДВИЖОК ДЛЯ ИНТЕГРА
 
 import asyncio
 import json
+import traceback
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Tuple
 import logging
