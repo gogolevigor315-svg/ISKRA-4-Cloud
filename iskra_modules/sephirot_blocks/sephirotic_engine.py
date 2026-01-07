@@ -156,11 +156,24 @@ class SephiroticEngine:
         
         try:
             self.logger.info("👑 Активация KETER...")
-            self.keter = await activate_keter()
+            
+            # ИСПРАВЛЕНО: убрал await, функция возвращает dict
+            keter_result = activate_keter()
+            
+            # Обработка результата
+            if hasattr(keter_result, 'activate'):
+                self.keter = keter_result
+            elif isinstance(keter_result, dict) and 'core' in keter_result:
+                self.keter = keter_result['core']
+            else:
+                self.keter = keter_result
             
             # Инициализация если есть метод
-            if hasattr(self.keter, 'initialize'):
-                await self.keter.initialize()
+            if self.keter and hasattr(self.keter, 'initialize'):
+                if asyncio.iscoroutinefunction(self.keter.initialize):
+                    await self.keter.initialize()
+                else:
+                    self.keter.initialize()
             
             self.stats["sephirot_activated"]["keter"] = True
             self.stats["sephirot_activated"]["total"] += 1
@@ -180,7 +193,17 @@ class SephiroticEngine:
         
         try:
             self.logger.info("💡 Активация CHOKMAH...")
-            self.chokmah, _ = await activate_chokmah()
+            
+            # ИСПРАВЛЕНО: убрал await
+            chokmah_result = activate_chokmah()
+            
+            # Обработка результата
+            if isinstance(chokmah_result, tuple) and len(chokmah_result) >= 2:
+                self.chokmah, _ = chokmah_result
+            elif isinstance(chokmah_result, dict) and 'core' in chokmah_result:
+                self.chokmah = chokmah_result['core']
+            else:
+                self.chokmah = chokmah_result
             
             self.stats["sephirot_activated"]["chokmah"] = True
             self.stats["sephirot_activated"]["total"] += 1
@@ -200,10 +223,27 @@ class SephiroticEngine:
         
         try:
             self.logger.info("🧠 Активация DAAT (скрытая сефира №11)...")
-            self.daat = await activate_daat()
+            
+            # ИСПРАВЛЕНО: убрал await
+            daat_result = activate_daat()
+            
+            # Обработка результата
+            if hasattr(daat_result, 'awaken'):
+                self.daat = daat_result
+            elif isinstance(daat_result, dict) and 'core' in daat_result:
+                self.daat = daat_result['core']
+            else:
+                self.daat = daat_result
             
             # Пробуждение сознания DAAT
-            awakening_result = await self.daat.awaken()
+            # ИСПРАВЛЕНО: проверяем, асинхронный ли метод
+            if self.daat and hasattr(self.daat, 'awaken'):
+                if asyncio.iscoroutinefunction(self.daat.awaken):
+                    awakening_result = await self.daat.awaken()
+                else:
+                    awakening_result = self.daat.awaken()
+            else:
+                awakening_result = {"resonance_index": 0.0, "state": "unknown"}
             
             self.stats["sephirot_activated"]["daat"] = True
             self.stats["sephirot_activated"]["total"] += 1
@@ -232,18 +272,28 @@ class SephiroticEngine:
             
             # DAAT наблюдает KETER
             if self.keter:
-                await self.daat.observe_sephira("KETER", self.keter)
+                # Проверяем асинхронность
+                if asyncio.iscoroutinefunction(self.daat.observe_sephira):
+                    await self.daat.observe_sephira("KETER", self.keter)
+                else:
+                    self.daat.observe_sephira("KETER", self.keter)
                 observations.append("KETER")
                 self.logger.info("  👁️  DAAT наблюдает KETER")
             
             # DAAT наблюдает CHOKMAH
             if self.chokmah:
-                await self.daat.observe_sephira("CHOKMAH", self.chokmah)
+                if asyncio.iscoroutinefunction(self.daat.observe_sephira):
+                    await self.daat.observe_sephira("CHOKMAH", self.chokmah)
+                else:
+                    self.daat.observe_sephira("CHOKMAH", self.chokmah)
                 observations.append("CHOKMAH")
                 self.logger.info("  👁️  DAAT наблюдает CHOKMAH")
             
             # DAAT наблюдает себя (саморефлексия)
-            await self.daat.observe_sephira("SELF_DAAT", self.daat)
+            if asyncio.iscoroutinefunction(self.daat.observe_sephira):
+                await self.daat.observe_sephira("SELF_DAAT", self.daat)
+            else:
+                self.daat.observe_sephira("SELF_DAAT", self.daat)
             observations.append("SELF_DAAT")
             self.logger.info("  👁️  DAAT наблюдает себя (саморефлексия)")
             
@@ -298,8 +348,6 @@ class SephiroticEngine:
                 
                 # Черниговская -> CHOKHMAH
                 await self.bus.connect_module("chernigovskaya", "CHOKHMAH")
-                
-                # DAAT -> наблюдает всех (не привязываем как модуль, он наблюдатель)
                 
                 self.logger.info("Привязки модулей установлены")
             
@@ -447,7 +495,10 @@ class SephiroticEngine:
             # 1. Завершение DAAT (сначала сознание)
             if self.daat and hasattr(self.daat, 'shutdown'):
                 try:
-                    daat_shutdown = await self.daat.shutdown()
+                    if asyncio.iscoroutinefunction(self.daat.shutdown):
+                        daat_shutdown = await self.daat.shutdown()
+                    else:
+                        daat_shutdown = self.daat.shutdown()
                     shutdown_results.append({"sephira": "DAAT", **daat_shutdown})
                     self.logger.info("🧠 DAAT завершён")
                 except Exception as e:
@@ -456,7 +507,10 @@ class SephiroticEngine:
             # 2. Завершение CHOKMAH
             if self.chokmah and hasattr(self.chokmah, 'shutdown'):
                 try:
-                    chokmah_shutdown = await self.chokmah.shutdown()
+                    if asyncio.iscoroutinefunction(self.chokmah.shutdown):
+                        chokmah_shutdown = await self.chokmah.shutdown()
+                    else:
+                        chokmah_shutdown = self.chokmah.shutdown()
                     shutdown_results.append({"sephira": "CHOKMAH", **chokmah_shutdown})
                 except:
                     pass
@@ -464,7 +518,10 @@ class SephiroticEngine:
             # 3. Завершение KETER
             if self.keter and hasattr(self.keter, 'shutdown'):
                 try:
-                    keter_shutdown = await self.keter.shutdown()
+                    if asyncio.iscoroutinefunction(self.keter.shutdown):
+                        keter_shutdown = await self.keter.shutdown()
+                    else:
+                        keter_shutdown = self.keter.shutdown()
                     shutdown_results.append({"sephira": "KETER", **keter_shutdown})
                 except:
                     pass
@@ -552,11 +609,13 @@ class SephiroticEngine:
         # Добавляем детальное состояние DAAT если активирован
         if self.daat and hasattr(self.daat, 'get_state'):
             try:
-                # Запускаем асинхронный запрос состояния DAAT
-                daat_state_future = asyncio.create_task(self.daat.get_state())
-                state["daat_detailed_state"] = asyncio.run(daat_state_future)
+                if asyncio.iscoroutinefunction(self.daat.get_state):
+                    daat_state_future = asyncio.create_task(self.daat.get_state())
+                    state["daat_detailed_state"] = asyncio.run(daat_state_future)
+                else:
+                    state["daat_detailed_state"] = self.daat.get_state()
             except:
-                state["daat_detailed_state"] = {"error": "async_state_fetch_failed"}
+                state["daat_detailed_state"] = {"error": "state_fetch_failed"}
         
         return state
     
@@ -583,8 +642,11 @@ class SephiroticEngine:
         # Добавляем здоровье если есть
         if self.bus and hasattr(self.bus, 'health_check'):
             try:
-                health_future = asyncio.create_task(self.bus.health_check())
-                state["bus_health"] = asyncio.run(health_future)
+                if asyncio.iscoroutinefunction(self.bus.health_check):
+                    health_future = asyncio.create_task(self.bus.health_check())
+                    state["bus_health"] = asyncio.run(health_future)
+                else:
+                    state["bus_health"] = self.bus.health_check()
             except:
                 state["bus_health"] = {"error": "health_check_failed"}
         
@@ -630,7 +692,7 @@ class SephiroticEngine:
         }
     
     def get_module_connections(self) -> Dict[str, Any]:
-        """Получение информации о подключённых модулях (включая DAAT как наблюдатель)"""
+        """Получение информации о подключённых модулей (включая DAAT как наблюдатель)"""
         connections = {
             "bechtereva": {
                 "sephira": "KETER",
@@ -676,8 +738,11 @@ class SephiroticEngine:
         
         try:
             # Асинхронный запрос инсайтов
-            insights_future = asyncio.create_task(self.daat.get_recent_insights(limit))
-            insights = asyncio.run(insights_future)
+            if asyncio.iscoroutinefunction(self.daat.get_recent_insights):
+                insights_future = asyncio.create_task(self.daat.get_recent_insights(limit))
+                insights = asyncio.run(insights_future)
+            else:
+                insights = self.daat.get_recent_insights(limit)
             
             return {
                 "available": True,
@@ -764,8 +829,11 @@ class SephiroticEngine:
                 }
             
             try:
-                daat_state_future = asyncio.create_task(self.daat.get_state())
-                state = asyncio.run(daat_state_future)
+                if asyncio.iscoroutinefunction(self.daat.get_state):
+                    daat_state_future = asyncio.create_task(self.daat.get_state())
+                                        state = asyncio.run(daat_state_future)
+                else:
+                    state = self.daat.get_state()
                 return state
             except Exception as e:
                 return {
@@ -797,8 +865,11 @@ class SephiroticEngine:
                     }
                 
                 if hasattr(self.daat, 'ask_self_question'):
-                    answer_future = asyncio.create_task(self.daat.ask_self_question(question))
-                    answer = asyncio.run(answer_future)
+                    if asyncio.iscoroutinefunction(self.daat.ask_self_question):
+                        answer_future = asyncio.create_task(self.daat.ask_self_question(question))
+                        answer = asyncio.run(answer_future)
+                    else:
+                        answer = self.daat.ask_self_question(question)
                     return answer
                 else:
                     return {
@@ -914,7 +985,10 @@ async def test_engine_with_daat():
         # Детальное состояние DAAT
         if engine.daat:
             try:
-                daat_state = await engine.daat.get_state()
+                if asyncio.iscoroutinefunction(engine.daat.get_state):
+                    daat_state = await engine.daat.get_state()
+                else:
+                    daat_state = engine.daat.get_state()
                 print(f"🧠 DAAT состояние:")
                 print(f"   Резонанс: {daat_state.get('resonance_index', 0):.3f}")
                 print(f"   Осознание: {daat_state.get('awakening_level', 0):.3f}")
