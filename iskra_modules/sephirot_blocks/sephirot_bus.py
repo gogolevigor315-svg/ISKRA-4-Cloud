@@ -8,6 +8,7 @@ sephirot_bus.py - ЛЕГКОВЕСНАЯ ШИНА СВЯЗИ ДЛЯ СЕФИРО
 import asyncio
 import json
 import hashlib
+import time
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Callable
 from collections import deque, defaultdict
@@ -573,6 +574,32 @@ class SephiroticBus:
             health["status"] = "degraded"
         
         return health
+
+# ============================================================================
+# КЛАСС СООБЩЕНИЯ ДЛЯ ШИНЫ
+# ============================================================================
+
+class EventMessage:
+    """Сообщение для шины событий"""
+    def __init__(self, event_type=None, data=None, source=None, target=None):
+        self.event_type = event_type
+        self.data = data
+        self.source = source
+        self.target = target
+        self.timestamp = time.time()
+    
+    def __repr__(self):
+        return f"EventMessage({self.event_type}, source={self.source}, target={self.target})"
+    
+    def to_dict(self):
+        """Преобразование в словарь"""
+        return {
+            'event_type': self.event_type,
+            'data': self.data,
+            'source': self.source,
+            'target': self.target,
+            'timestamp': self.timestamp
+        }
 
 # ============================================================================
 # ФАБРИКА ДЛЯ СОЗДАНИЯ ШИНЫ
