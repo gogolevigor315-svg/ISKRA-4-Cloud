@@ -155,7 +155,7 @@ class SephiroticEngine:
         
         try:
             self.logger.info("👑 Активация KETER...")
-            self.keter = activate_keter()
+            self.keter = await activate_keter()
             
             # Инициализация если есть метод
             if hasattr(self.keter, 'initialize'):
@@ -199,7 +199,7 @@ class SephiroticEngine:
         
         try:
             self.logger.info("🧠 Активация DAAT (скрытая сефира №11)...")
-            self.daat = activate_daat()
+            self.daat = await activate_daat()
             
             # Пробуждение сознания DAAT
             awakening_result = await self.daat.awaken()
