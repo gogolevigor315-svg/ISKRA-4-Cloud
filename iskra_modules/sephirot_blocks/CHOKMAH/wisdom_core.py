@@ -26,6 +26,25 @@ class WisdomCore:
         self.chernigovskaya = None
         
         logger.info(f"Инициализировано ядро {self.name}")
+
+     async def initialize(self):
+        """
+        Инициализация ядра мудрости.
+        Вызывается из sephirotic_engine.py при активации CHOKMAH.
+        """
+        # Простая реализация - только меняем статус
+        self.status = "initialized"
+        
+        # Логируем успех
+        logger.info(f"✅ Ядро {self.name} инициализировано (resonance: {self.resonance:.2f})")
+        
+        # Возвращаем стандартный ответ как в KETER и DAAT
+        return {
+            "status": "initialized", 
+            "core": self.name,
+            "resonance": self.resonance,
+            "energy": self.energy
+        }
     
     async def _load_modules(self) -> bool:
         """Загружает и инициализирует модули CHOKMAH."""
