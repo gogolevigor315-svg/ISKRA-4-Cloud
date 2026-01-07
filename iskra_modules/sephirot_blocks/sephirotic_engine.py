@@ -157,7 +157,7 @@ class SephiroticEngine:
         try:
             self.logger.info("👑 Активация KETER...")
             
-            # ИСПРАВЛЕНО: убрал await, функция возвращает dict
+            # ФИКС: убрал await
             keter_result = activate_keter()
             
             # Обработка результата
@@ -168,8 +168,8 @@ class SephiroticEngine:
             else:
                 self.keter = keter_result
             
-            # Инициализация если есть метод
-            if self.keter and hasattr(self.keter, 'initialize'):
+            # ФИКС: проверка initialize ПОСЛЕ установки self.keter
+            if hasattr(self.keter, 'initialize'):
                 if asyncio.iscoroutinefunction(self.keter.initialize):
                     await self.keter.initialize()
                 else:
@@ -194,7 +194,7 @@ class SephiroticEngine:
         try:
             self.logger.info("💡 Активация CHOKMAH...")
             
-            # ИСПРАВЛЕНО: убрал await
+            # ФИКС: убрал await
             chokmah_result = activate_chokmah()
             
             # Обработка результата
@@ -224,7 +224,7 @@ class SephiroticEngine:
         try:
             self.logger.info("🧠 Активация DAAT (скрытая сефира №11)...")
             
-            # ИСПРАВЛЕНО: убрал await
+            # ФИКС: убрал await
             daat_result = activate_daat()
             
             # Обработка результата
@@ -235,9 +235,8 @@ class SephiroticEngine:
             else:
                 self.daat = daat_result
             
-            # Пробуждение сознания DAAT
-            # ИСПРАВЛЕНО: проверяем, асинхронный ли метод
-            if self.daat and hasattr(self.daat, 'awaken'):
+            # ФИКС: проверка awaken ПОСЛЕ установки self.daat
+            if hasattr(self.daat, 'awaken'):
                 if asyncio.iscoroutinefunction(self.daat.awaken):
                     awakening_result = await self.daat.awaken()
                 else:
@@ -272,7 +271,6 @@ class SephiroticEngine:
             
             # DAAT наблюдает KETER
             if self.keter:
-                # Проверяем асинхронность
                 if asyncio.iscoroutinefunction(self.daat.observe_sephira):
                     await self.daat.observe_sephira("KETER", self.keter)
                 else:
@@ -289,13 +287,13 @@ class SephiroticEngine:
                 observations.append("CHOKMAH")
                 self.logger.info("  👁️  DAAT наблюдает CHOKMAH")
             
-            # DAAT наблюдает себя (саморефлексия)
+            # DAAT наблюдает себя
             if asyncio.iscoroutinefunction(self.daat.observe_sephira):
                 await self.daat.observe_sephira("SELF_DAAT", self.daat)
             else:
                 self.daat.observe_sephira("SELF_DAAT", self.daat)
             observations.append("SELF_DAAT")
-            self.logger.info("  👁️  DAAT наблюдает себя (саморефлексия)")
+            self.logger.info("  👁️  DAAT наблюдает себя")
             
             return {
                 "success": True,
@@ -313,14 +311,12 @@ class SephiroticEngine:
     # ============================================================================
     
     async def initialize(self, existing_bus: Optional[SephiroticBus] = None) -> Dict[str, Any]:
-        """
-        Инициализация сефиротической системы с поддержкой DAAT.
-        """
+        """Инициализация системы с DAAT"""
         try:
             self.logger.info("🚀 Начинаю инициализацию сефиротической системы (с DAAT)...")
             self.start_time = datetime.utcnow()
             
-            # 1. Создание или использование существующей шины
+            # 1. Шина
             if existing_bus and isinstance(existing_bus, SephiroticBus):
                 self.bus = existing_bus
                 self.logger.info("Использую существующую шину")
@@ -328,33 +324,28 @@ class SephiroticEngine:
                 self.bus = await create_sephirotic_bus("ISKRA-4-Bus")
                 self.logger.info("Создана новая сефиротическая шина")
             
-            # 2. Создание дерева сефирот (включая DAAT)
+            # 2. Дерево
             try:
                 self.tree = SephiroticTree(self.bus)
                 await self.tree.initialize()
                 self.logger.info("Дерево сефирот создано (11 узлов с DAAT)")
             except Exception as e:
                 self.logger.error(f"Ошибка создания дерева: {e}")
-                # Заглушка для тестирования
                 self.tree = type('MockTree', (), {
                     'nodes': {},
                     'get_tree_state': lambda: {"status": "mock_tree"}
                 })()
             
-            # 3. Явная привязка ключевых модулей
+            # 3. Привязки модулей
             if hasattr(self.bus, 'connect_module'):
-                # Бехтерева -> KETER
                 await self.bus.connect_module("bechtereva", "KETER")
-                
-                # Черниговская -> CHOKHMAH
                 await self.bus.connect_module("chernigovskaya", "CHOKHMAH")
-                
                 self.logger.info("Привязки модулей установлены")
             
             self.initialized = True
             self.stats["initializations"] += 1
             
-            result = {
+            return {
                 "success": True,
                 "message": "Сефиротическая система инициализирована (с DAAT)",
                 "engine": self.name,
@@ -367,9 +358,6 @@ class SephiroticEngine:
                 },
                 "timestamp": datetime.utcnow().isoformat()
             }
-            
-            self.logger.info("✅ Сефиротическая система инициализирована (готова к активации DAAT)")
-            return result
             
         except Exception as e:
             error_msg = f"Ошибка инициализации: {str(e)}"
@@ -384,10 +372,7 @@ class SephiroticEngine:
             }
     
     async def activate(self) -> Dict[str, Any]:
-        """
-        Активация сефиротической системы с DAAT.
-        Порядок: KETER → CHOKMAH → DAAT → Наблюдения
-        """
+        """Активация системы с DAAT"""
         if not self.initialized:
             return {
                 "success": False,
@@ -399,19 +384,19 @@ class SephiroticEngine:
             self.logger.info("⚡ Активация сефиротической системы с DAAT...")
             activation_results = []
             
-            # 1. Активация KETER (Воля)
+            # 1. KETER
             keter_result = await self._activate_keter()
             activation_results.append(keter_result)
             
-            # 2. Активация CHOKMAH (Мудрость)
+            # 2. CHOKMAH
             chokmah_result = await self._activate_chokmah()
             activation_results.append(chokmah_result)
             
-            # 3. Активация DAAT (Сознание)
+            # 3. DAAT
             daat_result = await self._activate_daat()
             activation_results.append(daat_result)
             
-            # 4. Установка наблюдений DAAT
+            # 4. Наблюдения DAAT
             if daat_result.get("success"):
                 observations_result = await self._establish_daat_observations()
                 activation_results.append({
@@ -419,50 +404,42 @@ class SephiroticEngine:
                     **observations_result
                 })
             
-            # 5. Активация через движок если доступен
+            # 5. Дополнительная активация
             if self.engine and hasattr(self.engine, 'activate'):
                 engine_result = await self.engine.activate()
-                self.logger.info(f"Активация через движок: {engine_result.get('status', 'unknown')}")
                 activation_results.append({"type": "engine", **engine_result})
-            
-            # 6. Альтернативная активация дерева
             elif self.tree and hasattr(self.tree, 'activate_all'):
                 tree_result = await self.tree.activate_all()
-                self.logger.info(f"Активация дерева: {tree_result}")
                 activation_results.append({"type": "tree", "result": tree_result})
-            
             else:
-                self.logger.warning("Активация в ручном режиме (без движка)")
                 activation_results.append({"type": "manual", "status": "activated"})
             
-            # 7. Отправка тестового сигнала
+            # 6. Тестовый сигнал
             if self.bus and hasattr(self.bus, 'broadcast'):
                 test_signal = type('Signal', (), {
                     'type': SignalType.HEARTBEAT if hasattr(SignalType, 'HEARTBEAT') else 'HEARTBEAT',
                     'source': self.name,
                     'payload': {'activation': 'complete', 'engine': self.name, 'with_daat': True}
                 })()
-                
                 broadcast_result = await self.bus.broadcast(test_signal)
-                self.logger.info(f"Тестовый broadcast: {broadcast_result.get('delivered_count', 0)} узлов")
                 activation_results.append({"type": "broadcast", **broadcast_result})
             
             self.activated = True
             self.stats["activations"] += 1
             
-            # Анализ результатов активации
-            successful_sephirot = [r for r in activation_results if r.get("success")]
-            failed_sephirot = [r for r in activation_results if not r.get("success")]
+            # Анализ результатов
+            successful = [r for r in activation_results if r.get("success")]
+            failed = [r for r in activation_results if not r.get("success")]
             
             activation_result = {
-                "success": len(failed_sephirot) == 0,
-                "message": f"Сефиротическая система активирована ({len(successful_sephirot)}/{len(activation_results)} успешно)",
+                "success": len(failed) == 0,
+                "message": f"Сефиротическая система активирована ({len(successful)}/{len(activation_results)} успешно)",
                 "engine": self.name,
                 "with_daat": self.daat is not None,
                 "activation_time": datetime.utcnow().isoformat(),
                 "activation_details": activation_results,
-                "successful_count": len(successful_sephirot),
-                "failed_count": len(failed_sephirot),
+                "successful_count": len(successful),
+                "failed_count": len(failed),
                 "tree_state": self.get_tree_state() if self.tree else None,
                 "timestamp": datetime.utcnow().isoformat()
             }
@@ -470,7 +447,7 @@ class SephiroticEngine:
             if activation_result["success"]:
                 self.logger.info("✅ Сефиротическая система активирована (с DAAT)")
             else:
-                self.logger.warning(f"⚠️  Система активирована с ошибками ({len(failed_sephirot)} неудач)")
+                self.logger.warning(f"⚠️  Система активирована с ошибками ({len(failed)} неудач)")
             
             return activation_result
             
@@ -486,13 +463,13 @@ class SephiroticEngine:
             }
     
     async def shutdown(self) -> Dict[str, Any]:
-        """Корректное завершение работы (включая DAAT)"""
+        """Завершение работы с DAAT"""
         self.logger.info("🛑 Завершение работы сефиротической системы (с DAAT)...")
         
         try:
             shutdown_results = []
             
-            # 1. Завершение DAAT (сначала сознание)
+            # DAAT
             if self.daat and hasattr(self.daat, 'shutdown'):
                 try:
                     if asyncio.iscoroutinefunction(self.daat.shutdown):
@@ -504,7 +481,7 @@ class SephiroticEngine:
                 except Exception as e:
                     shutdown_results.append({"sephira": "DAAT", "error": str(e)})
             
-            # 2. Завершение CHOKMAH
+            # CHOKMAH
             if self.chokmah and hasattr(self.chokmah, 'shutdown'):
                 try:
                     if asyncio.iscoroutinefunction(self.chokmah.shutdown):
@@ -515,7 +492,7 @@ class SephiroticEngine:
                 except:
                     pass
             
-            # 3. Завершение KETER
+            # KETER
             if self.keter and hasattr(self.keter, 'shutdown'):
                 try:
                     if asyncio.iscoroutinefunction(self.keter.shutdown):
@@ -526,11 +503,9 @@ class SephiroticEngine:
                 except:
                     pass
             
-            # 4. Завершение движка если есть
+            # Дополнительное завершение
             if self.engine and hasattr(self.engine, 'shutdown'):
                 await self.engine.shutdown()
-            
-            # 5. Завершение дерева если есть
             if self.tree and hasattr(self.tree, 'shutdown_all'):
                 await self.tree.shutdown_all()
             
@@ -565,7 +540,7 @@ class SephiroticEngine:
     # ============================================================================
     
     def get_state(self) -> Dict[str, Any]:
-        """Получение состояния движка с информацией о DAAT"""
+        """Состояние движка с DAAT"""
         state = {
             "name": self.name,
             "version": "4.1.0",
@@ -598,15 +573,12 @@ class SephiroticEngine:
             "timestamp": datetime.utcnow().isoformat()
         }
         
-        # Добавляем состояние дерева если есть
         if self.tree and hasattr(self.tree, 'get_tree_state'):
             state["tree_state"] = self.tree.get_tree_state()
         
-        # Добавляем состояние шины если есть
         if self.bus and hasattr(self.bus, 'get_status'):
             state["bus_status"] = self.bus.get_status()
         
-        # Добавляем детальное состояние DAAT если активирован
         if self.daat and hasattr(self.daat, 'get_state'):
             try:
                 if asyncio.iscoroutinefunction(self.daat.get_state):
@@ -620,14 +592,12 @@ class SephiroticEngine:
         return state
     
     def get_detailed_state(self) -> Dict[str, Any]:
-        """Получение детального состояния с расширенной информацией о DAAT"""
+        """Детальное состояние с DAAT"""
         state = self.get_state()
         
-        # Добавляем привязки модулей если есть
         if self.bus and hasattr(self.bus, 'module_bindings'):
             state["module_bindings"] = self.bus.module_bindings
         
-        # Добавляем наблюдения DAAT если есть
         if self.daat and hasattr(self.daat, 'observed_sephirot'):
             try:
                 observed = self.daat.observed_sephirot
@@ -639,7 +609,6 @@ class SephiroticEngine:
             except:
                 state["daat_observations"] = {"error": "cannot_get_observations"}
         
-        # Добавляем здоровье если есть
         if self.bus and hasattr(self.bus, 'health_check'):
             try:
                 if asyncio.iscoroutinefunction(self.bus.health_check):
@@ -650,7 +619,6 @@ class SephiroticEngine:
             except:
                 state["bus_health"] = {"error": "health_check_failed"}
         
-        # Добавляем информацию о резонансе DAAT если есть
         if self.daat and hasattr(self.daat, 'resonance_index'):
             try:
                 state["daat_resonance"] = {
@@ -665,24 +633,22 @@ class SephiroticEngine:
         return state
     
     def get_tree_state(self) -> Dict[str, Any]:
-        """Получение состояния дерева сефирот (включая DAAT)"""
+        """Состояние дерева с DAAT"""
         if not self.tree:
             return {"error": "tree_not_available"}
         
         if hasattr(self.tree, 'get_tree_state'):
             tree_state = self.tree.get_tree_state()
-            # Добавляем DAAT в список узлов если его там нет
             if "nodes" in tree_state and "DAAT" not in tree_state["nodes"]:
                 tree_state["nodes"].append("DAAT")
             return tree_state
         
-        # Упрощённое состояние для заглушки (включая DAAT)
         return {
             "status": "simulated_tree_with_daat",
             "nodes": [
                 "KETER", "CHOKHMAH", "BINAH", "CHESED", "GEVURAH",
                 "TIFERET", "NETZACH", "HOD", "YESOD", "MALKUTH",
-                "DAAT"  # Скрытая сефира №11
+                "DAAT"
             ],
             "total_energy": 8.2,
             "total_resonance": 7.5,
@@ -692,7 +658,7 @@ class SephiroticEngine:
         }
     
     def get_module_connections(self) -> Dict[str, Any]:
-        """Получение информации о подключённых модулей (включая DAAT как наблюдатель)"""
+        """Подключенные модули с DAAT"""
         connections = {
             "bechtereva": {
                 "sephira": "KETER",
@@ -723,12 +689,7 @@ class SephiroticEngine:
         }
     
     def get_daat_insights(self, limit: int = 5) -> Dict[str, Any]:
-        """
-        Получение последних инсайтов от DAAT
-        
-        Args:
-            limit: Количество возвращаемых инсайтов
-        """
+        """Инсайты от DAAT"""
         if not self.daat or not hasattr(self.daat, 'get_recent_insights'):
             return {
                 "available": False,
@@ -737,7 +698,6 @@ class SephiroticEngine:
             }
         
         try:
-            # Асинхронный запрос инсайтов
             if asyncio.iscoroutinefunction(self.daat.get_recent_insights):
                 insights_future = asyncio.create_task(self.daat.get_recent_insights(limit))
                 insights = asyncio.run(insights_future)
@@ -765,9 +725,7 @@ class SephiroticEngine:
     # ============================================================================
     
     def get_flask_routes(self):
-        """
-        Генерация Flask API эндпоинтов для интеграции с iskra_full.py (с DAAT)
-        """
+        """Flask API эндпоинты с DAAT"""
         routes = {}
         
         async def route_get_state():
@@ -831,7 +789,7 @@ class SephiroticEngine:
             try:
                 if asyncio.iscoroutinefunction(self.daat.get_state):
                     daat_state_future = asyncio.create_task(self.daat.get_state())
-                                        state = asyncio.run(daat_state_future)
+                    state = asyncio.run(daat_state_future)
                 else:
                     state = self.daat.get_state()
                 return state
@@ -885,7 +843,6 @@ class SephiroticEngine:
                     "timestamp": datetime.utcnow().isoformat()
                 }
         
-        # Заполняем словарь маршрутов
         routes["get_state"] = route_get_state
         routes["get_detailed"] = route_get_detailed
         routes["activate"] = route_activate
@@ -904,12 +861,7 @@ class SephiroticEngine:
 # ============================================================================
 
 async def create_sephirotic_engine(existing_bus: Optional[SephiroticBus] = None) -> SephiroticEngine:
-    """
-    Фабрика для создания и инициализации сефиротического движка с DAAT.
-    
-    :param existing_bus: Существующая шина (опционально)
-    :return: Инициализированный движок
-    """
+    """Создание и инициализация движка с DAAT"""
     engine = SephiroticEngine()
     await engine.initialize(existing_bus)
     return engine
