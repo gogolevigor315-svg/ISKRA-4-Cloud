@@ -18,7 +18,6 @@ try:
         Sephirot, 
         SephiroticNode, 
         SephiroticTree, 
-        SephiroticEngine as BaseEngine,
         SignalType,
         create_sephirotic_system
     )
