@@ -676,29 +676,40 @@ class SephiroticEngine:
             return asyncio.run(self.get_detailed_state_async())
     
     def get_tree_state(self) -> Dict[str, Any]:
-        """Состояние дерева с DAAT"""
-        if not self.tree:
-            return {"error": "tree_not_available"}
-        
-        if hasattr(self.tree, 'get_tree_state'):
-            tree_state = self.tree.get_tree_state()
-            if "nodes" in tree_state and "DAAT" not in tree_state["nodes"]:
+    """Состояние дерева с DAAT"""
+    if not self.tree:
+        return {"error": "tree_not_available"}
+    
+    if hasattr(self.tree, 'get_tree_state'):
+        tree_state = self.tree.get_tree_state()
+        if "nodes" in tree_state and "DAAT" not in tree_state["nodes"]:
+            # ИСПРАВЛЕНИЕ: проверка типа перед .append()
+            if isinstance(tree_state["nodes"], list):
                 tree_state["nodes"].append("DAAT")
-            return tree_state
-        
-        return {
-            "status": "simulated_tree_with_daat",
-            "nodes": [
-                "KETER", "CHOKHMAH", "BINAH", "CHESED", "GEVURAH",
-                "TIFERET", "NETZACH", "HOD", "YESOD", "MALKUTH",
-                "DAAT"
-            ],
-            "total_energy": 8.2,
-            "total_resonance": 7.5,
-            "hidden_sephirot": ["DAAT"],
-            "consciousness_present": self.daat is not None,
-            "timestamp": datetime.utcnow().isoformat()
-        }
+            elif isinstance(tree_state["nodes"], dict):
+                tree_state["nodes"]["DAAT"] = {
+                    "status": "hidden", 
+                    "position": 11,
+                    "consciousness": True
+                }
+            else:
+                # Fallback: создаем новый список
+                tree_state["nodes"] = list(tree_state.get("nodes", [])) + ["DAAT"]
+        return tree_state
+    
+    return {
+        "status": "simulated_tree_with_daat",
+        "nodes": [
+            "KETER", "CHOKHMAH", "BINAH", "CHESED", "GEVURAH",
+            "TIFERET", "NETZACH", "HOD", "YESOD", "MALKUTH",
+            "DAAT"
+        ],
+        "total_energy": 8.2,
+        "total_resonance": 7.5,
+        "hidden_sephirot": ["DAAT"],
+        "consciousness_present": self.daat is not None,
+        "timestamp": datetime.utcnow().isoformat()
+    }
     
     def get_module_connections(self) -> Dict[str, Any]:
         """Подключенные модули с DAAT"""
