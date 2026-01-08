@@ -1572,6 +1572,10 @@ class SephiroticNode(ISephiraModule):
     
     async def _activate_core(self):
         """Активация ядра узла"""
+        # ✅ ЗАЩИТА ОТ ПОВТОРНОЙ АКТИВАЦИИ
+        if self._is_initialized:
+            return {"status": "already_active", "sephira": self._name}
+        
         self.logger.info(f"Активация ядра {self._name}")
         self.energy = 0.9
         self.resonance = 0.3
