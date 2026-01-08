@@ -676,9 +676,9 @@ class SephiroticEngine:
             return asyncio.run(self.get_detailed_state_async())
     
     def get_tree_state(self) -> Dict[str, Any]:
-    """Состояние дерева с DAAT"""
-    if not self.tree:
-        return {"error": "tree_not_available"}
+        """Состояние дерева с DAAT"""
+        if not self.tree:
+            return {"error": "tree_not_available"}
     
     if hasattr(self.tree, 'get_tree_state'):
         tree_state = self.tree.get_tree_state()
