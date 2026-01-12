@@ -20,8 +20,8 @@ from pathlib import Path
 import numpy as np
 
 # Импорты из RAS-CORE
-from .constants import GOLDEN_STABILITY_ANGLE, calculate_stability_factor
-from .config import get_config, ConfigPriority
+from iskra_modules.sephirot_blocks.RAS_CORE.constants import GOLDEN_STABILITY_ANGLE, calculate_stability_factor
+from iskra_modules.sephirot_blocks.RAS_CORE.config import get_config, ConfigPriority
 
 # ============================================================================
 # ТИПЫ ДАННЫХ ДЛЯ МОНИТОРИНГА
