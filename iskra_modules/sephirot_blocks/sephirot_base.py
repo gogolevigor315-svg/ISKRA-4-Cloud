@@ -1642,7 +1642,7 @@ class SephiroticNode(ISephiraModule):
             self._init_task.cancel()
         
         self.status = NodeStatus.TERMINATED
-                self.logger.info(f"Узел {self._name} завершил работу")
+        self.logger.info(f"Узел {self._name} завершил работу")
         
         return {"status": "shutdown_complete", "sephira": self._name}
     
