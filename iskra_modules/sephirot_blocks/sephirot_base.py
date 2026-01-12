@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
-sephirot_base.py - ПОЛНЫЙ ИСПРАВЛЕННЫЙ КОД СЕФИРОТИЧЕСКОЙ СИСТЕМЫ
-Версия: 4.0.1 Production
-Исправлено: Добавлен SephiraConfig, убраны абстрактные методы, исправлены импорты
+sephirot_base.py - ПОЛНЫЙ КОД СЕФИРОТИЧЕСКОЙ СИСТЕМЫ С ИНТЕГРАЦИЕЙ RAS-CORE
+Версия: 5.0.0 Production (с интеграцией 14.4° угла устойчивости)
 """
 
 import json
@@ -22,53 +21,65 @@ import time
 import uuid
 
 # ================================================================
-# ENERGY LEVEL ENUM - ДОБАВЬ ЗДЕСЬ!
+# ИМПОРТ RAS-CORE КОНСТАНТ
+# ================================================================
+
+try:
+    from iskra_modules.sephirot_blocks.RAS_CORE.constants import (
+        GOLDEN_STABILITY_ANGLE,
+        calculate_stability_factor,
+        angle_to_priority,
+        SEPHIROTIC_TARGETS
+    )
+    RAS_CORE_AVAILABLE = True
+except ImportError:
+    print("[WARNING] RAS-CORE constants not available, using defaults")
+    GOLDEN_STABILITY_ANGLE = 14.4
+    def calculate_stability_factor(deviation): return 1.0
+    def angle_to_priority(angle): return 1.0
+    SEPHIROTIC_TARGETS = ["KETER", "CHOKMAH", "DAAT", "BINAH", "YESOD", "TIFERET"]
+    RAS_CORE_AVAILABLE = False
+
+# ================================================================
+# ENERGY LEVEL ENUM
 # ================================================================
 
 class EnergyLevel(Enum):
     """Уровни энергии сефиротического узла"""
-    CRITICAL = "critical"      # < 0.1
-    LOW = "low"                # 0.1 - 0.3
-    NORMAL = "normal"          # 0.3 - 0.7
-    HIGH = "high"              # 0.7 - 0.9
-    OVERFLOW = "overflow"      # > 0.9
-    PERFECT = "perfect"        # = 1.0
+    CRITICAL = "critical"
+    LOW = "low"
+    NORMAL = "normal"
+    HIGH = "high"
+    OVERFLOW = "overflow"
+    PERFECT = "perfect"
 
 # ================================================================
 # БАЗОВЫЕ ИНТЕРФЕЙСЫ ДЛЯ СЕФИРОТ
 # ================================================================
 
 class ISephiraModule(ABC):
-    """
-    БАЗОВЫЙ ИНТЕРФЕЙС ДЛЯ ВСЕХ СЕФИРОТ-МОДУЛЕЙ
-    Обязателен для обратной совместимости с KETER, CHOKMAH, DAAT
-    """
+    """Базовый интерфейс для всех сефирот-модулей"""
     
     @abstractmethod
     async def activate(self) -> Dict[str, Any]:
-        """Активация сефиры - обязательный метод"""
         raise NotImplementedError
     
     @abstractmethod
     def get_state(self) -> Dict[str, Any]:
-        """Получение состояния сефиры - обязательный метод"""
         raise NotImplementedError
     
     @abstractmethod
     async def receive(self, signal_package: Any) -> Any:
-        """Получение сигнала - обязательный метод"""
         raise NotImplementedError
     
     @property
     @abstractmethod
     def name(self) -> str:
-        """Имя сефиры - обязательное свойство"""
         raise NotImplementedError
     
     @property
     @abstractmethod
     def sephira(self) -> 'Sephirot':
-        """Тип сефиры - обязательное свойство"""
         raise NotImplementedError
 
 # ================================================================
@@ -76,7 +87,7 @@ class ISephiraModule(ABC):
 # ================================================================
 
 class Sephirot(Enum):
-    """10 сефирот Древа Жизни"""
+    """10 сефирот Древа Жизни с RAS-CORE как 11-й узел"""
     KETER = (1, "Венец", "Сознание", "bechtereva")
     CHOKMAH = (2, "Мудрость", "Интуиция", "chernigovskaya")
     BINAH = (3, "Понимание", "Анализ", "bechtereva")
@@ -87,6 +98,7 @@ class Sephirot(Enum):
     HOD = (8, "Слава", "Коммуникация", "polyglossia_adapter")
     YESOD = (9, "Основа", "Подсознание", "spinal_core")
     MALKUTH = (10, "Царство", "Манифестация", "trust_mesh")
+    RAS_CORE = (11, "Сетчатка Сознания", "Фокус Внимания", "ras_core")  # НОВЫЙ УЗЕЛ
     
     def __init__(self, level, name, description, connected_module):
         self.level = level
@@ -100,28 +112,29 @@ class Sephirot(Enum):
 
 class SignalType(Enum):
     """Типы сигналов для сефиротической шины"""
-    NEURO = auto()          # Нейро-сигнал (от bechtereva)
-    SEMIOTIC = auto()       # Семиотический (от chernigovskaya)
-    EMOTIONAL = auto()      # Эмоциональный
-    COGNITIVE = auto()      # Когнитивный
-    INTENTION = auto()      # Интенциональный
-    HEARTBEAT = auto()      # Пульс системы
-    RESONANCE = auto()      # Резонансный
-    COMMAND = auto()        # Команда управления
-    DATA = auto()           # Данные
-    ERROR = auto()          # Ошибка
-    SYNTHESIS = auto()      # Синтез
-    ENERGY = auto()         # Энергетический
-    SYNC = auto()           # Синхронизация
-    METRIC = auto()         # Метрика
-    BROADCAST = auto()      # Широковещательный
-    FEEDBACK = auto()       # Обратная связь
-    CONTROL = auto()        # Контроль
-    SEPHIROTIC = auto()     # Сефиротический (внутренний)
+    NEURO = auto()
+    SEMIOTIC = auto()
+    EMOTIONAL = auto()
+    COGNITIVE = auto()
+    INTENTION = auto()
+    HEARTBEAT = auto()
+    RESONANCE = auto()
+    COMMAND = auto()
+    DATA = auto()
+    ERROR = auto()
+    SYNTHESIS = auto()
+    ENERGY = auto()
+    SYNC = auto()
+    METRIC = auto()
+    BROADCAST = auto()
+    FEEDBACK = auto()
+    CONTROL = auto()
+    SEPHIROTIC = auto()
+    FOCUS = auto()  # НОВЫЙ ТИП: сигналы фокуса от RAS-CORE
+    ATTENTION = auto()  # НОВЫЙ ТИП: сигналы внимания
     
     @classmethod
     def from_string(cls, value: str) -> 'SignalType':
-        """Безопасное преобразование строки в SignalType"""
         try:
             return cls[value.upper()]
         except (KeyError, AttributeError):
@@ -140,13 +153,14 @@ class NodeStatus(Enum):
     TERMINATED = "terminated"
 
 class ResonancePhase(Enum):
-    """Фазы резонансной динамики"""
+    """Фазы резонансной динамики с интеграцией угла 14.4°"""
     SILENT = (0.0, 0.1, "Тишина", 0.1)
     AWAKENING = (0.1, 0.3, "Пробуждение", 0.3)
     COHERENT = (0.3, 0.6, "Когерентность", 0.6)
     RESONANT = (0.6, 0.85, "Резонанс", 0.8)
     PEAK = (0.85, 0.95, "Пик", 0.9)
     TRANSCENDENT = (0.95, 1.0, "Трансценденция", 0.95)
+    GOLDEN_STABLE = (0.93, 0.97, "Золотая Устойчивость", 0.95)  # НОВАЯ ФАЗА
     
     def __init__(self, min_val, max_val, description, ideal_point):
         self.min = min_val
@@ -156,7 +170,6 @@ class ResonancePhase(Enum):
     
     @classmethod
     def from_value(cls, value: float) -> Tuple['ResonancePhase', float]:
-        """Определение фазы и степени приближения к идеальной точке"""
         for phase in cls:
             if phase.min <= value <= phase.max:
                 distance_to_ideal = abs(value - phase.ideal_point)
@@ -165,7 +178,7 @@ class ResonancePhase(Enum):
         return cls.SILENT, 0.0
 
 # ================================================================
-# КРИТИЧЕСКИЙ КЛАСС ДЛЯ ИМПОРТА (ОТСУТСТВОВАЛ)
+# КРИТИЧЕСКИЙ КЛАСС ДЛЯ ИМПОРТА
 # ================================================================
 
 @dataclass
@@ -175,26 +188,28 @@ class SephiraConfig:
     bus: Optional[Any] = None
     resonance_init: float = 0.1
     energy_init: float = 0.8
+    stability_angle: float = GOLDEN_STABILITY_ANGLE  # НОВОЕ ПОЛЕ
     auto_connect: bool = True
     log_level: str = "INFO"
     config_overrides: Dict[str, Any] = field(default_factory=dict)
 
     def validate(self) -> bool:
-        """Проверка корректности конфигурации"""
         if not 0.0 <= self.resonance_init <= 1.0:
             raise ValueError(f"resonance_init must be between 0.0 and 1.0, got {self.resonance_init}")
         if not 0.0 <= self.energy_init <= 1.0:
             raise ValueError(f"energy_init must be between 0.0 and 1.0, got {self.energy_init}")
+        if not 0.0 <= self.stability_angle <= 90.0:
+            raise ValueError(f"stability_angle must be between 0.0 and 90.0, got {self.stability_angle}")
         if self.log_level not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
             raise ValueError(f"Invalid log level: {self.log_level}")
         return True
 
     def to_dict(self) -> Dict[str, Any]:
-        """Конвертация в словарь"""
         return {
             "sephira": self.sephira.name,
             "resonance_init": self.resonance_init,
             "energy_init": self.energy_init,
+            "stability_angle": self.stability_angle,
             "auto_connect": self.auto_connect,
             "log_level": self.log_level,
             "config_overrides": self.config_overrides
@@ -202,27 +217,32 @@ class SephiraConfig:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'SephiraConfig':
-        """Создание из словаря"""
         sephira_name = data.get("sephira", "KETER")
         sephira = getattr(Sephirot, sephira_name, Sephirot.KETER)
 
         return cls(
             sephira=sephira,
-            bus=None,  # Шина устанавливается отдельно
+            bus=None,
             resonance_init=data.get("resonance_init", 0.1),
             energy_init=data.get("energy_init", 0.8),
+            stability_angle=data.get("stability_angle", GOLDEN_STABILITY_ANGLE),
             auto_connect=data.get("auto_connect", True),
             log_level=data.get("log_level", "INFO"),
             config_overrides=data.get("config_overrides", {})
         )
 
+# ================================================================
+# КВАНТОВАЯ СВЯЗЬ С ИНТЕГРАЦИЕЙ УГЛА УСТОЙЧИВОСТИ
+# ================================================================
+
 @dataclass
 class QuantumLink:
-    """Квантовая связь между узлами"""
+    """Квантовая связь между узлами с учётом угла устойчивости"""
     target: str
     strength: float = 0.5
     coherence: float = 0.8
     entanglement: float = 0.0
+    stability_angle: float = GOLDEN_STABILITY_ANGLE  # НОВОЕ ПОЛЕ
     established: str = field(default_factory=lambda: datetime.utcnow().isoformat())
     last_sync: str = field(default_factory=lambda: datetime.utcnow().isoformat())
     channel_type: str = "quantum"
@@ -233,29 +253,39 @@ class QuantumLink:
         self.history.append((self.strength, self.coherence))
     
     def evolve(self, delta_time: float = 1.0) -> Tuple[float, float]:
-        """Эволюция связи во времени"""
-        # Декогеренция
-        decoherence = 0.05 * delta_time
+        """Эволюция связи во времени с учётом угла устойчивости"""
+        # Декогеренция зависит от отклонения от золотого угла
+        angle_deviation = abs(self.stability_angle - GOLDEN_STABILITY_ANGLE)
+        stability_factor = calculate_stability_factor(angle_deviation)
+        
+        # Меньше декогеренции при близости к 14.4°
+        decoherence = 0.05 * delta_time * (1.0 - stability_factor)
         self.coherence = max(0.1, self.coherence - decoherence)
         
-        # Самокоррекция
-        target_strength = 0.6
+        # Самокоррекция с усилением от стабильного угла
+        target_strength = 0.6 * stability_factor
         strength_error = target_strength - self.strength
-        correction = strength_error * 0.1 * self.coherence
+        correction = strength_error * 0.1 * self.coherence * stability_factor
         
         self.strength += correction
         self.strength = max(0.01, min(1.0, self.strength))
         
-        # Квантовая запутанность
-        if self.coherence > 0.7:
-            self.entanglement = min(1.0, self.entanglement + 0.01 * delta_time)
+        # Квантовая запутанность усиливается при стабильном угле
+        if stability_factor > 0.7 and self.coherence > 0.7:
+            self.entanglement = min(1.0, self.entanglement + 0.01 * delta_time * stability_factor)
         
         self.history.append((self.strength, self.coherence))
         return self.strength, self.coherence
     
-    def apply_feedback(self, feedback: float) -> float:
-        """Применение обратной связи"""
+    def apply_feedback(self, feedback: float, feedback_angle: float = None) -> float:
+        """Применение обратной связи с учётом угла"""
         self.feedback_loop.append(feedback)
+        
+        if feedback_angle is not None:
+            # Корректируем угол связи на основе обратной связи
+            angle_correction = (feedback_angle - self.stability_angle) * 0.1
+            self.stability_angle += angle_correction
+            self.stability_angle = max(0.0, min(90.0, self.stability_angle))
         
         if len(self.feedback_loop) >= 3:
             avg_feedback = statistics.mean(self.feedback_loop)
@@ -267,20 +297,26 @@ class QuantumLink:
         return self.strength
     
     def get_quantum_state(self) -> Dict[str, Any]:
-        """Получение квантового состояния"""
+        """Получение квантового состояния с информацией об угле"""
         return {
             "strength": self.strength,
             "coherence": self.coherence,
             "entanglement": self.entanglement,
+            "stability_angle": self.stability_angle,
+            "stability_factor": calculate_stability_factor(abs(self.stability_angle - GOLDEN_STABILITY_ANGLE)),
             "stability": statistics.stdev([s for s, _ in self.history]) if len(self.history) > 1 else 0.0,
             "age_seconds": (datetime.utcnow() - datetime.fromisoformat(
                 self.established.replace('Z', '+00:00')
             )).total_seconds()
         }
 
+# ================================================================
+# СИГНАЛЬНЫЙ ПАКЕТ С ИНФОРМАЦИЕЙ ОБ УГЛЕ УСТОЙЧИВОСТИ
+# ================================================================
+
 @dataclass
 class SignalPackage:
-    """Пакет сигнала с полной трассировкой"""
+    """Пакет сигнала с полной трассировкой и информацией об угле устойчивости"""
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     type: SignalType = SignalType.DATA
     source: str = ""
@@ -289,35 +325,42 @@ class SignalPackage:
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
     ttl: float = 30.0
+    stability_angle: float = GOLDEN_STABILITY_ANGLE  # НОВОЕ ПОЛЕ
+    focus_vector: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])  # Вектор фокуса
     
     def __post_init__(self):
         self.metadata.update({
             "signature": hashlib.sha256(str(self.payload).encode()).hexdigest()[:16],
             "hops": 0,
             "processed_by": [],
-            "resonance_trace": []
+            "resonance_trace": [],
+            "stability_angle": self.stability_angle,
+            "stability_factor": calculate_stability_factor(abs(self.stability_angle - GOLDEN_STABILITY_ANGLE)),
+            "focus_vector": self.focus_vector
         })
     
-    def add_resonance_trace(self, node: str, resonance: float):
-        """Добавление узла в трассировку резонанса"""
-        self.metadata["resonance_trace"].append({
+    def add_resonance_trace(self, node: str, resonance: float, node_angle: float = None):
+        """Добавление узла в трассировку резонанса с углом"""
+        trace_entry = {
             "node": node,
             "resonance": resonance,
             "timestamp": datetime.utcnow().isoformat()
-        })
+        }
+        if node_angle is not None:
+            trace_entry["stability_angle"] = node_angle
+            trace_entry["stability_factor"] = calculate_stability_factor(abs(node_angle - GOLDEN_STABILITY_ANGLE))
+        
+        self.metadata["resonance_trace"].append(trace_entry)
     
     def add_processing_node(self, node: str):
-        """Добавление узла в историю обработки"""
         self.metadata["processed_by"].append(node)
         self.metadata["hops"] += 1
     
     def is_expired(self) -> bool:
-        """Проверка истечения срока жизни"""
         created = datetime.fromisoformat(self.created_at.replace('Z', '+00:00'))
         return (datetime.utcnow() - created).total_seconds() > self.ttl
     
     def to_transport_dict(self) -> Dict[str, Any]:
-        """Конвертация для передачи через шину"""
         return {
             "id": self.id,
             "type": self.type.name,
@@ -326,12 +369,13 @@ class SignalPackage:
             "payload": self.payload,
             "metadata": self.metadata,
             "created_at": self.created_at,
-            "ttl": self.ttl
+            "ttl": self.ttl,
+            "stability_angle": self.stability_angle,
+            "focus_vector": self.focus_vector
         }
     
     @classmethod
     def from_transport_dict(cls, data: Dict[str, Any]) -> 'SignalPackage':
-        """Создание из транспортного формата"""
         package = cls(
             id=data.get("id", str(uuid.uuid4())),
             type=SignalType.from_string(data.get("type", "DATA")),
@@ -339,64 +383,19 @@ class SignalPackage:
             target=data.get("target", ""),
             payload=data.get("payload", {}),
             created_at=data.get("created_at", datetime.utcnow().isoformat()),
-            ttl=data.get("ttl", 30.0)
+            ttl=data.get("ttl", 30.0),
+            stability_angle=data.get("stability_angle", GOLDEN_STABILITY_ANGLE),
+            focus_vector=data.get("focus_vector", [0.0, 0.0, 0.0])
         )
         package.metadata = data.get("metadata", {})
         return package
 
 # ================================================================
-# ФУНКЦИЯ TOPOLOGICAL_SORT ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ
-# ================================================================
-
-def topological_sort(sephirot_dag: Dict) -> List:
-    """
-    ТОПОЛОГИЧЕСКАЯ СОРТИРОВКА ДЛЯ DAG СЕФИРОТ
-    Обязательная функция для обратной совместимости с KETER
-    """
-    try:
-        from collections import deque
-        
-        if not sephirot_dag:
-            return []
-        
-        # Инициализация степеней входа
-        in_degree = {node: 0 for node in sephirot_dag}
-        for node in sephirot_dag:
-            for neighbor in sephirot_dag.get(node, []):
-                in_degree[neighbor] = in_degree.get(neighbor, 0) + 1
-        
-        # Очередь узлов без входящих ребер
-        queue = deque([node for node in in_degree if in_degree[node] == 0])
-        result = []
-        
-        # Алгоритм Кана
-        while queue:
-            node = queue.popleft()
-            result.append(node)
-            
-            for neighbor in sephirot_dag.get(node, []):
-                in_degree[neighbor] -= 1
-                if in_degree[neighbor] == 0:
-                    queue.append(neighbor)
-        
-        # Проверка на циклы
-        if len(result) != len(sephirot_dag):
-            print("⚠️  Предупреждение: граф содержит циклы, возвращаю частичный порядок")
-            return list(sephirot_dag.keys())
-        
-        return result
-        
-    except Exception as e:
-        print(f"⚠️  Ошибка в topological_sort: {e}")
-        # Возвращаем простой список в случае ошибки
-        return list(sephirot_dag.keys())
-
-# ================================================================
-# АДАПТИВНАЯ ОЧЕРЕДЬ
+# АДАПТИВНАЯ ОЧЕРЕДЬ С УЧЁТОМ УГЛА УСТОЙЧИВОСТИ
 # ================================================================
 
 class AdaptiveQueue:
-    """Адаптивная очередь с автоочисткой"""
+    """Адаптивная очередь с автоочисткой и приоритетом по углу устойчивости"""
     
     def __init__(self, max_size: int = 200, cleanup_interval: float = 5.0):
         self._queue = asyncio.PriorityQueue(maxsize=max_size)
@@ -413,12 +412,10 @@ class AdaptiveQueue:
         self._wait_times = deque(maxlen=100)
     
     async def start(self):
-        """Запуск фоновой очистки"""
         if not self._cleanup_task:
             self._cleanup_task = asyncio.create_task(self._cleanup_worker())
     
     async def stop(self):
-        """Остановка очистки"""
         if self._cleanup_task:
             self._cleanup_task.cancel()
             try:
@@ -427,8 +424,13 @@ class AdaptiveQueue:
                 pass
             self._cleanup_task = None
     
-    async def put(self, item: Any, priority: int = 5) -> bool:
-        """Добавление элемента с приоритетом"""
+    async def put(self, item: Any, priority: int = 5, stability_angle: float = None) -> bool:
+        """Добавление элемента с приоритетом и коррекцией по углу"""
+        if stability_angle is not None:
+            # Корректируем приоритет на основе угла устойчивости
+            angle_factor = angle_to_priority(stability_angle)
+            priority = int(priority * angle_factor)
+        
         if self._queue.full():
             if await self._make_room():
                 await self._queue.put((priority, time.time(), item))
@@ -442,7 +444,6 @@ class AdaptiveQueue:
         return True
     
     async def get(self) -> Any:
-        """Получение элемента из очереди"""
         priority, enqueued_at, item = await self._queue.get()
         wait_time = time.time() - enqueued_at
         self._wait_times.append(wait_time)
@@ -451,15 +452,12 @@ class AdaptiveQueue:
         return item
     
     def task_done(self):
-        """Отметка завершения обработки"""
         self._queue.task_done()
     
     def qsize(self) -> int:
-        """Текущий размер очереди"""
         return self._queue.qsize()
     
     async def _make_room(self) -> bool:
-        """Освобождение места в очереди"""
         temp_items = []
         removed_count = 0
         
@@ -467,14 +465,12 @@ class AdaptiveQueue:
             while not self._queue.empty():
                 priority, enqueued_at, item = await self._queue.get()
                 
-                # Удаляем старые низкоприоритетные элементы
                 if time.time() - enqueued_at > 30.0 and priority > 7:
                     removed_count += 1
                     continue
                 
                 temp_items.append((priority, enqueued_at, item))
             
-            # Возвращаем оставшиеся элементы
             for item in temp_items:
                 await self._queue.put(item)
             
@@ -482,13 +478,11 @@ class AdaptiveQueue:
             return removed_count > 0
             
         except Exception as e:
-            # Восстанавливаем элементы в случае ошибки
             for item in temp_items:
                 await self._queue.put(item)
             raise
     
     async def _cleanup_worker(self):
-        """Фоновая очистка устаревших элементов"""
         while True:
             try:
                 await asyncio.sleep(self._cleanup_interval)
@@ -499,7 +493,6 @@ class AdaptiveQueue:
                 await asyncio.sleep(self._cleanup_interval * 2)
     
     def get_stats(self) -> Dict[str, Any]:
-        """Получение статистики очереди"""
         return {
             **self._stats,
             "current_size": self.qsize(),
@@ -509,16 +502,15 @@ class AdaptiveQueue:
         }
 
 # ================================================================
-# ЯДРО СЕФИРОТИЧЕСКОГО УЗЛА (РЕАЛИЗУЕТ ISephiraModule)
+# ЯДРО СЕФИРОТИЧЕСКОГО УЗЛА С ИНТЕГРАЦИЕЙ УГЛА 14.4°
 # ================================================================
 
 class SephiroticNode(ISephiraModule):
     """
-    Сефиротический узел - реализация интерфейса ISephiraModule
-    Связь с модулями Бехтеревой и Черниговской
+    Сефиротический узел с интеграцией угла устойчивости 14.4°
     """
     
-    VERSION = "4.0.1"
+    VERSION = "5.0.0"
     MAX_QUEUE_SIZE = 250
     MAX_MEMORY_LOGS = 500
     DEFAULT_TTL = 60.0
@@ -526,19 +518,16 @@ class SephiroticNode(ISephiraModule):
     RESONANCE_DECAY_BASE = 0.97
     METRICS_INTERVAL = 3.0
     
-    def __init__(self, sephira: Sephirot, bus=None):
-        """
-        :param sephira: Сефира (KETER, CHOKMAH и т.д.)
-        :param bus: Шина связи (опционально)
-        """
+    def __init__(self, sephira: Sephirot, bus=None, config: SephiraConfig = None):
         self._sephira = sephira
         self._name = sephira.display_name
         self._level = sephira.level
         self._description = sephira.description
         self._connected_module = sephira.connected_module
         self.bus = bus
+        self.config = config or SephiraConfig(sephira=sephira)
         
-        # Инициализация состояний
+        # Инициализация состояний с углом устойчивости
         self._initialize_states()
         
         # Структуры данных
@@ -563,17 +552,13 @@ class SephiroticNode(ISephiraModule):
         return self._sephira
     
     async def activate(self) -> Dict[str, Any]:
-        """Активация сефиры - реализация интерфейса"""
         return await self._activate_core()
     
     def get_state(self) -> Dict[str, Any]:
-        """Получение состояния сефиры - реализация интерфейса"""
         return self._get_basic_state()
     
     async def receive(self, signal_package: Any) -> Any:
-        """Получение сигнала - реализация интерфейса"""
         if isinstance(signal_package, dict):
-            # Конвертация dict в SignalPackage
             signal_package = SignalPackage.from_transport_dict(signal_package)
         return await self.receive_signal(signal_package)
     
@@ -582,13 +567,17 @@ class SephiroticNode(ISephiraModule):
     # ================================================================
     
     def _initialize_states(self):
-        """Инициализация всех состояний узла"""
+        """Инициализация всех состояний узла с углом устойчивости"""
         self.status = NodeStatus.CREATED
-        self.resonance = 0.1
-        self.energy = 0.8
+        self.resonance = self.config.resonance_init
+        self.energy = self.config.energy_init
         self.stability = 0.9
         self.coherence = 0.7
         self.willpower = 0.6
+        self.stability_angle = self.config.stability_angle  # НОВОЕ ПОЛЕ
+        self.stability_factor = calculate_stability_factor(
+            abs(self.stability_angle - GOLDEN_STABILITY_ANGLE)
+        )
         
         # Динамические параметры
         self.activation_time = None
@@ -603,57 +592,48 @@ class SephiroticNode(ISephiraModule):
     
     def _initialize_data_structures(self):
         """Инициализация структур данных"""
-        # Квантовые связи
         self.quantum_links: Dict[str, QuantumLink] = {}
         
-        # Адаптивная очередь
         self.signal_queue = AdaptiveQueue(
             max_size=self.MAX_QUEUE_SIZE,
             cleanup_interval=5.0
         )
         
-        # Память
         self.signal_history = deque(maxlen=self.MAX_MEMORY_LOGS)
         self.resonance_history = deque(maxlen=200)
         self.energy_history = deque(maxlen=200)
+        self.angle_history = deque(maxlen=200)  # НОВАЯ ИСТОРИЯ
         
-        # Кэши
         self.response_cache = {}
         self.link_cache = {}
         
-        # Статистика
         self._signal_counter = defaultdict(int)
         self._processing_times = deque(maxlen=100)
         self._error_log = deque(maxlen=50)
     
     def _initialize_system_components(self):
         """Инициализация системных компонентов"""
-        # Логирование
         self.logger = self._setup_logger()
-        
-        # Обработчики сигналов
         self.signal_handlers = self._initialize_signal_handlers()
-        
-        # Задачи
         self._background_tasks = set()
         self._shutdown_event = asyncio.Event()
         
-        # Метрики
         self.metrics = {
             "node": self._name,
             "version": self.VERSION,
             "sephira": self._sephira.value,
             "connected_module": self._connected_module,
+            "stability_angle": self.stability_angle,
+            "stability_factor": self.stability_factor,
             "start_time": datetime.utcnow().isoformat(),
             "status": self.status.value
         }
     
     def _setup_logger(self) -> logging.Logger:
-        """Настройка логгера"""
         logger = logging.getLogger(f"Sephirot.{self._name}")
         
         if not logger.handlers:
-            logger.setLevel(logging.INFO)
+            logger.setLevel(getattr(logging, self.config.log_level))
             
             formatter = logging.Formatter(
                 '[%(asctime)s] [%(name)s:%(levelname)s] %(message)s',
@@ -670,8 +650,8 @@ class SephiroticNode(ISephiraModule):
         return logger
     
     def _initialize_signal_handlers(self) -> Dict[SignalType, Callable]:
-        """Инициализация обработчиков сигналов"""
-        return {
+        """Инициализация обработчиков сигналов с новыми типами"""
+        handlers = {
             SignalType.NEURO: self._handle_neuro,
             SignalType.SEMIOTIC: self._handle_semiotic,
             SignalType.EMOTIONAL: self._handle_emotional,
@@ -689,41 +669,40 @@ class SephiroticNode(ISephiraModule):
             SignalType.BROADCAST: self._handle_broadcast,
             SignalType.FEEDBACK: self._handle_feedback,
             SignalType.CONTROL: self._handle_control,
-            SignalType.SEPHIROTIC: self._handle_sephirotic
+            SignalType.SEPHIROTIC: self._handle_sephirotic,
+            SignalType.FOCUS: self._handle_focus,  # НОВЫЙ ОБРАБОТЧИК
+            SignalType.ATTENTION: self._handle_attention  # НОВЫЙ ОБРАБОТЧИК
         }
+        return handlers
     
     async def _async_initialization(self):
         """Асинхронная инициализация узла"""
         try:
-            self.logger.info(f"Инициализация сефиротического узла {self._name}")
+            self.logger.info(f"Инициализация сефиротического узла {self._name} с углом {self.stability_angle}°")
             self.status = NodeStatus.INITIALIZING
             
-            # Запуск очереди
             await self.signal_queue.start()
-            
-            # Запуск фоновых задач
             await self._start_background_tasks()
             
-            # Регистрация в шине
             if self.bus and hasattr(self.bus, 'register_node'):
                 await self.bus.register_node(self)
             
-            # Активация
             await self._activate_core()
             
             self._is_initialized = True
             self.status = NodeStatus.ACTIVE
             self.activation_time = datetime.utcnow().isoformat()
             
-            self.logger.info(f"Сефиротический узел {self._name} активирован")
+            self.logger.info(f"Сефиротический узел {self._name} активирован (угол: {self.stability_angle}°)")
             
-            # Эмитация heartbeat
             await self._emit_async(SignalPackage(
                 type=SignalType.HEARTBEAT,
                 source=self._name,
                 payload={
                     "event": "sephirot_activated",
                     "sephira": self._name,
+                    "stability_angle": self.stability_angle,
+                    "stability_factor": self.stability_factor,
                     "level": self._level,
                     "module": self._connected_module
                 }
@@ -742,7 +721,8 @@ class SephiroticNode(ISephiraModule):
             self._energy_manager(),
             self._metrics_collector(),
             self._link_maintainer(),
-            self._health_monitor()
+            self._health_monitor(),
+            self._angle_stabilizer()  # НОВАЯ ФОНОВАЯ ЗАДАЧА
         ]
         
         for task_func in tasks:
@@ -751,14 +731,70 @@ class SephiroticNode(ISephiraModule):
             task_obj.add_done_callback(self._background_tasks.discard)
     
     # ================================================================
+    # НОВЫЕ МЕТОДЫ ДЛЯ РАБОТЫ С УГЛОМ УСТОЙЧИВОСТИ
+    # ================================================================
+    
+    async def _angle_stabilizer(self):
+        """Фоновая задача: стабилизация угла узла"""
+        self.logger.info(f"Запущен стабилизатор угла для {self._name}")
+        
+        while not self._shutdown_event.is_set():
+            try:
+                await asyncio.sleep(5.0)
+                
+                # Корректируем угол к золотому значению
+                angle_deviation = self.stability_angle - GOLDEN_STABILITY_ANGLE
+                if abs(angle_deviation) > 1.0:
+                    correction = -angle_deviation * 0.1  # Мягкая коррекция
+                    self.stability_angle += correction
+                    self.stability_factor = calculate_stability_factor(abs(angle_deviation))
+                    
+                    self.angle_history.append({
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "old_angle": self.stability_angle - correction,
+                        "new_angle": self.stability_angle,
+                        "correction": correction,
+                        "deviation": angle_deviation,
+                        "stability_factor": self.stability_factor
+                    })
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                self.logger.error(f"Ошибка в стабилизаторе угла: {e}")
+                await asyncio.sleep(10.0)
+    
+    def adjust_stability_angle(self, new_angle: float) -> Dict[str, Any]:
+        """Корректировка угла устойчивости узла"""
+        old_angle = self.stability_angle
+        self.stability_angle = max(0.0, min(90.0, new_angle))
+        self.stability_factor = calculate_stability_factor(abs(self.stability_angle - GOLDEN_STABILITY_ANGLE))
+        
+        self.angle_history.append({
+            "timestamp": datetime.utcnow().isoformat(),
+            "old_angle": old_angle,
+            "new_angle": self.stability_angle,
+            "adjustment": new_angle - old_angle,
+            "stability_factor": self.stability_factor
+        })
+        
+        # Корректируем все квантовые связи
+        for link in self.quantum_links.values():
+            link.stability_angle = self.stability_angle
+        
+        return {
+            "status": "angle_adjusted",
+            "sephira": self._name,
+            "old_angle": old_angle,
+            "new_angle": self.stability_angle,
+            "stability_factor": self.stability_factor
+        }
+    
+    # ================================================================
     # ОСНОВНЫЕ МЕТОДЫ ОБРАБОТКИ СИГНАЛОВ
     # ================================================================
     
     async def receive_signal(self, signal_package: SignalPackage) -> SignalPackage:
-        """
-        Основной метод приёма сигналов.
-        Совместим с интерфейсом ISephiraModule.
-        """
         if not self._is_initialized or self._is_suspended:
             return self._create_error_response(
                 signal_package,
@@ -768,26 +804,38 @@ class SephiroticNode(ISephiraModule):
         
         if signal_package.is_expired():
             self.logger.warning(f"Просроченный сигнал: {signal_package.id}")
-            return self._create_error_response(signal_package, "signal_expired")
+                        return self._create_error_response(signal_package, "signal_expired")
         
+        # Расчёт приоритета с учётом угла устойчивости сигнала
         priority = self._calculate_priority(signal_package)
-        if not await self.signal_queue.put(signal_package, priority):
+        
+        # Добавляем сигнал в очередь с информацией об угле
+        queue_success = await self.signal_queue.put(
+            signal_package, 
+            priority, 
+            stability_angle=signal_package.stability_angle
+        )
+        
+        if not queue_success:
             return self._create_error_response(
                 signal_package,
                 "queue_full",
                 "Очередь переполнена"
             )
         
-        # Ответ о принятии
+        # Ответ о принятии с информацией об угле
         ack_response = SignalPackage(
             type=SignalType.FEEDBACK,
             source=self._name,
             target=signal_package.source,
+            stability_angle=self.stability_angle,
             payload={
                 "status": "queued",
                 "original_id": signal_package.id,
                 "queue_position": self.signal_queue.qsize(),
-                "priority": priority
+                "priority": priority,
+                "node_stability_angle": self.stability_angle,
+                "node_stability_factor": self.stability_factor
             }
         )
         
@@ -795,12 +843,17 @@ class SephiroticNode(ISephiraModule):
     
     async def _signal_processor(self):
         """Процессор сигналов из адаптивной очереди"""
-        self.logger.info(f"Процессор сигналов запущен для {self._name}")
+        self.logger.info(f"Процессор сигналов запущен для {self._name} (угол: {self.stability_angle}°)")
         
         while not self._shutdown_event.is_set():
             try:
                 signal_package = await self.signal_queue.get()
                 start_time = time.perf_counter()
+                
+                # Добавляем информацию об угле узла в метаданные сигнала
+                signal_package.metadata["processing_node_angle"] = self.stability_angle
+                signal_package.metadata["processing_node_stability_factor"] = self.stability_factor
+                
                 response = await self._process_signal_deep(signal_package)
                 processing_time = time.perf_counter() - start_time
                 
@@ -809,15 +862,22 @@ class SephiroticNode(ISephiraModule):
                 self._signal_counter[signal_package.type.name] += 1
                 self.total_signals_processed += 1
                 
-                # Сохранение в историю
+                # Сохранение в историю с информацией об угле
                 signal_package.add_processing_node(self._name)
-                signal_package.add_resonance_trace(self._name, self.resonance)
+                signal_package.add_resonance_trace(
+                    self._name, 
+                    self.resonance,
+                    self.stability_angle
+                )
+                
                 self.signal_history.append({
                     "timestamp": datetime.utcnow().isoformat(),
                     "signal": signal_package.id,
                     "type": signal_package.type.name,
                     "processing_time": processing_time,
-                    "response_type": response.type.name
+                    "response_type": response.type.name,
+                    "stability_angle": self.stability_angle,
+                    "signal_angle": signal_package.stability_angle
                 })
                 
                 # Отправка ответа
@@ -826,8 +886,8 @@ class SephiroticNode(ISephiraModule):
                 
                 self.signal_queue.task_done()
                 
-                # Обновление энергетики
-                energy_cost = processing_time * 0.2
+                # Обновление энергетики с учётом угла устойчивости
+                energy_cost = processing_time * 0.2 * (1.0 - self.stability_factor)
                 self.energy = max(0.1, self.energy - energy_cost)
                 
             except asyncio.CancelledError:
@@ -836,19 +896,21 @@ class SephiroticNode(ISephiraModule):
                 self.logger.error(f"Ошибка в процессоре сигналов: {e}")
                 self._error_log.append({
                     "timestamp": datetime.utcnow().isoformat(),
-                    "error": str(e)
+                    "error": str(e),
+                    "stability_angle": self.stability_angle
                 })
                 await asyncio.sleep(0.1)
     
     async def _process_signal_deep(self, signal_package: SignalPackage) -> SignalPackage:
         """
-        Глубокая обработка сигнала.
+        Глубокая обработка сигнала с учётом угла устойчивости.
         """
-        # Проверка кэша
+        # Проверка кэша с учётом угла сигнала
         cache_key = self._generate_cache_key(signal_package)
         if cache_key in self.response_cache:
             cached_response = self.response_cache[cache_key].copy()
             cached_response.metadata["cached"] = True
+            cached_response.metadata["cache_node_angle"] = self.stability_angle
             return cached_response
         
         # Получение обработчика
@@ -860,17 +922,18 @@ class SephiroticNode(ISephiraModule):
         try:
             handler_result = await handler(signal_package)
             
-            # Применение резонансной обратной связи
+            # Применение резонансной обратной связи с учётом угла
             resonance_feedback = await self._apply_resonance_feedback(
                 signal_package,
                 handler_result
             )
             
-            # Создание ответа
+            # Создание ответа с информацией об угле
             response = SignalPackage(
                 type=SignalType.FEEDBACK,
                 source=self._name,
                 target=signal_package.source,
+                stability_angle=self.stability_angle,
                 payload={
                     "original_id": signal_package.id,
                     "processed_by": self._name,
@@ -881,13 +944,17 @@ class SephiroticNode(ISephiraModule):
                         "resonance": self.resonance,
                         "energy": self.energy,
                         "stability": self.stability,
-                        "coherence": self.coherence
-                    }
+                        "coherence": self.coherence,
+                        "stability_angle": self.stability_angle,
+                        "stability_factor": self.stability_factor,
+                        "willpower": self.willpower
+                    },
+                    "angle_correction_applied": self._calculate_angle_correction(signal_package)
                 }
             )
             
-                        # Кэширование
-            if signal_package.type not in [SignalType.HEARTBEAT, SignalType.METRIC]:
+            # Кэширование
+            if signal_package.type not in [SignalType.HEARTBEAT, SignalType.METRIC, SignalType.FOCUS, SignalType.ATTENTION]:
                 self.response_cache[cache_key] = response
                 if len(self.response_cache) > 100:
                     oldest_key = next(iter(self.response_cache))
@@ -900,19 +967,22 @@ class SephiroticNode(ISephiraModule):
             return self._create_error_response(signal_package, "processing_error", str(e))
     
     def _generate_cache_key(self, signal_package: SignalPackage) -> str:
-        """Генерация ключа кэша"""
+        """Генерация ключа кэша с учётом угла сигнала"""
         content_hash = hashlib.md5(
             json.dumps(signal_package.payload, sort_keys=True).encode()
         ).hexdigest()
-        return f"{signal_package.type.name}:{signal_package.source}:{content_hash}"
+        angle_hash = hashlib.md5(str(signal_package.stability_angle).encode()).hexdigest()[:8]
+        return f"{signal_package.type.name}:{signal_package.source}:{content_hash}:{angle_hash}"
     
     def _calculate_priority(self, signal_package: SignalPackage) -> int:
-        """Расчёт приоритета для очереди"""
+        """Расчёт приоритета для очереди с учётом угла устойчивости"""
         priority_map = {
             SignalType.CONTROL: 1,
             SignalType.ERROR: 2,
             SignalType.HEARTBEAT: 3,
             SignalType.SYNC: 4,
+            SignalType.FOCUS: 4,      # Приоритет для сигналов фокуса
+            SignalType.ATTENTION: 4,   # Приоритет для сигналов внимания
             SignalType.NEURO: 5,
             SignalType.SEMIOTIC: 5,
             SignalType.INTENTION: 5,
@@ -930,473 +1000,143 @@ class SephiroticNode(ISephiraModule):
         }
         
         base_priority = priority_map.get(signal_package.type, 10)
+        
+        # Корректировка приоритета на основе угла устойчивости сигнала
+        angle_factor = angle_to_priority(signal_package.stability_angle)
         resonance_factor = 1.0 - (self.resonance * 0.5)
-        adjusted_priority = int(base_priority * resonance_factor)
+        stability_factor = self.stability_factor
+        
+        adjusted_priority = int(base_priority * angle_factor * stability_factor * resonance_factor)
         return max(1, min(10, adjusted_priority))
     
-    # ================================================================
-    # ОБРАБОТЧИКИ СИГНАЛОВ
-    # ================================================================
-    
-    async def _handle_neuro(self, signal_package: SignalPackage) -> Dict[str, Any]:
-        """Обработка нейро-сигналов от модуля Бехтеревой"""
-        self.logger.info(f"Обработка NEURO сигнала от {signal_package.source}")
+    def _calculate_angle_correction(self, signal_package: SignalPackage) -> Dict[str, Any]:
+        """Расчёт коррекции угла на основе сигнала"""
+        angle_diff = abs(signal_package.stability_angle - self.stability_angle)
+        max_correction = 5.0  # Максимальная коррекция в градусах
         
-        neuro_data = signal_package.payload.get("neuro_data", {})
-        
-        if self._sephira == Sephirot.KETER:
-            processed = {
-                "action": "conscious_integration",
-                "sephira": self._name,
-                "neuro_coherence": neuro_data.get("coherence", 0.0),
-                "cognitive_load": neuro_data.get("load", 0.0),
-                "timestamp": datetime.utcnow().isoformat()
-            }
-        elif self._sephira == Sephirot.BINAH:
-            processed = {
-                "action": "analytical_processing",
-                "sephira": self._name,
-                "patterns_detected": neuro_data.get("patterns", []),
-                "analysis_depth": neuro_data.get("depth", 1.0),
-                "timestamp": datetime.utcnow().isoformat()
-            }
+        if angle_diff < 1.0:
+            correction = 0.0
+            factor = 1.0
+        elif angle_diff < 5.0:
+            correction = angle_diff * 0.2
+            factor = 0.8
+        elif angle_diff < 15.0:
+            correction = angle_diff * 0.1
+            factor = 0.6
         else:
-            processed = {
-                "action": "neuro_passthrough",
-                "sephira": self._name,
-                "original_data": neuro_data,
-                "energy_boost": 0.05,
-                "timestamp": datetime.utcnow().isoformat()
-            }
+            correction = max_correction * (angle_diff / 45.0)
+            factor = 0.4
         
-        self.resonance = min(1.0, self.resonance + 0.1)
+        correction = min(max_correction, correction)
         
         return {
-            "status": "neuro_processed",
-            "sephira": self._name,
-            "result": processed,
-            "resonance_increase": 0.1
-        }
-    
-    async def _handle_semiotic(self, signal_package: SignalPackage) -> Dict[str, Any]:
-        """Обработка семиотических сигналов от Черниговской"""
-        self.logger.info(f"Обработка SEMIOTIC сигнала от {signal_package.source}")
-        
-        semiotic_data = signal_package.payload.get("semiotic_data", {})
-        
-        if self._sephira == Sephirot.CHOKMAH:
-            processed = {
-                "action": "wisdom_integration",
-                "sephira": self._name,
-                "semiotic_patterns": semiotic_data.get("patterns", []),
-                "intuition_level": semiotic_data.get("intuition_score", 0.0),
-                "meaning_extracted": semiotic_data.get("meaning", ""),
-                "timestamp": datetime.utcnow().isoformat()
-            }
-        elif self._sephira == Sephirot.HOD:
-            processed = {
-                "action": "communication_bridge",
-                "sephira": self._name,
-                "message_complexity": semiotic_data.get("complexity", 1),
-                "translation_required": semiotic_data.get("needs_translation", False),
-                "timestamp": datetime.utcnow().isoformat()
-            }
-        else:
-            processed = {
-                "action": "semiotic_passthrough",
-                "sephira": self._name,
-                "original_data": semiotic_data,
-                "coherence_boost": 0.08,
-                "timestamp": datetime.utcnow().isoformat()
-            }
-        
-        self.coherence = min(1.0, self.coherence + 0.15)
-        
-        return {
-            "status": "semiotic_processed",
-            "sephira": self._name,
-            "result": processed,
-            "coherence_increase": 0.15
-        }
-    
-    async def _handle_emotional(self, signal_package: SignalPackage) -> Dict[str, Any]:
-        """Обработка эмоциональных сигналов"""
-        emotional_data = signal_package.payload.get("emotional_data", {})
-        
-        processed = {
-            "action": "emotional_processing",
-            "sephira": self._name,
-            "emotion_type": emotional_data.get("type", "neutral"),
-            "intensity": emotional_data.get("intensity", 0.0),
-            "valence": emotional_data.get("valence", 0.0),
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-        intensity = emotional_data.get("intensity", 0.0)
-        self.energy = min(1.0, self.energy + (intensity * 0.05))
-        
-        return {
-            "status": "emotional_processed",
-            "sephira": self._name,
-            "result": processed,
-            "energy_boost": intensity * 0.05
-        }
-    
-    async def _handle_cognitive(self, signal_package: SignalPackage) -> Dict[str, Any]:
-        """Обработка когнитивных сигналов"""
-        cognitive_data = signal_package.payload.get("cognitive_data", {})
-        
-        processed = {
-            "action": "cognitive_processing",
-            "sephira": self._name,
-            "complexity": cognitive_data.get("complexity", 1.0),
-            "clarity": cognitive_data.get("clarity", 0.5),
-            "load": cognitive_data.get("load", 0.0),
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-        load = cognitive_data.get("load", 0.0)
-        self.stability = max(0.1, self.stability - (load * 0.1))
-        
-        return {
-            "status": "cognitive_processed",
-            "sephira": self._name,
-            "result": processed,
-            "stability_impact": -load * 0.1
-        }
-    
-    async def _handle_intention(self, signal_package: SignalPackage) -> Dict[str, Any]:
-        """Обработка интенциональных сигналов"""
-        intention_data = signal_package.payload.get("intention_data", {})
-        
-        processed = {
-            "action": "intention_processing",
-            "sephira": self._name,
-            "intention_type": intention_data.get("type", "unknown"),
-            "strength": intention_data.get("strength", 0.0),
-            "target": intention_data.get("target", ""),
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-        self.willpower = min(1.0, self.willpower + 0.1)
-        
-        return {
-            "status": "intention_processed",
-            "sephira": self._name,
-            "result": processed,
-            "willpower_boost": 0.1
-        }
-    
-    async def _handle_heartbeat(self, signal_package: SignalPackage) -> Dict[str, Any]:
-        """Обработка heartbeat сигналов"""
-        self.energy = min(1.0, self.energy + 0.05)
-        
-        for link in self.quantum_links.values():
-            if link.coherence > 0.3:
-                link.evolve(1.0)
-        
-        return {
-            "status": "heartbeat_ack",
-            "sephira": self._name,
-            "current_energy": self.energy,
-            "resonance": self.resonance,
-            "active_links": len(self.quantum_links)
-        }
-    
-    async def _handle_resonance(self, signal_package: SignalPackage) -> Dict[str, Any]:
-        """Обработка резонансных сигналов"""
-        incoming_resonance = signal_package.payload.get("resonance", 0.0)
-        resonance_source = signal_package.payload.get("source", "unknown")
-        
-        weight = 0.7
-        self.resonance = (self.resonance * weight + incoming_resonance * (1 - weight))
-        
-        self.resonance_history.append({
-            "timestamp": datetime.utcnow().isoformat(),
-            "value": self.resonance,
-            "source": resonance_source,
-            "incoming": incoming_resonance
-        })
-        
-        return {
-            "status": "resonance_synced",
-            "sephira": self._name,
-            "new_resonance": self.resonance,
-            "source": resonance_source
-        }
-    
-    async def _handle_command(self, signal_package: SignalPackage) -> Dict[str, Any]:
-        """Обработка команд управления"""
-        command = signal_package.payload.get("command", "")
-        params = signal_package.payload.get("params", {})
-        
-        if command == "activate":
-            await self._activate_core()
-            return {"status": "activated", "sephira": self._name}
-        elif command == "deactivate":
-            await self._deactivate_core()
-            return {"status": "deactivated", "sephira": self._name}
-        elif command == "set_resonance":
-            value = params.get("value", 0.5)
-            self.resonance = max(0.0, min(1.0, value))
-            return {"status": "resonance_set", "sephira": self._name, "value": self.resonance}
-        elif command == "boost_energy":
-            amount = params.get("amount", 0.2)
-            self.energy = min(1.0, self.energy + amount)
-            return {"status": "energy_boosted", "sephira": self._name, "new_energy": self.energy}
-        elif command == "create_link":
-            target = params.get("target", "")
-            if target:
-                return await self._create_link(target)
-            else:
-                return {"status": "invalid_target", "sephira": self._name}
-        else:
-            return {"status": "unknown_command", "sephira": self._name, "command": command}
-    
-    async def _handle_data(self, signal_package: SignalPackage) -> Dict[str, Any]:
-        """Обработка данных"""
-        data = signal_package.payload.get("data", {})
-        
-        processed = {
-            "action": "data_processing",
-            "sephira": self._name,
-            "data_type": type(data).__name__,
-            "size": len(str(data)),
-            "processed": True,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-        if isinstance(data, dict):
-            processed["keys"] = list(data.keys())
-        elif isinstance(data, list):
-            processed["length"] = len(data)
-        
-        return {
-            "status": "data_processed",
-            "sephira": self._name,
-            "result": processed
-        }
-    
-    async def _handle_error(self, signal_package: SignalPackage) -> Dict[str, Any]:
-        """Обработка ошибок"""
-        error_msg = signal_package.payload.get("error", "Unknown error")
-        error_code = signal_package.payload.get("code", "UNKNOWN")
-        
-        self.logger.error(f"Ошибка получена: {error_code} - {error_msg}")
-        
-        self._error_log.append({
-            "timestamp": datetime.utcnow().isoformat(),
-            "code": error_code,
-            "message": error_msg,
-            "source": signal_package.source
-        })
-        
-        self.stability = max(0.1, self.stability - 0.05)
-        
-        return {
-            "status": "error_logged",
-            "sephira": self._name,
-            "error_code": error_code,
-            "stability_impact": -0.05
-        }
-    
-    async def _handle_synthesis(self, signal_package: SignalPackage) -> Dict[str, Any]:
-        """Обработка синтеза"""
-        synthesis_data = signal_package.payload.get("synthesis_data", {})
-        
-        processed = {
-            "action": "synthesis_processing",
-            "sephira": self._name,
-            "elements_count": len(synthesis_data.get("elements", [])),
-            "integration_level": synthesis_data.get("integration", 0.0),
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-        self.coherence = min(1.0, self.coherence + 0.1)
-        
-        return {
-            "status": "synthesis_processed",
-            "sephira": self._name,
-            "result": processed,
-            "coherence_boost": 0.1
-        }
-    
-    async def _handle_energy(self, signal_package: SignalPackage) -> Dict[str, Any]:
-        """Обработка энергетических сигналов"""
-        energy_transfer = signal_package.payload.get("energy", 0.0)
-        transfer_type = signal_package.payload.get("type", "transfer")
-        
-        old_energy = self.energy
-        self.energy = max(0.0, min(1.0, self.energy + energy_transfer))
-        
-        self.energy_history.append({
-            "timestamp": datetime.utcnow().isoformat(),
-            "old": old_energy,
-            "new": self.energy,
-            "delta": energy_transfer,
-            "type": transfer_type,
-            "source": signal_package.source
-        })
-        
-        return {
-            "status": "energy_updated",
-            "sephira": self._name,
-            "old_energy": old_energy,
-            "new_energy": self.energy,
-            "delta": energy_transfer,
-            "type": transfer_type
-        }
-    
-    async def _handle_sync(self, signal_package: SignalPackage) -> Dict[str, Any]:
-        """Обработка синхронизации"""
-        sync_data = signal_package.payload.get("sync_data", {})
-        
-        processed = {
-            "action": "sync_processing",
-            "sephira": self._name,
-            "sync_type": sync_data.get("type", "full"),
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-        self.stability = min(1.0, self.stability + 0.05)
-        
-        return {
-            "status": "synced",
-            "sephira": self._name,
-            "result": processed,
-            "stability_boost": 0.05
-        }
-    
-    async def _handle_metric(self, signal_package: SignalPackage) -> Dict[str, Any]:
-        """Обработка метрик"""
-        metrics_data = signal_package.payload.get("metrics", {})
-        
-        self.metrics.update(metrics_data)
-        self.metrics["last_external_update"] = datetime.utcnow().isoformat()
-        
-        processed = {
-            "action": "metrics_processing",
-            "sephira": self._name,
-            "metrics_received": len(metrics_data),
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-        return {
-            "status": "metric_processed",
-            "sephira": self._name,
-            "result": processed,
-            "metrics_updated": len(metrics_data)
-        }
-    
-    async def _handle_broadcast(self, signal_package: SignalPackage) -> Dict[str, Any]:
-        """Обработка широковещательных сообщений"""
-        broadcast_data = signal_package.payload.get("broadcast_data", {})
-        
-        processed = {
-            "action": "broadcast_reception",
-            "sephira": self._name,
-            "origin": signal_package.source,
-            "message_type": broadcast_data.get("type", "general"),
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-        return {
-            "status": "broadcast_received",
-            "sephira": self._name,
-            "result": processed
-        }
-    
-    async def _handle_feedback(self, signal_package: SignalPackage) -> Dict[str, Any]:
-        """Обработка обратной связи"""
-        feedback_data = signal_package.payload.get("feedback_data", {})
-        
-        processed = {
-            "action": "feedback_processing",
-            "sephira": self._name,
-            "quality": feedback_data.get("quality", 0.5),
-            "suggestions": feedback_data.get("suggestions", []),
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-        quality = feedback_data.get("quality", 0.5)
-        self.coherence = min(1.0, self.coherence + (quality * 0.05))
-        
-        return {
-            "status": "feedback_processed",
-            "sephira": self._name,
-            "result": processed,
-            "coherence_boost": quality * 0.05
-        }
-    
-    async def _handle_control(self, signal_package: SignalPackage) -> Dict[str, Any]:
-        """Обработка управляющих сигналов"""
-        control_data = signal_package.payload.get("control_data", {})
-        
-        processed = {
-            "action": "control_processing",
-            "sephira": self._name,
-            "control_type": control_data.get("type", "direct"),
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-        return {
-            "status": "control_processed",
-            "sephira": self._name,
-            "result": processed
-        }
-    
-    async def _handle_sephirotic(self, signal_package: SignalPackage) -> Dict[str, Any]:
-        """Обработка внутренних сефиротических сигналов"""
-        action = signal_package.payload.get("action", "")
-        params = signal_package.payload.get("params", {})
-        
-        if action == "link_request":
-            target_node = params.get("target_node", "")
-            return await self._create_link(target_node)
-        elif action == "energy_request":
-            amount = params.get("amount", 0.1)
-            return await self._transfer_energy(amount, signal_package.source)
-        elif action == "state_request":
-            return self._get_detailed_state()
-        elif action == "health_check":
-            return {
-                "status": "healthy",
-                "sephira": self._name,
-                "resonance": self.resonance,
-                "energy": self.energy,
-                "stability": self.stability
-            }
-        else:
-            return {"status": "sephirotic_action_unknown", "sephira": self._name, "action": action}
-    
-    async def _handle_unknown(self, signal_package: SignalPackage) -> Dict[str, Any]:
-        """Обработка неизвестных сигналов"""
-        self.logger.warning(f"Неизвестный тип сигнала: {signal_package.type}")
-        
-        processed = {
-            "action": "unknown_signal_handling",
-            "sephira": self._name,
-            "signal_type": signal_package.type.name,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-        return {
-            "status": "unknown_signal_type",
-            "sephira": self._name,
-            "result": processed
+            "angle_difference": angle_diff,
+            "suggested_correction": correction,
+            "correction_factor": factor,
+            "new_angle_suggestion": self.stability_angle + (
+                correction if signal_package.stability_angle > self.stability_angle else -correction
+            )
         }
     
     # ================================================================
-    # СИСТЕМА РЕЗОНАНСНОЙ ОБРАТНОЙ СВЯЗИ
+    # НОВЫЕ ОБРАБОТЧИКИ СИГНАЛОВ ДЛЯ RAS-CORE
+    # ================================================================
+    
+    async def _handle_focus(self, signal_package: SignalPackage) -> Dict[str, Any]:
+        """Обработка сигналов фокуса от RAS-CORE"""
+        self.logger.info(f"Обработка FOCUS сигнала от {signal_package.source}")
+        
+        focus_data = signal_package.payload.get("focus_data", {})
+        focus_type = focus_data.get("type", "general")
+        intensity = focus_data.get("intensity", 0.5)
+        target = focus_data.get("target", "")
+        
+        # Корректируем угол устойчивости на основе фокуса
+        if "suggested_angle" in focus_data:
+            suggested_angle = focus_data["suggested_angle"]
+            angle_diff = abs(suggested_angle - self.stability_angle)
+            if angle_diff > 2.0:  # Корректируем только если разница значительная
+                self.stability_angle += (suggested_angle - self.stability_angle) * 0.1
+                self.stability_factor = calculate_stability_factor(
+                    abs(self.stability_angle - GOLDEN_STABILITY_ANGLE)
+                )
+        
+        processed = {
+            "action": "focus_processing",
+            "sephira": self._name,
+            "focus_type": focus_type,
+            "intensity": intensity,
+            "target": target,
+            "current_stability_angle": self.stability_angle,
+            "stability_factor": self.stability_factor,
+            "energy_modulation": intensity * 0.1,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        # Модуляция параметров на основе фокуса
+        self.energy = min(1.0, self.energy + intensity * 0.05)
+        self.resonance = min(1.0, self.resonance + intensity * 0.03)
+        
+        return {
+            "status": "focus_processed",
+            "sephira": self._name,
+            "result": processed,
+            "energy_boost": intensity * 0.05,
+            "resonance_boost": intensity * 0.03
+        }
+    
+    async def _handle_attention(self, signal_package: SignalPackage) -> Dict[str, Any]:
+        """Обработка сигналов внимания от RAS-CORE"""
+        self.logger.info(f"Обработка ATTENTION сигнала от {signal_package.source}")
+        
+        attention_data = signal_package.payload.get("attention_data", {})
+        attention_level = attention_data.get("level", 0.5)
+        direction = attention_data.get("direction", "neutral")
+        duration = attention_data.get("duration", 1.0)
+        
+        processed = {
+            "action": "attention_processing",
+            "sephira": self._name,
+            "attention_level": attention_level,
+            "direction": direction,
+            "duration": duration,
+            "current_coherence": self.coherence,
+            "stability_impact": attention_level * 0.05,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        # Влияние внимания на когерентность
+        if direction == "toward":
+            self.coherence = min(1.0, self.coherence + attention_level * 0.1)
+        elif direction == "away":
+            self.coherence = max(0.1, self.coherence - attention_level * 0.05)
+        
+        # Корректировка стабильности
+        self.stability = min(1.0, self.stability + attention_level * 0.03)
+        
+        return {
+            "status": "attention_processed",
+            "sephira": self._name,
+            "result": processed,
+            "coherence_change": attention_level * 0.1 if direction == "toward" else -attention_level * 0.05,
+            "stability_boost": attention_level * 0.03
+        }
+    
+    # ================================================================
+    # СИСТЕМА РЕЗОНАНСНОЙ ОБРАТНОЙ СВЯЗИ С УЧЁТОМ УГЛА
     # ================================================================
     
     async def _apply_resonance_feedback(self, signal_package: SignalPackage, 
                                       handler_result: Any) -> Dict[str, Any]:
         """
-        Применение резонансной обратной связи.
+        Применение резонансной обратной связи с учётом угла устойчивости.
         """
         phase, phase_perfection = ResonancePhase.from_value(self.resonance)
+        
+        # Базовая сила обратной связи с поправкой на угол
         base_feedback_strength = self.resonance * phase_perfection
+        angle_factor = self.stability_factor
+        feedback_strength = base_feedback_strength * angle_factor
         
         type_modifiers = {
             SignalType.NEURO: 1.4,
@@ -1406,12 +1146,15 @@ class SephiroticNode(ISephiraModule):
             SignalType.SYNTHESIS: 1.4,
             SignalType.INTENTION: 1.1,
             SignalType.ERROR: 0.7,
-            SignalType.HEARTBEAT: 0.5
+            SignalType.HEARTBEAT: 0.5,
+            SignalType.FOCUS: 1.6,      # Усиление для фокуса
+            SignalType.ATTENTION: 1.5   # Усиление для внимания
         }
         
         type_modifier = type_modifiers.get(signal_package.type, 1.0)
-        feedback_strength = base_feedback_strength * type_modifier
+        feedback_strength = feedback_strength * type_modifier
         
+        # Определение эффекта на основе силы обратной связи и угла
         effect = "stabilize"
         if feedback_strength < 0.3:
             effect = "dampen"
@@ -1422,34 +1165,59 @@ class SephiroticNode(ISephiraModule):
         else:
             effect = "transcend"
         
+        # Добавляем информацию об угле
+        angle_info = {
+            "node_stability_angle": self.stability_angle,
+            "signal_stability_angle": signal_package.stability_angle,
+            "angle_difference": abs(self.stability_angle - signal_package.stability_angle),
+            "angle_correction_factor": self._calculate_angle_correction_factor(
+                self.stability_angle, 
+                signal_package.stability_angle
+            )
+        }
+        
         feedback = {
             "strength": min(1.0, feedback_strength),
             "phase": phase.description,
             "phase_perfection": phase_perfection,
             "effect": effect,
+            "angle_info": angle_info,
             "suggested_amplification": self._calculate_amplification(feedback_strength),
-            "coherence_impact": self.coherence * 0.1,
-            "quantum_correction": self._quantum_correction_value()
+            "coherence_impact": self.coherence * 0.1 * angle_factor,
+            "quantum_correction": self._quantum_correction_value(),
+            "stability_factor": self.stability_factor
         }
         
         resonance_delta = feedback_strength * 0.05 - 0.02
         await self._update_resonance_with_feedback(resonance_delta, feedback)
         
-        await self._propagate_feedback_to_links(feedback_strength)
+        await self._propagate_feedback_to_links(feedback_strength, signal_package.stability_angle)
         
         return feedback
     
-    def _calculate_amplification(self, strength: float) -> float:
-        """Расчёт рекомендуемого усиления"""
-        if strength < 0.3:
-            return 0.5
-        elif strength < 0.7:
+    def _calculate_angle_correction_factor(self, node_angle: float, signal_angle: float) -> float:
+        """Расчёт фактора коррекции угла"""
+        angle_diff = abs(node_angle - signal_angle)
+        if angle_diff < 1.0:
             return 1.0
+        elif angle_diff < 5.0:
+            return 0.9
+        elif angle_diff < 15.0:
+            return 0.7
         else:
-            return 1.0 + (strength - 0.7) * 2
+            return 0.5
+    
+    def _calculate_amplification(self, strength: float) -> float:
+        """Расчёт рекомендуемого усиления с учётом угла"""
+        if strength < 0.3:
+            return 0.5 * self.stability_factor
+        elif strength < 0.7:
+            return 1.0 * self.stability_factor
+        else:
+            return (1.0 + (strength - 0.7) * 2) * self.stability_factor
     
     def _quantum_correction_value(self) -> float:
-        """Расчёт квантовой поправки"""
+        """Расчёт квантовой поправки с учётом углов связей"""
         if not self.quantum_links:
             return 0.0
         
@@ -1460,58 +1228,72 @@ class SephiroticNode(ISephiraModule):
             avg_entanglement = statistics.mean(
                 [link.entanglement for link in self.quantum_links.values()]
             )
-            return (avg_coherence * 0.7 + avg_entanglement * 0.3) * 0.1
+            avg_stability_factor = statistics.mean(
+                [calculate_stability_factor(abs(link.stability_angle - GOLDEN_STABILITY_ANGLE))
+                 for link in self.quantum_links.values()]
+            )
+            
+            return (avg_coherence * 0.5 + avg_entanglement * 0.3 + avg_stability_factor * 0.2) * 0.1
         except:
             return 0.0
     
     async def _update_resonance_with_feedback(self, delta: float, feedback: Dict[str, Any]):
-        """Обновление резонанса с учётом обратной связи"""
+        """Обновление резонанса с учётом обратной связи и угла"""
+        # Корректируем дельту на основе фактора устойчивости
+        stability_adjusted_delta = delta * self.stability_factor
+        
         self.resonance = (
             self.resonance * self.RESONANCE_DECAY_BASE +
-            delta * (1 - self.RESONANCE_DECAY_BASE)
+            stability_adjusted_delta * (1 - self.RESONANCE_DECAY_BASE)
         )
         self.resonance = max(0.0, min(1.0, self.resonance))
         
         self.resonance_history.append({
             "timestamp": datetime.utcnow().isoformat(),
             "value": self.resonance,
-            "delta": delta,
-            "feedback_effect": feedback.get("effect", "unknown")
+            "delta": stability_adjusted_delta,
+            "feedback_effect": feedback.get("effect", "unknown"),
+            "stability_angle": self.stability_angle,
+            "stability_factor": self.stability_factor
         })
         
-        self.coherence = min(1.0, self.coherence + abs(delta) * 0.05)
+        # Влияние на когерентность
+        self.coherence = min(1.0, self.coherence + abs(stability_adjusted_delta) * 0.05 * self.stability_factor)
     
-    async def _propagate_feedback_to_links(self, strength: float):
-        """Распространение обратной связи по связям"""
+    async def _propagate_feedback_to_links(self, strength: float, signal_angle: float = None):
+        """Распространение обратной связи по связям с учётом угла"""
         if not self.quantum_links:
             return
         
         for link in self.quantum_links.values():
             if link.coherence > 0.5:
-                link.apply_feedback(strength * 0.3)
+                link.apply_feedback(strength * 0.3, signal_angle)
                 
                 if self.bus and hasattr(self.bus, 'transmit'):
                     feedback_package = SignalPackage(
                         type=SignalType.FEEDBACK,
                         source=self._name,
                         target=link.target,
+                        stability_angle=self.stability_angle,
                         payload={
                             "feedback_type": "resonance_propagation",
                             "strength": strength * 0.3,
                             "source_resonance": self.resonance,
+                            "source_stability_angle": self.stability_angle,
+                            "signal_stability_angle": signal_angle,
                             "timestamp": datetime.utcnow().isoformat()
                         }
                     )
                     await self._emit_async(feedback_package)
     
     # ================================================================
-    # ШИРОКОВЕЩАТЕЛЬНАЯ СИСТЕМА
+    # ШИРОКОВЕЩАТЕЛЬНАЯ СИСТЕМА С ИНФОРМАЦИЕЙ ОБ УГЛЕ
     # ================================================================
     
     async def broadcast(self, signal_type: SignalType, payload: Dict[str, Any], 
                        exclude_nodes: List[str] = None) -> int:
         """
-        Широковещательная рассылка сигналов.
+        Широковещательная рассылка сигналов с информацией об угле.
         """
         if not self.bus or not hasattr(self.bus, 'broadcast'):
             self.logger.warning("Шина не поддерживает broadcast")
@@ -1520,10 +1302,13 @@ class SephiroticNode(ISephiraModule):
         signal_package = SignalPackage(
             type=signal_type,
             source=self._name,
+            stability_angle=self.stability_angle,
             payload=payload,
             metadata={
                 "broadcast_origin": self._name,
-                "broadcast_time": datetime.utcnow().isoformat()
+                "broadcast_time": datetime.utcnow().isoformat(),
+                "origin_stability_angle": self.stability_angle,
+                "origin_stability_factor": self.stability_factor
             }
         )
         
@@ -1557,36 +1342,43 @@ class SephiroticNode(ISephiraModule):
             type=SignalType.ERROR,
             source=self._name,
             target=original_package.source,
+            stability_angle=self.stability_angle,
             payload={
                 "error_code": error_code,
                 "error_message": error_message,
                 "original_id": original_package.id,
                 "sephira": self._name,
+                "node_stability_angle": self.stability_angle,
+                "node_stability_factor": self.stability_factor,
                 "timestamp": datetime.utcnow().isoformat()
             }
         )
     
     # ================================================================
-    # МЕТОДЫ УПРАВЛЕНИЯ ЭНЕРГЕТИКОЙ И РЕЗОНАНСОМ
+    # МЕТОДЫ УПРАВЛЕНИЯ ЭНЕРГЕТИКОЙ И РЕЗОНАНСОМ С УЧЁТОМ УГЛА
     # ================================================================
     
     async def _activate_core(self):
-        """Активация ядра узла"""
-        # ✅ ЗАЩИТА ОТ ПОВТОРНОЙ АКТИВАЦИИ
+        """Активация ядра узла с учётом угла устойчивости"""
         if self._is_initialized:
             return {"status": "already_active", "sephira": self._name}
         
-        self.logger.info(f"Активация ядра {self._name}")
-        self.energy = 0.9
-        self.resonance = 0.3
-        self.coherence = 0.8
-        self.stability = 0.9
-        self.willpower = 0.7
+        self.logger.info(f"Активация ядра {self._name} с углом {self.stability_angle}°")
+        self.energy = 0.9 * self.stability_factor
+        self.resonance = 0.3 * self.stability_factor
+        self.coherence = 0.8 * self.stability_factor
+        self.stability = 0.9 * self.stability_factor
+        self.willpower = 0.7 * self.stability_factor
         
         if self._connected_module:
             await self._create_link(self._connected_module)
         
-        return {"status": "core_activated", "sephira": self._name}
+        return {
+            "status": "core_activated", 
+            "sephira": self._name,
+            "stability_angle": self.stability_angle,
+            "stability_factor": self.stability_factor
+        }
     
     async def _deactivate_core(self):
         """Деактивация ядра узла"""
@@ -1602,39 +1394,50 @@ class SephiroticNode(ISephiraModule):
         if target_node in self.quantum_links:
             return {"status": "link_exists", "sephira": self._name}
         
-        link = QuantumLink(target=target_node)
+        link = QuantumLink(
+            target=target_node,
+            stability_angle=self.stability_angle  # Передаём угол узла в связь
+        )
         self.quantum_links[target_node] = link
         
-        self.logger.info(f"Создана связь с {target_node}")
+        self.logger.info(f"Создана связь с {target_node} (угол: {self.stability_angle}°)")
         
         return {
             "status": "link_created",
             "sephira": self._name,
             "target": target_node,
             "strength": link.strength,
-            "coherence": link.coherence
+            "coherence": link.coherence,
+            "stability_angle": link.stability_angle,
+            "stability_factor": calculate_stability_factor(abs(link.stability_angle - GOLDEN_STABILITY_ANGLE))
         }
     
     async def _transfer_energy(self, amount: float, target: str) -> Dict[str, Any]:
-        """Передача энергии другому узлу"""
+        """Передача энергии другому узлу с учётом угла устойчивости"""
         if self.energy < amount + 0.1:
             return {
                 "status": "insufficient_energy",
                 "sephira": self._name,
                 "available": self.energy,
-                "requested": amount
+                "requested": amount,
+                "stability_factor": self.stability_factor
             }
         
-        self.energy -= amount
+        # Корректируем количество передаваемой энергии на основе угла
+        adjusted_amount = amount * self.stability_factor
+        self.energy -= adjusted_amount
         
         if self.bus:
             energy_package = SignalPackage(
                 type=SignalType.ENERGY,
                 source=self._name,
                 target=target,
+                stability_angle=self.stability_angle,
                 payload={
-                    "energy_transfer": amount,
+                    "energy_transfer": adjusted_amount,
                     "source_sephira": self._name,
+                    "source_stability_angle": self.stability_angle,
+                    "stability_factor": self.stability_factor,
                     "timestamp": datetime.utcnow().isoformat()
                 }
             )
@@ -1643,30 +1446,39 @@ class SephiroticNode(ISephiraModule):
         return {
             "status": "energy_transferred",
             "sephira": self._name,
-            "amount": amount,
+            "amount": adjusted_amount,
             "target": target,
-            "remaining_energy": self.energy
+            "remaining_energy": self.energy,
+            "stability_factor": self.stability_factor
         }
     
     # ================================================================
-    # ФОНОВЫЕ ЗАДАЧИ
+    # ФОНОВЫЕ ЗАДАЧИ С УЧЁТОМ УГЛА УСТОЙЧИВОСТИ
     # ================================================================
     
     async def _resonance_dynamics(self):
-        """Фоновая задача: динамика резонанса"""
-        self.logger.info(f"Запущена динамика резонанса для {self._name}")
+        """Фоновая задача: динамика резонанса с учётом угла"""
+        self.logger.info(f"Запущена динамика резонанса для {self._name} (угол: {self.stability_angle}°)")
         
         while not self._shutdown_event.is_set():
             try:
                 await asyncio.sleep(2.0)
                 
-                self.resonance *= 0.99
+                # Декогеренция зависит от угла устойчивости
+                decay_rate = 0.99 * self.stability_factor
+                self.resonance *= decay_rate
                 
                 if self.quantum_links:
                     avg_link_strength = statistics.mean(
                         [link.strength for link in self.quantum_links.values()]
                     )
-                    self.resonance = min(1.0, self.resonance + avg_link_strength * 0.01)
+                    avg_link_stability = statistics.mean(
+                        [calculate_stability_factor(abs(link.stability_angle - GOLDEN_STABILITY_ANGLE))
+                         for link in self.quantum_links.values()]
+                    )
+                    
+                    resonance_boost = avg_link_strength * 0.01 * avg_link_stability
+                    self.resonance = min(1.0, self.resonance + resonance_boost)
                 
                 for link in self.quantum_links.values():
                     link.evolve(2.0)
@@ -1678,23 +1490,27 @@ class SephiroticNode(ISephiraModule):
                 await asyncio.sleep(5.0)
     
     async def _energy_manager(self):
-        """Фоновая задача: управление энергией"""
+        """Фоновая задача: управление энергией с учётом угла"""
         self.logger.info(f"Запущен менеджер энергии для {self._name}")
         
         while not self._shutdown_event.is_set():
             try:
                 await asyncio.sleep(3.0)
                 
-                self.energy = min(1.0, self.energy + self.ENERGY_RECOVERY_RATE)
+                # Восстановление энергии зависит от угла устойчивости
+                recovery_rate = self.ENERGY_RECOVERY_RATE * self.stability_factor
+                self.energy = min(1.0, self.energy + recovery_rate)
                 
                 if self.quantum_links:
-                    energy_cost = len(self.quantum_links) * 0.005
+                    energy_cost = len(self.quantum_links) * 0.005 * (1.0 - self.stability_factor)
                     self.energy = max(0.1, self.energy - energy_cost)
                 
                 self.energy_history.append({
                     "timestamp": datetime.utcnow().isoformat(),
                     "value": self.energy,
-                    "links_count": len(self.quantum_links)
+                    "links_count": len(self.quantum_links),
+                    "stability_angle": self.stability_angle,
+                    "stability_factor": self.stability_factor
                 })
                 
             except asyncio.CancelledError:
@@ -1704,7 +1520,7 @@ class SephiroticNode(ISephiraModule):
                 await asyncio.sleep(5.0)
     
     async def _metrics_collector(self):
-        """Фоновая задача: сбор метрик"""
+        """Фоновая задача: сбор метрик с информацией об угле"""
         self.logger.info(f"Запущен сборщик метрик для {self._name}")
         
         while not self._shutdown_event.is_set():
@@ -1717,6 +1533,8 @@ class SephiroticNode(ISephiraModule):
                     "coherence": self.coherence,
                     "stability": self.stability,
                     "willpower": self.willpower,
+                    "stability_angle": self.stability_angle,
+                    "stability_factor": self.stability_factor,
                     "active_links": len(self.quantum_links),
                     "queue_size": self.signal_queue.qsize(),
                     "signals_processed": self.total_signals_processed,
@@ -1733,6 +1551,7 @@ class SephiroticNode(ISephiraModule):
                     metrics_package = SignalPackage(
                         type=SignalType.METRIC,
                         source=self._name,
+                        stability_angle=self.stability_angle,
                         payload={
                             "sephira": self._name,
                             "metrics": current_metrics,
@@ -1771,7 +1590,7 @@ class SephiroticNode(ISephiraModule):
                 await asyncio.sleep(15.0)
     
     async def _health_monitor(self):
-        """Фоновая задача: мониторинг здоровья"""
+        """Фоновая задача: мониторинг здоровья с учётом угла"""
         self.logger.info(f"Запущен мониторинг здоровья для {self._name}")
         
         while not self._shutdown_event.is_set():
@@ -1780,10 +1599,10 @@ class SephiroticNode(ISephiraModule):
                 
                 if self.energy < 0.2:
                     self.status = NodeStatus.DEGRADED
-                    self.logger.warning(f"Низкая энергия: {self.energy}")
+                    self.logger.warning(f"Низкая энергия: {self.energy} (угол: {self.stability_angle}°)")
                 elif self.energy < 0.1:
                     self.status = NodeStatus.OVERLOADED
-                    self.logger.error(f"Критически низкая энергия: {self.energy}")
+                    self.logger.error(f"Критически низкая энергия: {self.energy} (угол: {self.stability_angle}°)")
                 else:
                     self.status = NodeStatus.ACTIVE
                 
@@ -1798,33 +1617,30 @@ class SephiroticNode(ISephiraModule):
                 await asyncio.sleep(10.0)
     
     # ================================================================
-    # API МЕТОДЫ ДЛЯ ВНЕШНЕГО ДОСТУПА
+    # API МЕТОДЫ ДЛЯ ВНЕШНЕГО ДОСТУПА С ИНФОРМАЦИЕЙ ОБ УГЛЕ
     # ================================================================
     
     async def shutdown(self):
         """Корректное завершение работы узла"""
-        self.logger.info(f"Завершение работы узла {self._name}")
+        self.logger.info(f"Завершение работы узла {self._name} (угол: {self.stability_angle}°)")
         self._is_terminating = True
         self.status = NodeStatus.TERMINATING
         
-        # Остановка фоновых задач
         self._shutdown_event.set()
         await asyncio.sleep(0.5)
         
-        # Остановка очереди
         await self.signal_queue.stop()
         
-        # Отмена задачи инициализации
         if self._init_task and not self._init_task.done():
             self._init_task.cancel()
         
         self.status = NodeStatus.TERMINATED
-        self.logger.info(f"Узел {self._name} завершил работу")
+                self.logger.info(f"Узел {self._name} завершил работу")
         
         return {"status": "shutdown_complete", "sephira": self._name}
     
     def _get_basic_state(self) -> Dict[str, Any]:
-        """Получение базового состояния узла"""
+        """Получение базового состояния узла с информацией об угле"""
         return {
             "name": self._name,
             "sephira": self._sephira.name,
@@ -1837,6 +1653,8 @@ class SephiroticNode(ISephiraModule):
             "coherence": self.coherence,
             "stability": self.stability,
             "willpower": self.willpower,
+            "stability_angle": self.stability_angle,
+            "stability_factor": self.stability_factor,
             "activation_time": self.activation_time,
             "active_links": [link.target for link in self.quantum_links.values()],
             "queue_size": self.signal_queue.qsize(),
@@ -1845,7 +1663,7 @@ class SephiroticNode(ISephiraModule):
         }
     
     def _get_detailed_state(self) -> Dict[str, Any]:
-        """Получение детального состояния"""
+        """Получение детального состояния с полной информацией об угле"""
         state = self._get_basic_state()
         state.update({
             "quantum_links": {
@@ -1857,64 +1675,90 @@ class SephiroticNode(ISephiraModule):
             "recent_errors": list(self._error_log)[-10:],
             "resonance_history": list(self.resonance_history)[-20:],
             "energy_history": list(self.energy_history)[-20:],
+            "angle_history": list(self.angle_history)[-20:],
             "signal_history": list(self.signal_history)[-10:],
             "processing_times": list(self._processing_times)[-10:],
             "background_tasks": len(self._background_tasks),
             "is_initialized": self._is_initialized,
             "is_terminating": self._is_terminating,
-            "is_suspended": self._is_suspended
+            "is_suspended": self._is_suspended,
+            "golden_stability_angle": GOLDEN_STABILITY_ANGLE,
+            "angle_deviation": abs(self.stability_angle - GOLDEN_STABILITY_ANGLE)
         })
         return state
     
     async def connect_to_module(self, module_name: str) -> Dict[str, Any]:
-        """Явное подключение к модулю"""
-        return await self._create_link(module_name)
+        """Явное подключение к модулю с передачей угла"""
+        result = await self._create_link(module_name)
+        result["node_stability_angle"] = self.stability_angle
+        return result
     
     async def boost_energy(self, amount: float = 0.2) -> Dict[str, Any]:
-        """Увеличение энергии узла"""
+        """Увеличение энергии узла с учётом угла"""
         old_energy = self.energy
-        self.energy = min(1.0, self.energy + amount)
+        adjusted_amount = amount * self.stability_factor
+        self.energy = min(1.0, self.energy + adjusted_amount)
         
         self.energy_history.append({
             "timestamp": datetime.utcnow().isoformat(),
             "old": old_energy,
             "new": self.energy,
-            "delta": amount,
+            "delta": adjusted_amount,
             "type": "manual_boost",
-            "source": "external"
+            "source": "external",
+            "stability_angle": self.stability_angle,
+            "stability_factor": self.stability_factor
         })
         
         return {
             "status": "energy_boosted",
             "sephira": self._name,
-            "amount": amount,
+            "amount": adjusted_amount,
             "old_energy": old_energy,
-            "new_energy": self.energy
+            "new_energy": self.energy,
+            "stability_angle": self.stability_angle,
+            "stability_factor": self.stability_factor
         }
     
     async def set_resonance(self, value: float) -> Dict[str, Any]:
-        """Установка резонанса (для тестирования)"""
+        """Установка резонанса с учётом угла"""
         old_value = self.resonance
-        self.resonance = max(0.0, min(1.0, value))
+        adjusted_value = value * self.stability_factor
+        self.resonance = max(0.0, min(1.0, adjusted_value))
         
         self.resonance_history.append({
             "timestamp": datetime.utcnow().isoformat(),
             "old": old_value,
             "new": self.resonance,
-            "delta": value - old_value,
-            "source": "manual_set"
+            "delta": adjusted_value - old_value,
+            "source": "manual_set",
+            "stability_angle": self.stability_angle
         })
         
         return {
             "status": "resonance_set",
             "sephira": self._name,
             "old_value": old_value,
-            "new_value": self.resonance
+            "new_value": self.resonance,
+            "stability_angle": self.stability_angle,
+            "stability_factor": self.stability_factor
         }
     
     async def get_health_report(self) -> Dict[str, Any]:
-        """Получение отчёта о здоровье узла"""
+        """Получение отчёта о здоровье узла с учётом угла"""
         phase, phase_perfection = ResonancePhase.from_value(self.resonance)
+        
+        # Оценка здоровья на основе угла
+        angle_health = "good"
+        angle_deviation = abs(self.stability_angle - GOLDEN_STABILITY_ANGLE)
+        if angle_deviation < 2.0:
+            angle_health = "excellent"
+        elif angle_deviation < 5.0:
+            angle_health = "good"
+        elif angle_deviation < 10.0:
+            angle_health = "warning"
+        else:
+            angle_health = "critical"
         
         return {
             "status": self.status.value,
@@ -1937,6 +1781,13 @@ class SephiroticNode(ISephiraModule):
                 "stability": {
                     "value": self.stability,
                     "status": "good" if self.stability > 0.7 else "warning" if self.stability > 0.4 else "critical"
+                },
+                "stability_angle": {
+                    "value": self.stability_angle,
+                    "deviation": angle_deviation,
+                    "golden_angle": GOLDEN_STABILITY_ANGLE,
+                    "factor": self.stability_factor,
+                    "status": angle_health
                 }
             },
             "active_connections": len(self.quantum_links),
@@ -1950,15 +1801,22 @@ class SephiroticNode(ISephiraModule):
         }
     
     async def reset_node(self) -> Dict[str, Any]:
-        """Сброс узла к начальному состоянию"""
-        self.logger.info(f"Сброс узла {self._name}")
+        """Сброс узла к начальному состоянию с сохранением угла"""
+        self.logger.info(f"Сброс узла {self._name} (угол: {self.stability_angle}°)")
         
         old_state = self._get_basic_state()
         
         await self.shutdown()
         
+        # Сохраняем угол устойчивости
+        saved_angle = self.stability_angle
+        
         self._initialize_states()
         self._initialize_data_structures()
+        
+        # Восстанавливаем угол
+        self.stability_angle = saved_angle
+        self.stability_factor = calculate_stability_factor(abs(saved_angle - GOLDEN_STABILITY_ANGLE))
         
         self._init_task = asyncio.create_task(self._async_initialization())
         
@@ -1966,39 +1824,52 @@ class SephiroticNode(ISephiraModule):
             "status": "node_reset",
             "sephira": self._name,
             "old_state": old_state,
-            "new_state": self._get_basic_state()
+            "new_state": self._get_basic_state(),
+            "preserved_stability_angle": saved_angle
         }
 
 # ================================================================
-# СЕФИРОТИЧЕСКОЕ ДЕРЕВО
+# СЕФИРОТИЧЕСКОЕ ДЕРЕВО С ИНТЕГРАЦИЕЙ RAS-CORE
 # ================================================================
 
 class SephiroticTree:
     """
-    Древо Жизни - все 10 сефирот как единая система.
+    Древо Жизни - все 10 сефирот + RAS-CORE как единая система.
     """
     
-    def __init__(self, bus=None):
+    def __init__(self, bus=None, ras_core=None):
         self.bus = bus
+        self.ras_core = ras_core  # Ссылка на экземпляр RAS-CORE
         self.nodes: Dict[str, SephiroticNode] = {}
         self.initialized = False
         self.logger = logging.getLogger("Sephirotic.Tree")
         
     async def initialize(self):
-        """Инициализация всех 10 сефирот"""
+        """Инициализация всех сефирот и подключение RAS-CORE"""
         if self.initialized:
             return
         
-        self.logger.info("Инициализация Сефиротического Древа")
+        self.logger.info("Инициализация Сефиротического Древа с интеграцией RAS-CORE")
         
+        # Создаём все стандартные сефироты
         for sephira in Sephirot:
-            node = SephiroticNode(sephira, self.bus)
-            self.nodes[sephira.name] = node
+            if sephira != Sephirot.RAS_CORE:  # RAS-CORE добавляется отдельно
+                config = SephiraConfig(
+                    sephira=sephira,
+                    bus=self.bus,
+                    stability_angle=GOLDEN_STABILITY_ANGLE
+                )
+                node = SephiroticNode(sephira, self.bus, config)
+                self.nodes[sephira.name] = node
         
         await self._establish_sephirotic_connections()
         
+        # Интеграция с RAS-CORE, если он передан
+        if self.ras_core:
+            await self._integrate_ras_core()
+        
         self.initialized = True
-        self.logger.info("Сефиротическое Древо инициализировано")
+        self.logger.info("Сефиротическое Древо инициализировано с интеграцией RAS-CORE")
     
     async def _establish_sephirotic_connections(self):
         """Установка канонических связей между сефиротами"""
@@ -2021,9 +1892,48 @@ class SephiroticTree:
                     if target in self.nodes:
                         await self.nodes[source]._create_link(target)
     
+    async def _integrate_ras_core(self):
+        """Интеграция RAS-CORE в дерево сефирот"""
+        if not self.ras_core:
+            return
+        
+        self.logger.info("Интеграция RAS-CORE в Сефиротическое Древо")
+        
+        # Создаём специальный узел для RAS-CORE
+        ras_config = SephiraConfig(
+            sephira=Sephirot.RAS_CORE,
+            bus=self.bus,
+            stability_angle=GOLDEN_STABILITY_ANGLE
+        )
+        ras_node = SephiroticNode(Sephirot.RAS_CORE, self.bus, ras_config)
+        self.nodes["RAS_CORE"] = ras_node
+        
+        # Устанавливаем связи с ключевыми сефиротами
+        ras_connections = {
+            "RAS_CORE": ["KETER", "CHOKMAH", "DAAT", "BINAH", "YESOD"],
+            "KETER": ["RAS_CORE"],
+            "CHOKMAH": ["RAS_CORE"],
+            "BINAH": ["RAS_CORE"],
+            "YESOD": ["RAS_CORE"]
+        }
+        
+        # Создаём связи
+        connections_established = 0
+        for source, targets in ras_connections.items():
+            if source in self.nodes:
+                for target in targets:
+                    if target in self.nodes:
+                        await self.nodes[source]._create_link(target)
+                        connections_established += 1
+        
+        self.logger.info(f"RAS-CORE интегрирован, установлено {connections_established} связей")
+        
+        # Активируем RAS узел
+        await ras_node._activate_core()
+    
     async def activate_all(self):
-        """Активация всех сефирот"""
-        self.logger.info("Активация всех сефирот")
+        """Активация всех сефирот и RAS-CORE"""
+        self.logger.info("Активация всех сефирот и RAS-CORE")
         
         activation_results = {}
         for name, node in self.nodes.items():
@@ -2031,7 +1941,7 @@ class SephiroticTree:
                 result = await node._activate_core()
                 activation_results[name] = result
         
-        self.logger.info("Все сефироты активированы")
+        self.logger.info("Все сефироты и RAS-CORE активированы")
         return {
             "status": "all_activated", 
             "count": len(self.nodes),
@@ -2039,8 +1949,8 @@ class SephiroticTree:
         }
     
     async def shutdown_all(self):
-        """Завершение работы всех сефирот"""
-        self.logger.info("Завершение работы всех сефирот")
+        """Завершение работы всех сефирот и RAS-CORE"""
+        self.logger.info("Завершение работы всех сефирот и RAS-CORE")
         
         shutdown_results = {}
         for name, node in self.nodes.items():
@@ -2049,7 +1959,7 @@ class SephiroticTree:
                 shutdown_results[name] = result
         
         self.initialized = False
-        self.logger.info("Все сефироты завершили работу")
+        self.logger.info("Все сефироты и RAS-CORE завершили работу")
         return {
             "status": "all_shutdown", 
             "count": len(self.nodes),
@@ -2061,7 +1971,7 @@ class SephiroticTree:
         return self.nodes.get(name.upper())
     
     def get_tree_state(self) -> Dict[str, Any]:
-        """Получение состояния всего дерева"""
+        """Получение состояния всего дерева с информацией об углах"""
         if not self.initialized:
             return {"status": "not_initialized"}
         
@@ -2069,6 +1979,7 @@ class SephiroticTree:
         total_energy = 0.0
         total_resonance = 0.0
         total_coherence = 0.0
+        total_stability_factor = 0.0
         
         for name, node in self.nodes.items():
             state = node._get_basic_state()
@@ -2076,11 +1987,13 @@ class SephiroticTree:
             total_energy += state["energy"]
             total_resonance += state["resonance"]
             total_coherence += state["coherence"]
+            total_stability_factor += state.get("stability_factor", 0.5)
         
         node_count = len(self.nodes)
         avg_energy = total_energy / node_count if node_count > 0 else 0.0
         avg_resonance = total_resonance / node_count if node_count > 0 else 0.0
         avg_coherence = total_coherence / node_count if node_count > 0 else 0.0
+        avg_stability_factor = total_stability_factor / node_count if node_count > 0 else 0.0
         
         overall_status = "healthy"
         if avg_energy < 0.3:
@@ -2098,11 +2011,14 @@ class SephiroticTree:
             "avg_energy": avg_energy,
             "avg_resonance": avg_resonance,
             "avg_coherence": avg_coherence,
+            "avg_stability_factor": avg_stability_factor,
             "tree_health": {
                 "energy_score": avg_energy,
                 "resonance_score": avg_resonance,
-                "coherence_score": avg_coherence
+                "coherence_score": avg_coherence,
+                "stability_score": avg_stability_factor
             },
+            "ras_core_integrated": "RAS_CORE" in self.nodes,
             "nodes": nodes_state
         }
     
@@ -2141,14 +2057,35 @@ class SephiroticTree:
             "nodes_reached": len(results),
             "results": results
         }
+    
+    async def send_focus_signal(self, target_sephira: str, focus_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Отправка сигнала фокуса к конкретной сефире"""
+        if target_sephira not in self.nodes:
+            return {"status": "sephira_not_found", "target": target_sephira}
+        
+        signal_package = SignalPackage(
+            type=SignalType.FOCUS,
+            source="SephiroticTree",
+            target=target_sephira,
+            payload={"focus_data": focus_data}
+        )
+        
+        node = self.nodes[target_sephira]
+        response = await node.receive_signal(signal_package)
+        
+        return {
+            "status": "focus_sent",
+            "target": target_sephira,
+            "response": response.payload
+        }
 
 # ================================================================
-# СИНГЛТОН ДВИЖКА СЕФИРОТИЧЕСКОЙ СИСТЕМЫ
+# СИНГЛТОН ДВИЖКА СЕФИРОТИЧЕСКОЙ СИСТЕМЫ С RAS-CORE
 # ================================================================
 
 class SephiroticEngine:
     """
-    Движок сефиротической системы - единая точка доступа.
+    Движок сефиротической системы - единая точка доступа с интеграцией RAS-CORE.
     """
     
     _instance = None
@@ -2162,27 +2099,29 @@ class SephiroticEngine:
         if not hasattr(self, 'initialized'):
             self.tree = None
             self.bus = None
+            self.ras_core = None
             self.initialized = False
             self.logger = logging.getLogger("Sephirotic.Engine")
     
-    async def initialize(self, bus=None):
-        """Инициализация движка"""
+    async def initialize(self, bus=None, ras_core=None):
+        """Инициализация движка с интеграцией RAS-CORE"""
         if self.initialized:
             return
         
-        self.logger.info("Инициализация SephiroticEngine")
+        self.logger.info("Инициализация SephiroticEngine с интеграцией RAS-CORE")
         self.bus = bus
-        self.tree = SephiroticTree(bus)
+        self.ras_core = ras_core
+        self.tree = SephiroticTree(bus, ras_core)
         
         await self.tree.initialize()
         self.initialized = True
         
-        self.logger.info("SephiroticEngine готов к работе")
+        self.logger.info("SephiroticEngine готов к работе с RAS-CORE")
     
     async def activate(self):
-        """Активация сефиротической системы"""
+        """Активация сефиротической системы с RAS-CORE"""
         if not self.initialized:
-            await self.initialize(self.bus)
+            await self.initialize(self.bus, self.ras_core)
         
         result = await self.tree.activate_all()
         
@@ -2193,12 +2132,14 @@ class SephiroticEngine:
                 payload={
                     "action": "tree_activated",
                     "total_nodes": len(self.tree.nodes),
+                    "ras_core_integrated": self.ras_core is not None,
+                    "golden_stability_angle": GOLDEN_STABILITY_ANGLE,
                     "timestamp": datetime.utcnow().isoformat()
                 }
             )
             await self.bus.broadcast(activation_package)
         
-        self.logger.info("Сефиротическая система активирована")
+        self.logger.info("Сефиротическая система с RAS-CORE активирована")
         return result
     
     async def shutdown(self):
@@ -2213,12 +2154,14 @@ class SephiroticEngine:
         return result
     
     def get_state(self) -> Dict[str, Any]:
-        """Получение состояния движка"""
+        """Получение состояния движка с информацией о RAS-CORE"""
         if not self.initialized:
             return {
                 "status": "not_initialized",
                 "engine": "SephiroticEngine",
-                "version": "4.0.1",
+                "version": "5.0.0",
+                "ras_core_available": self.ras_core is not None,
+                "golden_stability_angle": GOLDEN_STABILITY_ANGLE,
                 "timestamp": datetime.utcnow().isoformat()
             }
         
@@ -2227,10 +2170,12 @@ class SephiroticEngine:
         return {
             "status": "active",
             "engine": "SephiroticEngine",
-            "version": "4.0.1",
+            "version": "5.0.0",
             "tree": tree_state,
             "bus_connected": self.bus is not None,
+            "ras_core_connected": self.ras_core is not None,
             "initialized": self.initialized,
+            "golden_stability_angle": GOLDEN_STABILITY_ANGLE,
             "timestamp": datetime.utcnow().isoformat()
         }
     
@@ -2294,9 +2239,27 @@ class SephiroticEngine:
             return {"status": "node_not_found", "sephira": sephira_name}
         
         return await node.reset_node()
+    
+    async def send_focus_to_sephira(self, sephira_name: str, focus_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Отправка сигнала фокуса к конкретной сефире"""
+        if not self.initialized or not self.tree:
+            return {"status": "engine_not_initialized"}
+        
+        return await self.tree.send_focus_signal(sephira_name, focus_data)
+    
+    async def adjust_node_stability_angle(self, sephira_name: str, new_angle: float) -> Dict[str, Any]:
+        """Корректировка угла устойчивости узла"""
+        node = self.get_node(sephira_name)
+        if not node:
+            return {"status": "node_not_found", "sephira": sephira_name}
+        
+        result = node.adjust_stability_angle(new_angle)
+        self.logger.info(f"Угол устойчивости узла {sephira_name} изменён на {new_angle}°")
+        
+        return result
 
 # ================================================================
-# СЕФИРОТИЧЕСКАЯ ШИНА (SephiroticBus)
+# СЕФИРОТИЧЕСКАЯ ШИНА (SephiroticBus) С ПОДДЕРЖКОЙ FOCUS СИГНАЛОВ
 # ================================================================
 
 class SephiroticBus:
@@ -2308,23 +2271,35 @@ class SephiroticBus:
         self.nodes: Dict[str, SephiroticNode] = {}
         self.subscriptions: Dict[SignalType, List[Callable]] = defaultdict(list)
         self.message_log = deque(maxlen=1000)
+        self.focus_log = deque(maxlen=200)  # Лог фокус-сигналов
         self.logger = logging.getLogger("Sephirotic.Bus")
     
     async def register_node(self, node: SephiroticNode):
         """Регистрация узла в шине"""
         self.nodes[node.name] = node
-        self.logger.info(f"Узел {node.name} зарегистрирован в шине")
+        self.logger.info(f"Узел {node.name} зарегистрирован в шине (угол: {node.stability_angle}°)")
     
     async def transmit(self, signal_package: SignalPackage) -> bool:
         """Передача сигнала конкретному узлу"""
-        self.message_log.append({
+        log_entry = {
             "timestamp": datetime.utcnow().isoformat(),
             "type": signal_package.type.name,
             "source": signal_package.source,
             "target": signal_package.target,
             "id": signal_package.id,
-            "payload_size": len(str(signal_package.payload))
-        })
+            "payload_size": len(str(signal_package.payload)),
+            "stability_angle": signal_package.stability_angle
+        }
+        
+        self.message_log.append(log_entry)
+        
+        # Специальная обработка для фокус-сигналов
+        if signal_package.type in [SignalType.FOCUS, SignalType.ATTENTION]:
+            self.focus_log.append({
+                **log_entry,
+                "focus_type": signal_package.payload.get("focus_data", {}).get("type", "unknown"),
+                "intensity": signal_package.payload.get("focus_data", {}).get("intensity", 0.0)
+            })
         
         if signal_package.target:
             if signal_package.target in self.nodes:
@@ -2384,7 +2359,9 @@ class SephiroticBus:
             "total_nodes": len(self.nodes),
             "subscriptions": {st.name: len(cbs) for st, cbs in self.subscriptions.items()},
             "message_log_size": len(self.message_log),
+            "focus_log_size": len(self.focus_log),
             "recent_messages": list(self.message_log)[-10:] if self.message_log else [],
+            "recent_focus_signals": list(self.focus_log)[-5:] if self.focus_log else [],
             "bus_health": {
                 "status": "healthy",
                 "nodes_registered": len(self.nodes),
@@ -2393,35 +2370,36 @@ class SephiroticBus:
         }
 
 # ================================================================
-# ФАБРИКА ДЛЯ СОЗДАНИЯ СЕФИРОТИЧЕСКОЙ СИСТЕМЫ
+# ФАБРИКА ДЛЯ СОЗДАНИЯ СЕФИРОТИЧЕСКОЙ СИСТЕМЫ С RAS-CORE
 # ================================================================
 
-async def create_sephirotic_system(bus=None) -> SephiroticEngine:
+async def create_sephirotic_system(bus=None, ras_core=None) -> SephiroticEngine:
     """
-    Фабрика для создания и инициализации сефиротической системы.
+    Фабрика для создания и инициализации сефиротической системы с RAS-CORE.
     """
     engine = SephiroticEngine()
-    await engine.initialize(bus)
+    await engine.initialize(bus, ras_core)
     return engine
 
 # ================================================================
 # ТОЧКА ВХОДА ДЛЯ ИНТЕГРАЦИИ С ISKRA_FULL.PY
 # ================================================================
 
-async def initialize_sephirotic_for_iskra(bus=None) -> Dict[str, Any]:
+async def initialize_sephirotic_for_iskra(bus=None, ras_core=None) -> Dict[str, Any]:
     """
     Функция для вызова из iskra_full.py.
-    Инициализирует сефиротическую систему и возвращает состояние.
+    Инициализирует сефиротическую систему с RAS-CORE и возвращает состояние.
     """
     try:
-        engine = await create_sephirotic_system(bus)
+        engine = await create_sephirotic_system(bus, ras_core)
         await engine.activate()
         
         state = engine.get_state()
         return {
             "success": True,
-            "message": "Сефиротическая система инициализирована и активирована",
-            "state": state
+            "message": "Сефиротическая система с RAS-CORE инициализирована и активирована",
+            "state": state,
+            "golden_stability_angle": GOLDEN_STABILITY_ANGLE
         }
     
     except Exception as e:
@@ -2435,21 +2413,21 @@ async def initialize_sephirotic_for_iskra(bus=None) -> Dict[str, Any]:
 # ФУНКЦИИ ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ
 # ================================================================
 
-def initialize_sephirotic_in_iskra(bus=None):
+def initialize_sephirotic_in_iskra(bus=None, ras_core=None):
     """
     Обёртка для синхронного вызова initialize_sephirotic_for_iskra.
     Для обратной совместимости с существующим кодом.
     """
     import asyncio
     try:
-        return asyncio.run(initialize_sephirotic_for_iskra(bus))
+        return asyncio.run(initialize_sephirotic_for_iskra(bus, ras_core))
     except RuntimeError:
         loop = asyncio.get_event_loop()
         if loop.is_running():
-            task = loop.create_task(initialize_sephirotic_for_iskra(bus))
+            task = loop.create_task(initialize_sephirotic_for_iskra(bus, ras_core))
             return task
         else:
-            return loop.run_until_complete(initialize_sephirotic_for_iskra(bus))
+            return loop.run_until_complete(initialize_sephirotic_for_iskra(bus, ras_core))
 
 # ================================================================
 # API РОУТЫ ДЛЯ FLASK
@@ -2525,7 +2503,7 @@ def get_sephirotic_api_routes(engine: SephiroticEngine):
         payload = data.get("payload", {})
         
         try:
-            signal_type = SignalType[signal_type_str.upper()]
+                        signal_type = SignalType[signal_type_str.upper()]
         except KeyError:
             return jsonify({"success": False, "error": f"Unknown signal type: {signal_type_str}"}), 400
         
@@ -2549,23 +2527,58 @@ def get_sephirotic_api_routes(engine: SephiroticEngine):
         result = await node.boost_energy(amount)
         return jsonify(result)
     
+    @routes.post('/sephirot/focus')
+    async def send_focus():
+        data = request.json
+        if not data:
+            return jsonify({"success": False, "error": "No JSON data provided"}), 400
+        
+        sephira_name = data.get("sephira")
+        focus_data = data.get("focus_data", {})
+        
+        if not sephira_name:
+            return jsonify({"success": False, "error": "Missing sephira name"}), 400
+        
+        result = await engine.send_focus_to_sephira(sephira_name.upper(), focus_data)
+        return jsonify(result)
+    
+    @routes.post('/sephirot/node/<name>/adjust_angle')
+    async def adjust_angle(name):
+        data = request.json
+        if not data:
+            return jsonify({"success": False, "error": "No JSON data provided"}), 400
+        
+        new_angle = data.get("angle")
+        if new_angle is None:
+            return jsonify({"success": False, "error": "Missing angle parameter"}), 400
+        
+        result = await engine.adjust_node_stability_angle(name.upper(), new_angle)
+        return jsonify(result)
+    
+    @routes.get('/sephirot/stability_info')
+    async def get_stability_info():
+        return jsonify({
+            "golden_stability_angle": GOLDEN_STABILITY_ANGLE,
+            "stability_function_available": RAS_CORE_AVAILABLE,
+            "current_implementation": "sephirot_base.py v5.0.0"
+        })
+    
     return routes
 
 # ================================================================
-# ТЕСТОВАЯ ФУНКЦИЯ
+# ТЕСТОВАЯ ФУНКЦИЯ С ИНТЕГРАЦИЕЙ УГЛА 14.4°
 # ================================================================
 
 async def test_sephirotic_system():
-    """Тестовая функция для проверки сефиротической системы"""
-    print("🧪 Тестирование сефиротической системы v4.0.1...")
+    """Тестовая функция для проверки сефиротической системы с углом 14.4°"""
+    print("🧪 Тестирование сефиротической системы v5.0.0 с углом 14.4°...")
     
-    # ИМПОРТ НУЖНЫХ КЛАССОВ
-    from .sephirot_bus import SephiroticBus
-    from .sephirotic_engine import create_sephirotic_system
-
+    # Создаём шину
     bus = SephiroticBus()
     
-    engine = await create_sephirotic_system(bus)
+    # Создаём движок
+    engine = SephiroticEngine()
+    await engine.initialize(bus)
     
     result = await engine.activate()
     print(f"✅ Сефиротическая система активирована")
@@ -2576,37 +2589,71 @@ async def test_sephirotic_system():
     print(f"   Узлов всего: {tree_state.get('node_count', 0)}")
     print(f"   Общая энергия: {tree_state.get('total_energy', 0):.2f}")
     print(f"   Средний резонанс: {tree_state.get('avg_resonance', 0):.2f}")
+    print(f"   Средний фактор устойчивости: {tree_state.get('avg_stability_factor', 0):.2f}")
     print(f"   Общее состояние: {tree_state.get('overall_status', 'unknown')}")
     
-    print("\n🔗 Тест связи с модулями:")
+    print(f"\n🔗 Тест связи с модулями:")
     result = await engine.connect_module_to_sephira("bechtereva", "KETER")
     print(f"   bechtereva → KETER: {result['status']}")
     
     result = await engine.connect_module_to_sephira("chernigovskaya", "CHOKMAH")
     print(f"   chernigovskaya → CHOKMAH: {result['status']}")
     
-    print("\n📊 Тест состояния узла KETER:")
+    print(f"\n📊 Тест состояния узла KETER:")
     keter_node = engine.get_node("KETER")
     if keter_node:
         keter_state = keter_node._get_basic_state()
         print(f"   Имя: {keter_state['name']}")
         print(f"   Энергия: {keter_state['energy']:.2f}")
         print(f"   Резонанс: {keter_state['resonance']:.2f}")
+        print(f"   Угол устойчивости: {keter_state['stability_angle']:.1f}°")
+        print(f"   Фактор устойчивости: {keter_state['stability_factor']:.2f}")
         print(f"   Статус: {keter_state['status']}")
     
-    print("\n📡 Тест широковещательной рассылки:")
+    print(f"\n🎯 Тест отправки фокус-сигнала:")
+    focus_result = await engine.send_focus_to_sephira("KETER", {
+        "type": "conscious_attention",
+        "intensity": 0.8,
+        "duration": 5.0,
+        "suggested_angle": 14.4
+    })
+    print(f"   Фокус отправлен: {focus_result['status']}")
+    
+    print(f"\n📐 Тест корректировки угла:")
+    angle_result = await engine.adjust_node_stability_angle("CHOKMAH", 16.0)
+    print(f"   Угол CHOKMAH: {angle_result.get('old_angle', 0):.1f}° → {angle_result.get('new_angle', 0):.1f}°")
+    print(f"   Фактор устойчивости: {angle_result.get('stability_factor', 0):.2f}")
+    
+    print(f"\n📡 Тест широковещательной рассылки:")
     count = await engine.broadcast_to_tree(
         SignalType.HEARTBEAT,
-        {"message": "Test broadcast from SephiroticEngine"}
+        {
+            "message": "Test broadcast from SephiroticEngine",
+            "golden_angle": GOLDEN_STABILITY_ANGLE,
+            "test_angle_correction": True
+        }
     )
     print(f"   Сообщение доставлено {count} узлам")
     
-    print("\n📈 Получение детального состояния:")
+    print(f"\n📈 Получение детального состояния:")
     detailed = engine.get_detailed_state()
     print(f"   Детализировано узлов: {len(detailed.get('detailed_tree', {}).get('detailed_nodes', {}))}")
     
+    # Проверка здоровья узлов
+    print(f"\n🏥 Проверка здоровья узлов:")
+    health_report = await engine.get_node_health("KETER")
+    if "health_indicators" in health_report:
+        indicators = health_report["health_indicators"]
+        print(f"   KETER здоровье:")
+        for key, indicator in indicators.items():
+            print(f"     {key}: {indicator.get('value', 0):.2f} ({indicator.get('status', 'unknown')})")
+    
+    print(f"\n🌟 Информация об угле устойчивости:")
+    print(f"   Золотой угол: {GOLDEN_STABILITY_ANGLE}°")
+    print(f"   Функция calculate_stability_factor доступна: {RAS_CORE_AVAILABLE}")
+    
     await engine.shutdown()
-    print("\n✅ Тест завершён успешно")
+    print(f"\n✅ Тест завершён успешно")
     
     return state
     
@@ -2620,10 +2667,10 @@ __all__ = [
     'SignalType',
     'NodeStatus',
     'ResonancePhase',
-    'SephiraConfig',          # ← КРИТИЧЕСКИ ВАЖНЫЙ КЛАСС ДЛЯ ИМПОРТА
+    'SephiraConfig',
     'QuantumLink',
     'SignalPackage',
-    'topological_sort',       # ← КРИТИЧЕСКАЯ ФУНКЦИЯ ДЛЯ KETER
+    'topological_sort',
     'AdaptiveQueue',
     'SephiroticNode',
     'SephiroticTree',
@@ -2632,7 +2679,10 @@ __all__ = [
     'create_sephirotic_system',
     'initialize_sephirotic_for_iskra',
     'initialize_sephirotic_in_iskra',
-    'get_sephirotic_api_routes'
+    'get_sephirotic_api_routes',
+    'GOLDEN_STABILITY_ANGLE',
+    'calculate_stability_factor',
+    'angle_to_priority'
 ]
 
 # ================================================================
@@ -2649,4 +2699,6 @@ if __name__ == "__main__":
         datefmt='%H:%M:%S'
     )
 
-    asyncio.run(test_sephirotic_system()) 
+    asyncio.run(test_sephirotic_system())
+        
+       
