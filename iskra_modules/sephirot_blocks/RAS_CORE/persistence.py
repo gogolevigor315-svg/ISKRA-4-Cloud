@@ -23,13 +23,12 @@ from contextlib import contextmanager
 from enum import Enum
 
 # Импорты из RAS-CORE
-from .constants import GOLDEN_STABILITY_ANGLE
-from .config import get_config
+from iskra_modules.sephirot_blocks.RAS_CORE.constants import GOLDEN_STABILITY_ANGLE
+from iskra_modules.sephirot_blocks.RAS_CORE.config import get_config
 
 # ============================================================================
 # ТИПЫ ДАННЫХ ДЛЯ СОХРАНЕНИЯ
 # ============================================================================
-
 class PersistenceMode(Enum):
     """Режимы сохранения состояния"""
     FULL = "full"           # Полное сохранение всех данных
