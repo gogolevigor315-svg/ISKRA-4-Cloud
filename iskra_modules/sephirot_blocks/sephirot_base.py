@@ -804,7 +804,7 @@ class SephiroticNode(ISephiraModule):
         
         if signal_package.is_expired():
             self.logger.warning(f"Просроченный сигнал: {signal_package.id}")
-                        return self._create_error_response(signal_package, "signal_expired")
+            return self._create_error_response(signal_package, "signal_expired")
         
         # Расчёт приоритета с учётом угла устойчивости сигнала
         priority = self._calculate_priority(signal_package)
