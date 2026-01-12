@@ -5,6 +5,9 @@ ras_api.py - REST/WEBSOCKET API ИНТЕРФЕЙС ДЛЯ RAS-CORE И ЛИЧНО
 Назначение: Внешний интерфейс для мониторинга и управления личностью ISKRA-4
 Поддерживает: REST API, WebSocket для real-time мониторинга, управление фокусом внимания
 """
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 import asyncio
 import json
