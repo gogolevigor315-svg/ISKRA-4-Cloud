@@ -18,6 +18,7 @@ import logging
 import threading
 from pathlib import Path
 import numpy as np
+from enum import Enum
 
 # Импорты из RAS-CORE
 from iskra_modules.sephirot_blocks.RAS_CORE.constants import GOLDEN_STABILITY_ANGLE, calculate_stability_factor
