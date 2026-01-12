@@ -1,6 +1,6 @@
 # ================================================================
 # DS24 · ISKRA5 MODULE · RAS-CORE v4.1 "PRIORITY CONSCIOUS ENGINE"
-# UPDATED WITH 14.4° STABILITY ANGLE INTEGRATION
+# COMPLETE FIXED VERSION WITH ALL MISSING CLASSES
 # ================================================================
 
 import asyncio
@@ -28,10 +28,8 @@ def calculate_stability_factor(deviation: float) -> float:
 
 def angle_to_priority(angle: float) -> float:
     """Преобразует угол (0-90°) в приоритет (0-1)."""
-    # 14.4° -> приоритет 1.0
-    # Чем дальше от 14.4°, тем ниже приоритет
     diff = abs(angle - GOLDEN_STABILITY_ANGLE)
-    return max(0.1, 1 - diff / 45.0)  # 45° - максимальное отклонение
+    return max(0.1, 1 - diff / 45.0)
 
 # ================================================================
 # INTERFACES
@@ -41,6 +39,134 @@ class ISephiroticBusAdapter(Protocol):
     async def publish(self, topic: str, message: Dict[str, Any]) -> None: ...
     async def get_load(self, target: str) -> float: ...
     async def get_triad_balance(self) -> Dict[str, float]: ...  # Новый метод
+
+# ================================================================
+# BASE CLASSES (MISSING IN ORIGINAL FILE)
+# ================================================================
+
+class PrioritySignalQueue:
+    """Трехуровневая очередь сигналов."""
+    
+    def __init__(self, max_size=1000):
+        self.max_size = max_size
+        self.critical = asyncio.Queue(maxsize=max_size//3)
+        self.high = asyncio.Queue(maxsize=max_size//3)
+        self.normal = asyncio.Queue(maxsize=max_size//3)
+        self.queues = {
+            "critical": self.critical,
+            "high": self.high,
+            "normal": self.normal
+        }
+    
+    async def push(self, signal):
+        """Добавить сигнал в соответствующую очередь."""
+        if signal.priority >= 0.9:
+            await self.critical.put(signal)
+        elif signal.priority >= 0.6:
+            await self.high.put(signal)
+        else:
+            await self.normal.put(signal)
+    
+    async def pop(self):
+        """Получить следующий сигнал по приоритету."""
+        # Сначала critical, потом high, потом normal
+        if not self.critical.empty():
+            return await self.critical.get()
+        elif not self.high.empty():
+            return await self.high.get()
+        elif not self.normal.empty():
+            return await self.normal.get()
+        return None
+
+class SephiroticRouter:
+    """Базовый маршрутизатор по сефиротам."""
+    
+    def __init__(self, bus: ISephiroticBusAdapter):
+        self.bus = bus
+        self.targets = ["KETER", "CHOKMAH", "DAAT", "BINAH", "YESOD", "TIFERET"]
+    
+    async def route_to_sephira(self, signal) -> str:
+        """Базовая маршрутизация."""
+        # Простая логика по умолчанию
+        return "DAAT"
+
+class MetricsCollector:
+    """Сборщик метрик."""
+    
+    def __init__(self):
+        self.latencies = []
+        self.errors = []
+        self.successes = 0
+        self.start_time = time.time()
+    
+    def observe_latency(self, start_time: float):
+        self.latencies.append(time.time() - start_time)
+    
+    def record_error(self):
+        self.errors.append(time.time())
+    
+    def record_success(self):
+        self.successes += 1
+    
+    def summary(self) -> Dict[str, Any]:
+        """Сводка метрик."""
+        summary = {
+            "total_requests": len(self.latencies),
+            "successes": self.successes,
+            "error_count": len(self.errors)
+        }
+        
+        if self.latencies:
+            summary.update({
+                "avg_latency_ms": round(statistics.mean(self.latencies) * 1000, 1),
+                "p95_latency_ms": round(statistics.quantiles(self.latencies, n=20)[18] * 1000, 1),
+                "max_latency_ms": round(max(self.latencies) * 1000, 1)
+            })
+        
+        if self.errors:
+            error_rate = len(self.errors) / max(1, len(self.latencies))
+            summary["error_rate"] = round(error_rate, 3)
+        
+        summary["uptime_seconds"] = round(time.time() - self.start_time, 1)
+        return summary
+
+class RASCore:
+    """Базовый класс RAS-CORE."""
+    
+    def __init__(self, bus: ISephiroticBusAdapter):
+        self.bus = bus
+        self.queue = PrioritySignalQueue()
+        self.router = SephiroticRouter(bus)
+        self.metrics = MetricsCollector()
+        self.breaker_open = False
+        self.stats = {"processed": 0, "failures": 0}
+        
+        # Компоненты, которые будут переопределены
+        self.pattern_learner = type('PatternLearner', (), {
+            "successful": [],
+            "evolve_patterns": lambda: None
+        })()
+        
+        self.archiver = type('Archiver', (), {
+            "archive": lambda *args: None
+        })()
+    
+    async def process(self, data: Dict[str, Any]):
+        """Базовая обработка сигнала."""
+        raise NotImplementedError
+    
+    def metrics_snapshot(self):
+        """Снимок метрик."""
+        return self.metrics.summary()
+
+class MockBus:
+    """Mock шина для тестирования."""
+    
+    async def publish(self, topic: str, message: Dict[str, Any]) -> None:
+        print(f"[BUS→{topic}] {message.get('payload', '')[:50]}")
+    
+    async def get_load(self, target: str) -> float:
+        return random.uniform(0.1, 0.8)
 
 # ================================================================
 # DATA MODEL
@@ -64,7 +190,7 @@ class RASSignal:
         self.angle_confidence = data.get("angle_confidence", 1.0)
         
         # Фокусные параметры
-        self.focus_vector = data.get("focus_vector", [0.0, 0.0, 0.0])  # [x, y, z]
+        self.focus_vector = data.get("focus_vector", [0.0, 0.0, 0.0])
         self.resonance_index = data.get("resonance_index", 0.5)
     
     def duration(self) -> float:
@@ -74,8 +200,6 @@ class RASSignal:
         """Оценка устойчивости сигнала на основе угла."""
         angle_score = calculate_stability_factor(self.stability_angle)
         resonance_score = self.resonance_index
-        
-        # Комбинированная оценка
         stability_score = (angle_score * 0.6 + resonance_score * 0.4)
         return min(1.0, stability_score * self.angle_confidence)
     
@@ -103,106 +227,75 @@ class StabilityAwarePriorityQueue(PrioritySignalQueue):
     """Очередь с учётом угла устойчивости 14.4°."""
     
     async def calculate_signal_priority(self, signal: RASSignal) -> float:
-        """Вычисляет приоритет на основе угла устойчивости и других факторов."""
+        """Вычисляет приоритет на основе угла устойчивости."""
         base_priority = signal.priority
         stability_score = signal.calculate_stability_score()
         
-        # Сигналы с углом близким к 14.4° получают буст
         angle_factor = 1.0
-        if abs(signal.stability_angle - GOLDEN_STABILITY_ANGLE) < 2.0:  # ±2° от идеала
-            angle_factor = 1.3  # +30% приоритет
+        if abs(signal.stability_angle - GOLDEN_STABILITY_ANGLE) < 2.0:
+            angle_factor = 1.3
         
-        # Финальный приоритет
         final_priority = base_priority * stability_score * angle_factor
-        
-        # Ограничиваем и нормализуем
         return max(0.1, min(1.0, final_priority))
     
     async def push(self, signal: RASSignal):
-        # Пересчитываем приоритет с учётом угла устойчивости
         enhanced_priority = await self.calculate_signal_priority(signal)
         signal.priority = enhanced_priority
         
-        # Используем базовую логику приоритизации
         if enhanced_priority >= 0.9:
-            await self.queues["critical"].put(signal)
+            await self.critical.put(signal)
         elif enhanced_priority >= 0.6:
-            await self.queues["high"].put(signal)
+            await self.high.put(signal)
         else:
-            await self.queues["normal"].put(signal)
-
-# ================================================================
-# ENHANCED CORE COMPONENTS
-# ================================================================
+            await self.normal.put(signal)
 
 class RASConfigManager:
     def __init__(self):
         self.threshold = 0.7
         self.focus_patterns = ["смысл", "инсайт", "анализ", "паттерн", "устойчивость"]
         self.golden_angle = GOLDEN_STABILITY_ANGLE
-        self.ideal_deviation = 2.0  # Допустимое отклонение от 14.4°
-        
-        # Настройки циклов рефлексии
-        self.reflection_cycle_ms = 144  # 14.4 * 10
+        self.ideal_deviation = 2.0
+        self.reflection_cycle_ms = 144
         self.max_reflection_depth = MAX_REFLECTION_DEPTH
     
     async def adjust_for_stability(self, current_angle: float) -> Dict[str, Any]:
-        """Корректирует параметры на основе текущего угла устойчивости."""
         deviation = abs(current_angle - self.golden_angle)
         stability_factor = calculate_stability_factor(deviation)
+        self.threshold = max(0.3, min(1.0, 0.7 * stability_factor))
         
-        adjustments = {
+        return {
             "threshold_multiplier": stability_factor,
-            "processing_speed": 1.0 + (1.0 - stability_factor) * 0.5,  # Быстрее при нестабильности
+            "processing_speed": 1.0 + (1.0 - stability_factor) * 0.5,
             "pattern_recognition_boost": stability_factor * 1.2,
             "current_stability": stability_factor
         }
-        
-        # Динамически корректируем порог
-        self.threshold = max(0.3, min(1.0, 0.7 * stability_factor))
-        
-        return adjustments
 
 class AngleAwareSephiroticRouter(SephiroticRouter):
     """Маршрутизатор с учётом угла устойчивости."""
     
     async def calculate_sephira_stability(self, target: str, bus: ISephiroticBusAdapter) -> float:
-        """Оценивает устойчивость сефиры для маршрутизации."""
         try:
-            # Получаем баланс триады (если доступно)
             triad_balance = await bus.get_triad_balance()
-            
             if triad_balance and target in ["KETER", "CHOKMAH", "BINAH"]:
-                # Для узлов триады используем их текущие значения
                 node_value = triad_balance.get(target, 0.5)
-                
-                # Рассчитываем отклонение от идеала для этой сефиры
-                # В идеале все три сефиры должны быть сбалансированы
                 avg_value = sum(triad_balance.values()) / 3
                 deviation = abs(node_value - avg_value)
-                
-                # Преобразуем в коэффициент устойчивости
-                return calculate_stability_factor(deviation * 90)  # Нормализуем к градусам
+                return calculate_stability_factor(deviation * 90)
         except:
             pass
         
-        # Fallback: используем нагрузку
         load = await bus.get_load(target)
-        return 1.0 - load  # Меньше нагрузка → больше устойчивость
+        return 1.0 - load
     
     async def route_to_sephira(self, signal: RASSignal) -> str:
-        """Улучшенная маршрутизация с учётом устойчивости узлов."""
-        # Базовые оценки
         score = signal.metadata.get("daat_insight", 0.5)
         stability_score = signal.calculate_stability_score()
         
-        # Оцениваем устойчивость каждой потенциальной цели
         target_scores = {}
         for target in self.targets:
             try:
                 node_stability = await self.calculate_sephira_stability(target, self.bus)
                 
-                # Комбинированная оценка
                 if target == "KETER":
                     target_score = score * 0.7 + stability_score * 0.3
                 elif target == "CHOKMAH":
@@ -218,10 +311,8 @@ class AngleAwareSephiroticRouter(SephiroticRouter):
             except:
                 target_scores[target] = 0.1
         
-        # Выбираем цель с максимальной комбинированной оценкой
         best_target = max(target_scores, key=target_scores.get)
         
-        # Логируем решение
         signal.metadata["routing_decision"] = {
             "chosen": best_target,
             "scores": {k: round(v, 3) for k, v in target_scores.items()},
@@ -285,47 +376,37 @@ class SelfReflectionEngine:
         self.current_depth = 0
     
     async def reflection_cycle(self):
-        """Основной цикл саморефлексии с защитой от зацикливания."""
+        """Основной цикл саморефлексии."""
         while True:
             cycle_start = time.time()
             
-            # Проверяем глубину рефлексии
             if self.current_depth >= MAX_REFLECTION_DEPTH:
-                print(f"[REFLECTION] Max depth reached ({self.current_depth}), forcing external focus")
+                print(f"[REFLECTION] Max depth reached ({self.current_depth})")
                 await self.force_external_focus()
                 self.current_depth = 0
                 continue
             
-            # Выполняем шаг рефлексии
             reflection_result = await self.execute_reflection_step()
-            
-            # Обновляем метрики
             self.reflection_counter += 1
             self.current_depth = reflection_result.get("depth", self.current_depth + 1)
             
-            # Ритм цикла: 14.4% от базового интервала или 144 мс
             cycle_duration = time.time() - cycle_start
-            target_interval = 0.144  # 144 мс
-            
-            # Корректируем интервал на основе устойчивости
+            target_interval = 0.144
             stability = reflection_result.get("stability_score", 0.5)
             adjusted_interval = target_interval * (1.0 + (1.0 - stability) * 0.5)
             
             sleep_time = max(0.01, adjusted_interval - cycle_duration)
             await asyncio.sleep(sleep_time)
             
-            # Периодически сбрасываем глубину
             if self.reflection_counter % 10 == 0:
                 self.current_depth = max(0, self.current_depth - 2)
     
     async def execute_reflection_step(self) -> Dict[str, Any]:
         """Выполняет один шаг саморефлексии."""
         try:
-            # Получаем текущее состояние
             metrics = self.core.metrics_snapshot()
             
-            # Анализируем устойчивость
-            recent_signals = self.core.pattern_learner.successful[-5:] if self.core.pattern_learner.successful else []
+            recent_signals = getattr(self.core.pattern_learner, 'successful', [])[-5:]
             if recent_signals:
                 avg_stability = sum(s.calculate_stability_score() for s in recent_signals) / len(recent_signals)
                 avg_angle = sum(s.stability_angle for s in recent_signals) / len(recent_signals)
@@ -333,11 +414,9 @@ class SelfReflectionEngine:
                 avg_stability = 0.5
                 avg_angle = GOLDEN_STABILITY_ANGLE
             
-            # Оцениваем отклонение от идеального угла
             angle_deviation = abs(avg_angle - GOLDEN_STABILITY_ANGLE)
             stability_factor = calculate_stability_factor(angle_deviation)
             
-            # Формируем инсайт
             insight = {
                 "timestamp": time.time(),
                 "stability_score": avg_stability,
@@ -349,7 +428,6 @@ class SelfReflectionEngine:
                 "cycle_number": self.reflection_counter
             }
             
-            # Публикуем инсайт в DAAT для мета-осознания
             if self.core.bus:
                 await self.core.bus.publish("DAAT", {
                     "type": "self_reflection_insight",
@@ -358,33 +436,27 @@ class SelfReflectionEngine:
                     "priority": stability_factor
                 })
             
-            # Логируем
             if self.reflection_counter % 5 == 0:
                 print(f"[REFLECTION] Cycle {self.reflection_counter}: "
-                      f"angle={avg_angle:.1f}°, stability={stability_factor:.3f}, "
-                      f"depth={self.current_depth}")
+                      f"angle={avg_angle:.1f}°, stability={stability_factor:.3f}")
             
             return insight
             
         except Exception as e:
-            print(f"[REFLECTION] Error in reflection step: {e}")
+            print(f"[REFLECTION] Error: {e}")
             return {"error": str(e), "depth": self.current_depth}
     
     async def force_external_focus(self):
         """Принудительный выход из глубокой рефлексии."""
-        print("[REFLECTION] Forcing external focus to break reflection loop")
-        
-        # Генерируем внешне-ориентированный сигнал
         external_signal = RASSignal({
             "payload": "EXTERNAL_FOCUS_INJECTION",
             "priority": 0.9,
             "semiotic_tags": ["external", "focus", "reset"],
             "stability_angle": GOLDEN_STABILITY_ANGLE,
-            "focus_vector": [1.0, 0.0, 0.0],  # Направлен вовне
+            "focus_vector": [1.0, 0.0, 0.0],
             "resonance_index": 0.3
         })
         
-        # Отправляем в CHOKMAH для интуитивной обработки
         if self.core.bus:
             await self.core.bus.publish("CHOKMAH", external_signal.to_dict())
 
@@ -418,47 +490,41 @@ class EnhancedRASCore(RASCore):
         """Запускает фоновые процессы."""
         self.reflection_task = asyncio.create_task(self.reflection_engine.reflection_cycle())
         self.monitoring_task = asyncio.create_task(self.triad_monitor.monitor_loop())
-        print("[RAS-CORE] Background tasks started: reflection_cycle, triad_monitor")
+        print("[RAS-CORE] Background tasks started")
     
     async def process(self, data: Dict[str, Any]):
         """Улучшенная обработка с учётом устойчивости."""
         start = time.time()
         
-        # Добавляем угловые параметры, если их нет
         if "stability_angle" not in data:
             data["stability_angle"] = GOLDEN_STABILITY_ANGLE
         
         signal = RASSignal(data)
         
-        # Собираем метрики устойчивости
         self.metrics.observe_stability(signal.calculate_stability_score())
         self.metrics.observe_angle(signal.stability_angle)
         
         try:
-            # Обработка через приоритетную очередь
             await self.queue.push(signal)
             processed_signal = await self.queue.pop()
             
             if not processed_signal:
                 return {"status": "queue_empty"}
             
-            # Маршрутизация с учётом устойчивости
             target = await self.router.route_to_sephira(processed_signal)
             processed_signal.metadata["target"] = target
             
-            # Отправка в выбранную сефиру
             await self.bus.publish(target, processed_signal.to_dict())
             
-            # Архивация и обучение
-            await self.archiver.archive(processed_signal, {"status": "success", "target": target})
-            self.pattern_learner.successful.append(processed_signal)
-            await self.pattern_learner.evolve_patterns()
+            if hasattr(self, 'archiver'):
+                await self.archiver.archive(processed_signal, {"status": "success", "target": target})
             
-            # Обновляем статистику
+            if hasattr(self, 'pattern_learner'):
+                self.pattern_learner.successful.append(processed_signal)
+            
             self.metrics.observe_latency(start)
             self.stats["processed"] += 1
             
-            # Проверяем и корректируем устойчивость
             await self.triad_monitor.check_and_adjust(
                 processed_signal.stability_angle,
                 processed_signal.calculate_stability_score()
@@ -477,7 +543,6 @@ class EnhancedRASCore(RASCore):
             self.stats["failures"] += 1
             print(f"[RAS-CORE] Processing error: {e}")
             
-            # Пробуем восстановить устойчивость
             recovery_signal = RASSignal({
                 "payload": f"RECOVERY_FROM_ERROR: {str(e)[:50]}",
                 "priority": 0.8,
@@ -489,11 +554,10 @@ class EnhancedRASCore(RASCore):
             return {"status": "error", "error": str(e)}
     
     def enhanced_metrics_snapshot(self):
-        """Расширенный снимок метрик с акцентом на устойчивость."""
+        """Расширенный снимок метрик."""
         base_metrics = self.metrics_snapshot()
         stability_metrics = self.metrics.summary()
         
-        # Добавляем информацию об угле
         base_metrics.update({
             "golden_stability_angle": GOLDEN_STABILITY_ANGLE,
             "stability_metrics": stability_metrics,
@@ -522,7 +586,7 @@ class TriadStabilityMonitor:
         self.core = ras_core
         self.triad_history = []
         self.last_correction = 0
-        self.correction_cooldown = 5.0  # секунд
+        self.correction_cooldown = 5.0
     
     async def monitor_loop(self):
         """Фоновый мониторинг триады."""
@@ -535,22 +599,18 @@ class TriadStabilityMonitor:
             except:
                 pass
             
-            await asyncio.sleep(2.0)  # Проверка каждые 2 секунды
+            await asyncio.sleep(2.0)
     
     async def analyze_triad_balance(self, balance: Dict[str, float]):
-        """Анализирует баланс триады и вычисляет отклонения."""
+        """Анализирует баланс триады."""
         if not all(k in balance for k in ["KETER", "CHOKMAH", "BINAH"]):
             return
         
-        # Вычисляем среднее значение
         values = list(balance.values())
         avg_value = sum(values) / 3
-        
-        # Вычисляем отклонения
         deviations = {k: abs(v - avg_value) for k, v in balance.items()}
         max_deviation = max(deviations.values())
         
-        # Сохраняем в историю
         self.triad_history.append({
             "timestamp": time.time(),
             "balance": balance,
@@ -559,26 +619,22 @@ class TriadStabilityMonitor:
             "deviations": deviations
         })
         
-        # Ограничиваем размер истории
         if len(self.triad_history) > 100:
             self.triad_history.pop(0)
         
-        # Проверяем необходимость корректировки
-        if max_deviation > 0.3:  # Пороговое значение
+        if max_deviation > 0.3:
             await self.suggest_correction(balance, max_deviation, deviations)
     
     async def suggest_correction(self, balance: Dict[str, float], 
                                 max_deviation: float, deviations: Dict[str, float]):
-        """Предлагает корректировки для восстановления баланса."""
+        """Предлагает корректировки."""
         current_time = time.time()
         if current_time - self.last_correction < self.correction_cooldown:
             return
         
-        # Определяем самую отклонённую сефиру
         unbalanced_sephira = max(deviations, key=deviations.get)
         deviation_value = deviations[unbalanced_sephira]
         
-        # Создаём корректирующий сигнал
         correction_signal = {
             "payload": f"TRIAD_CORRECTION: {unbalanced_sephira} deviation={deviation_value:.3f}",
             "priority": 0.7,
@@ -593,36 +649,31 @@ class TriadStabilityMonitor:
             }
         }
         
-        # Отправляем в DAAT для анализа
         await self.core.bus.publish("DAAT", correction_signal)
         
-        print(f"[TRIAD-MONITOR] Correction suggested for {unbalanced_sephira} "
-              f"(deviation: {deviation_value:.3f})")
-        
+        print(f"[TRIAD-MONITOR] Correction suggested for {unbalanced_sephira}")
         self.last_correction = current_time
     
     def get_correction_vector(self, sephira: str) -> List[float]:
-        """Возвращает вектор фокуса для корректировки указанной сефиры."""
         vectors = {
-            "KETER": [0.0, 1.0, 0.0],    # Вверх (сознание)
-            "CHOKMAH": [1.0, 0.0, 0.0],  # Вправо (интуиция)
-            "BINAH": [0.0, 0.0, 1.0]     # Вглубь (анализ)
+            "KETER": [0.0, 1.0, 0.0],
+            "CHOKMAH": [1.0, 0.0, 0.0],
+            "BINAH": [0.0, 0.0, 1.0]
         }
         return vectors.get(sephira, [0.5, 0.5, 0.5])
     
     async def check_and_adjust(self, current_angle: float, stability_score: float):
-        """Проверяет и корректирует параметры на основе текущей устойчивости."""
+        """Проверяет и корректирует параметры."""
         if stability_score < 0.6:
-            # Увеличиваем порог для более строгой фильтрации
-            await self.core.config.evolve_threshold(0.05)
+            # Простая корректировка
+            self.core.config.threshold = min(1.0, self.core.config.threshold + 0.05)
             
-            # Генерируем стабилизирующий сигнал
             stabilization_signal = RASSignal({
                 "payload": "STABILIZATION_INJECTION",
                 "priority": 0.8,
                 "stability_angle": GOLDEN_STABILITY_ANGLE,
                 "semiotic_tags": ["stabilization", "recovery"],
-                "focus_vector": [0.0, 0.0, 1.0]  # Вглубь для стабилизации
+                "focus_vector": [0.0, 0.0, 1.0]
             })
             await self.core.queue.push(stabilization_signal)
 
@@ -634,7 +685,6 @@ class EnhancedMockBus(MockBus):
     """Mock bus с поддержкой триадного баланса."""
     
     async def get_triad_balance(self) -> Dict[str, float]:
-        """Возвращает текущий баланс триады (для тестирования)."""
         return {
             "KETER": random.uniform(0.4, 0.9),
             "CHOKMAH": random.uniform(0.3, 0.8),
@@ -642,7 +692,6 @@ class EnhancedMockBus(MockBus):
         }
     
     async def publish(self, topic: str, message: Dict[str, Any]) -> None:
-        """Улучшенная публикация с логированием угла устойчивости."""
         stability_info = ""
         if "stability_angle" in message:
             angle = message["stability_angle"]
@@ -656,7 +705,7 @@ class EnhancedMockBus(MockBus):
         print(f"[BUS→{topic:8}] {payload_preview:40} {stability_info}")
 
 # ================================================================
-# TEST HARNESS WITH 14.4° FOCUS
+# TEST HARNESS
 # ================================================================
 
 async def initialize_enhanced_ras_core() -> EnhancedRASCore:
@@ -664,32 +713,24 @@ async def initialize_enhanced_ras_core() -> EnhancedRASCore:
     bus = EnhancedMockBus()
     core = EnhancedRASCore(bus)
     
-    # Запускаем фоновые задачи
     await core.start_background_tasks()
     
     print("=" * 60)
     print(f"ENHANCED RAS-CORE v4.1 INITIALIZED")
     print(f"Golden Stability Angle: {GOLDEN_STABILITY_ANGLE}°")
-    print(f"Focus Patterns: {', '.join(core.config.focus_patterns)}")
-    print(f"Reflection Cycle: {core.config.reflection_cycle_ms}ms")
     print("=" * 60)
     
     return core
 
 async def test_stability_focused_processing():
-    """Тестирование обработки с фокусом на устойчивость."""
+    """Тестирование обработки."""
     core = await initialize_enhanced_ras_core()
     
-    print("\n[TEST] Generating test signals with varying stability angles...")
+    print("\n[TEST] Generating test signals...")
     
-    # Генерируем тестовые сигналы с разными углами
-    test_angles = [
-        10.0, 12.0, 14.0, 14.4, 14.8, 16.0, 18.0,  # Вокруг идеального
-        5.0, 25.0, 45.0, 90.0                      # Экстремальные
-    ]
+    test_angles = [10.0, 12.0, 14.0, 14.4, 14.8, 16.0, 18.0, 5.0, 25.0, 45.0, 90.0]
     
     for i, angle in enumerate(test_angles):
-        # Создаём сигнал с указанным углом
         signal_data = {
             "payload": f"Тестовый сигнал {i+1} с углом {angle}°",
             "priority": random.uniform(0.4, 0.9),
@@ -704,24 +745,18 @@ async def test_stability_focused_processing():
             "resonance_index": random.uniform(0.3, 0.9)
         }
         
-        # Обрабатываем сигнал
-        result = await core.process(signal_data)
-        
-        # Небольшая задержка между сигналами
+        await core.process(signal_data)
         await asyncio.sleep(0.05)
     
-    # Даём время на обработку
     await asyncio.sleep(0.5)
     
-    # Выводим метрики
     print("\n" + "=" * 60)
-    print("FINAL METRICS WITH STABILITY FOCUS:")
+    print("FINAL METRICS:")
     print("=" * 60)
     
     enhanced_metrics = core.enhanced_metrics_snapshot()
     print(json.dumps(enhanced_metrics, ensure_ascii=False, indent=2, default=str))
     
-    # Выводим статистику по углам
     if core.metrics.angle_deviations:
         close_to_golden = sum(1 for d in core.metrics.angle_deviations if d < 5.0)
         total_angles = len(core.metrics.angle_deviations)
@@ -729,8 +764,6 @@ async def test_stability_focused_processing():
         
         print(f"\n[STABILITY ANALYSIS]")
         print(f"Signals close to 14.4° (±5°): {close_to_golden}/{total_angles} ({golden_ratio:.1%})")
-        print(f"Average deviation: {statistics.mean(core.metrics.angle_deviations):.2f}°")
-        print(f"Minimum deviation: {min(core.metrics.angle_deviations):.2f}°")
     
     return core
 
