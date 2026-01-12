@@ -17,7 +17,7 @@ langdetect==1.0.9
 argostranslate==1.9.1  # ЛОКАЛЬНЫЙ переводчик, без API
 nltk==3.8.1
 deep_translator==1.11.1  # МУЛЬТИЯЗЫЧНЫЙ ПЕРЕВОД
-translate==3.6.1         # ← ДОБАВЛЕНО СЕЙЧАС
+translate==3.6.1
 
 # === ПРОИЗВОДИТЕЛЬНОСТЬ ===
 redis==4.6.0
@@ -40,3 +40,13 @@ click==8.1.4
 python-dateutil==2.8.2
 tenacity==8.2.3
 colorama==0.4.6
+
+# === FASTAPI ДЛЯ RAS-API ===
+fastapi==0.104.1
+uvicorn==0.24.0
+python-multipart==0.0.6
+
+# === ДОПОЛНИТЕЛЬНЫЕ ЗАВИСИМОСТИ RAS-CORE ===
+aiofiles==23.2.1  # Асинхронная работа с файлами
+aiosqlite==0.19.0  # Асинхронный SQLite
+async-timeout==4.0.3  # Таймауты для async
