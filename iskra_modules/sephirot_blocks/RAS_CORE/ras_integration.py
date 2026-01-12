@@ -11,6 +11,10 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any, Callable, Union
 from dataclasses import dataclass, field
 
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
+
 # Импорты из RAS-CORE
 from .ras_core_v4_1 import EnhancedRASCore, RASSignal, SelfReflectionEngine
 from .constants import GOLDEN_STABILITY_ANGLE, calculate_stability_factor
