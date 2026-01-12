@@ -16,7 +16,8 @@ import asyncio
 from pathlib import Path
 
 # Импорты из RAS-CORE
-from .constants import GOLDEN_STABILITY_ANGLE, calculate_stability_factor
+# ЗАМЕНИТЬ строку 21 на:
+from iskra_modules.sephirot_blocks.RAS_CORE.constants import GOLDEN_STABILITY_ANGLE, calculate_stability_factor
 
 # ============================================================================
 # ТИПЫ КОНФИГУРАЦИИ
