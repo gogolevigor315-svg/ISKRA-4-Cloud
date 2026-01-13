@@ -29,10 +29,6 @@ try:
     # Импортируем архитектуру ISKRA-4
     from sephirot_base import ISephiraModule, SephiraConfig, EnergyLevel
     from sephirot_bus import SephirotBus, EventMessage
-    import importlib
-    sephirotic_engine_module = importlib.import_module("iskra_modules.sephirot_blocks.sephirotic_engine")
-    SephiroticEngine = sephirotic_engine_module.SephiroticEngine
-    SephirotIntegration = getattr(sephirotic_engine_module, "SephirotIntegration", None)
     
     KETER_MODULES_AVAILABLE = True
     ISKRA_ARCHITECTURE_AVAILABLE = True
@@ -70,13 +66,45 @@ except ImportError as e:
             self.data = data
             self.source = source
             self.target = target
-    
-    class SephiroticEngine:
-        pass
-    
-    class SephirotIntegration:
-        pass
 
+# ============================================================
+# ЛЕНИВАЯ ЗАГРУЗКА SEPHIROTIC_ENGINE (ИЗБЕГАЕМ ЦИКЛИЧЕСКИЙ ИМПОРТ)
+# ============================================================
+
+_SEPHIROTIC_ENGINE = None
+_SEPHIROT_INTEGRATION = None
+
+def get_sephirotic_engine():
+    """Ленивая загрузка SephiroticEngine"""
+    global _SEPHIROTIC_ENGINE
+    if _SEPHIROTIC_ENGINE is None:
+        try:
+            from iskra_modules.sephirot_blocks.sephirotic_engine import SephiroticEngine
+            _SEPHIROTIC_ENGINE = SephiroticEngine()
+        except (ImportError, AttributeError) as e:
+            logging.warning(f"⚠️ Не удалось загрузить SephiroticEngine: {e}")
+            class SephiroticEngineStub:
+                def __init__(self):
+                    self.active = False
+                    self.energy_level = 0.0
+                async def initialize(self): pass
+                async def activate_sephirot(self, name): return True
+                async def get_state(self): return {"active": False}
+            _SEPHIROTIC_ENGINE = SephiroticEngineStub()
+    return _SEPHIROTIC_ENGINE
+
+def get_sephirot_integration():
+    """Ленивая загрузка SephirotIntegration"""
+    global _SEPHIROT_INTEGRATION
+    if _SEPHIROT_INTEGRATION is None:
+        try:
+            from iskra_modules.sephirot_blocks.sephirotic_engine import SephirotIntegration
+            _SEPHIROT_INTEGRATION = SephirotIntegration()
+        except (ImportError, AttributeError):
+            class SephirotIntegrationStub: pass
+            _SEPHIROT_INTEGRATION = SephirotIntegrationStub()
+    return _SEPHIROT_INTEGRATION
+    
 # ============================================================
 # 2. КЛАСС ИНТЕГРАЦИИ KETHER В ISKRA-4
 # ============================================================
