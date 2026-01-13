@@ -16,8 +16,19 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
 
 # Импорты из RAS-CORE
-from .ras_core_v4_1 import EnhancedRASCore, RASSignal, SelfReflectionEngine
-from .constants import GOLDEN_STABILITY_ANGLE, calculate_stability_factor
+try:
+    from iskra_modules.sephirot_blocks.RAS_CORE.ras_core_v4_1 import EnhancedRASCore, RASSignal, SelfReflectionEngine
+    from iskra_modules.sephirot_blocks.RAS_CORE.constants import GOLDEN_STABILITY_ANGLE, calculate_stability_factor
+    RAS_MODULES_AVAILABLE = True
+except ImportError as e:
+    print(f"[RAS-INTEGRATION] ⚠️  Ошибка импорта RAS-CORE: {e}")
+    RAS_MODULES_AVAILABLE = False
+    # Заглушки
+    class EnhancedRASCore: pass
+    class RASSignal: pass  
+    class SelfReflectionEngine: pass
+    GOLDEN_STABILITY_ANGLE = 14.4
+    def calculate_stability_factor(x): return 1.0
 
 # ============================================================================
 # ТИПЫ ДАННЫХ ДЛЯ ИНТЕГРАЦИИ
