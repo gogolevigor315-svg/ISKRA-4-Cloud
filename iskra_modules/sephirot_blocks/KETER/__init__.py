@@ -1,6 +1,7 @@
 """
 KETHER PACKAGE - Сефира KETHER (Венец) для системы ISKRA-4
 Инициализация пакета и экспорт основных компонентов
+ВЕРСИЯ С АЛИАСОМ ДЛЯ СОВМЕСТИМОСТИ
 """
 
 import os
@@ -41,6 +42,7 @@ try:
     from .spirit_synthesis_core_v2_1 import create_spirit_synthesis_module
     from .spirit_core_v3_4 import SpiritCoreV3_4
     from .willpower_core_v3_2 import WillpowerCoreV3_2
+    WillpowerCore = WillpowerCoreV3_2  # ← ВАЖНО: АЛИАС ДЛЯ СОВМЕСТИМОСТИ!
     from .core_govx_3_1 import create_core_govx_module
     from .moral_memory_3_1 import create_moral_memory_module
     
@@ -84,6 +86,7 @@ except ImportError as e:
     create_spirit_synthesis_module = lambda config=None: None
     SpiritCoreV3_4 = KetherCore
     WillpowerCoreV3_2 = KetherCore
+    WillpowerCore = WillpowerCoreV3_2  # ← АЛИАС ДЛЯ СОВМЕСТИМОСТИ И В fallback!
     create_core_govx_module = lambda config=None: None
     create_moral_memory_module = lambda config=None: None
     
@@ -113,7 +116,7 @@ __all__ = [
     "KetherCoreWithAPI",
     "create_keter_core_with_api",
     "create_keter_api_gateway",
-    "activate_keter",  # ← ВАЖНО: добавлена в экспорт!
+    "activate_keter",
     
     # Integration
     "KeterIntegration",
@@ -122,8 +125,9 @@ __all__ = [
     
     # Specialized modules
     "create_spirit_synthesis_module",
-    "SpiritCoreV3_4",  # ← Уже есть в экспорте
+    "SpiritCoreV3_4",
     "WillpowerCoreV3_2",
+    "WillpowerCore",  # ← ВАЖНО: ДОБАВЛЕН АЛИАС В ЭКСПОРТ!
     "create_core_govx_module",
     "create_moral_memory_module",
 ]
@@ -209,16 +213,22 @@ def _initialize_package():
         logger.info(f"   Архитектура: {__architecture__}")
         logger.info(f"   Экспортировано компонентов: {len(__all__)}")
         
-        # Проверяем наличие activate_keter
-        if 'activate_keter' in globals() and callable(activate_keter):
-            logger.info(f"   Функция activate_keter: ✅ доступна")
-        else:
-            logger.warning(f"   Функция activate_keter: ❌ не найдена")
+        # Проверяем наличие ключевых функций
+        key_functions = {
+            "activate_keter": 'activate_keter' in globals() and callable(activate_keter),
+            "WillpowerCore": 'WillpowerCore' in globals(),
+            "WillpowerCoreV3_2": 'WillpowerCoreV3_2' in globals(),
+        }
+        
+        for func, available in key_functions.items():
+            status = "✅ доступна" if available else "❌ не найдена"
+            logger.info(f"   {func}: {status}")
+            
     else:
         logger.error(f"❌ Пакет KETHER v{__version__} загружен с ошибками импорта")
-    
+
 # ============================================================
-# 7. ФУНКЦИЯ ДЛЯ ВНЕШНЕГО ИСПОЛЬЗОВАНИЯ
+# 7. ФУНКЦИИ ДЛЯ ВНЕШНЕГО ИСПОЛЬЗОВАНИЯ
 # ============================================================
 
 def get_keter():
@@ -243,6 +253,26 @@ def get_keter():
 # Добавляем в __all__
 __all__.append('get_keter')
 
-# Выполняем инициализацию
+# ============================================================
+# 8. ДОПОЛНИТЕЛЬНЫЕ АЛИАСЫ ДЛЯ ПОЛНОЙ СОВМЕСТИМОСТИ
+# ============================================================
+
+# Для совместимости со старым кодом, который может использовать другие имена
+KETHER = KetherCore  # Алиас для краткости
+KETER = KetherCore  # Ещё один алиас
+
+# Добавляем новые алиасы в __all__
+__all__.extend(['KETHER', 'KETER'])
+
+# ============================================================
+# 9. ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ МОДУЛЯ
+# ============================================================
+
 _initialize_package()
 
+# Финальное сообщение
+logger = logging.getLogger("KETHER")
+logger.info("=" * 60)
+logger.info(f"KETHER PACKAGE v{__version__} ГОТОВ К ИСПОЛЬЗОВАНИЮ")
+logger.info(f"Алиас WillpowerCore создан: {WillpowerCore is WillpowerCoreV3_2}")
+logger.info("=" * 60)
