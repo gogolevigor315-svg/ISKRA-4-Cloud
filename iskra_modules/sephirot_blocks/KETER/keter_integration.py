@@ -477,8 +477,8 @@ class KeterIntegration(ISephiraModule):
     # ========================================================
     
     async def connect_to_iskra(self, 
-                              sephirot_bus: SephirotBus,
-                              sephirotic_engine: SephiroticEngine) -> bool:
+                          sephirot_bus: SephirotBus,
+                          sephirotic_engine) -> bool:
         """
         Подключение к архитектуре ISKRA-4
         """
@@ -781,7 +781,7 @@ class KeterIntegration(ISephiraModule):
     async def create_and_initialize(cls, 
                                   config: Optional[SephiraConfig] = None,
                                   sephirot_bus: Optional[SephirotBus] = None,
-                                  sephirotic_engine: Optional[SephiroticEngine] = None) -> 'KeterIntegration':
+                                  sephirotic_engine = None) -> 'KeterIntegration': 
         """Создание и инициализация интеграции"""
         instance = cls(config)
         
