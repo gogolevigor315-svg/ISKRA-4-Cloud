@@ -121,6 +121,16 @@ except ImportError:
     MOCK_BUS_AVAILABLE = False
     print("[RAS-CORE] ⚠️  EnhancedMockBus не найден, используем None")
 
+# Интеграционный класс RAS-CORE
+try:
+    from .ras_integration import RASIntegration
+    RAS_INTEGRATION_AVAILABLE = True
+    print("[RAS-CORE] ✅ RASIntegration загружен")
+except ImportError as e:
+    print(f"[RAS-CORE] ⚠️  Ошибка загрузки RASIntegration: {e}")
+    RASIntegration = None
+    RAS_INTEGRATION_AVAILABLE = False
+
 # ================================================================
 # ФУНКЦИЯ ДЛЯ ПРОВЕРКИ ГОТОВНОСТИ RAS-CORE
 # ================================================================
@@ -141,11 +151,13 @@ def is_ras_core_ready() -> dict:
         "reflection_engine": REFLECTION_ENGINE_AVAILABLE,
         "triad_monitor": TRIAD_MONITOR_AVAILABLE,
         "mock_bus": MOCK_BUS_AVAILABLE,
+        "ras_integration": RAS_INTEGRATION_AVAILABLE,
         "fully_ready": (
             ENHANCED_RAS_CORE_AVAILABLE and
             PRIORITY_QUEUE_AVAILABLE and
             STABILITY_QUEUE_AVAILABLE and
-            CONFIG_MANAGER_AVAILABLE
+            CONFIG_MANAGER_AVAILABLE and
+            RAS_INTEGRATION_AVAILABLE
         )
     }
 
@@ -181,6 +193,7 @@ __all__ = [
     "SelfReflectionEngine",
     "TriadStabilityMonitor",
     "EnhancedMockBus",
+    "RASIntegration",
     
     # Утилиты
     "is_ras_core_ready",
@@ -195,7 +208,8 @@ __all__ = [
     "METRICS_COLLECTOR_AVAILABLE",
     "REFLECTION_ENGINE_AVAILABLE",
     "TRIAD_MONITOR_AVAILABLE",
-    "MOCK_BUS_AVAILABLE"
+    "MOCK_BUS_AVAILABLE",
+    "RAS_INTEGRATION_AVAILABLE"
 ]
 
 # ================================================================
