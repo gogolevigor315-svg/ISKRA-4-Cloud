@@ -30,12 +30,32 @@ except ImportError:
     print("⚠️  FastAPI не установлен. Для работы API установите: pip install fastapi uvicorn")
 
 # Импорты из RAS-CORE
-from .ras_core_v4_1 import EnhancedRASCore, RASSignal
-from .ras_integration import RASIntegration
-from .config import get_config, update_config
-from .persistence import get_persistence_manager, save_personality_state, restore_personality_state
-from .personality_monitor import get_personality_monitor, PersonalityMonitor
-from .constants import GOLDEN_STABILITY_ANGLE, calculate_stability_factor
+try:
+    from iskra_modules.sephirot_blocks.RAS_CORE.ras_core_v4_1 import EnhancedRASCore, RASSignal
+    from iskra_modules.sephirot_blocks.RAS_CORE.ras_integration import RASIntegration
+    from iskra_modules.sephirot_blocks.RAS_CORE.config import get_config, update_config
+    from iskra_modules.sephirot_blocks.RAS_CORE.persistence import get_persistence_manager, save_personality_state, restore_personality_state
+    from iskra_modules.sephirot_blocks.RAS_CORE.personality_monitor import get_personality_monitor, PersonalityMonitor
+    from iskra_modules.sephirot_blocks.RAS_CORE.constants import GOLDEN_STABILITY_ANGLE, calculate_stability_factor
+    RAS_CORE_IMPORTS_OK = True
+except ImportError as e:
+    print(f"[RAS-API] ⚠️  Ошибка импорта RAS-CORE модулей: {e}")
+    RAS_CORE_IMPORTS_OK = False
+    # Заглушки
+    class EnhancedRASCore: pass
+    class RASSignal: pass
+    class RASIntegration: pass
+    class PersonalityMonitor: pass
+    
+    def get_config(): return None
+    def update_config(*args, **kwargs): pass
+    def get_persistence_manager(): return None
+    async def save_personality_state(*args, **kwargs): return None
+    async def restore_personality_state(*args, **kwargs): return False
+    def get_personality_monitor(): return None
+    
+    GOLDEN_STABILITY_ANGLE = 14.4
+    def calculate_stability_factor(x): return 1.0
 
 # ============================================================================
 # PYDANTIC МОДЕЛИ ДЛЯ API
