@@ -11,7 +11,7 @@ import json
 import time
 import statistics
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple, Callable
+from typing import Dict, List, Optional, Any, Tuple, Callable, Union
 from dataclasses import dataclass, field, asdict
 from collections import deque, defaultdict
 import logging
