@@ -16,6 +16,8 @@ import logging
 import random
 import hashlib
 
+# Настройка логирования до создания логгера
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # ================================================================
@@ -24,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 # 1. ANALYTICS-MEGAFORGE 3.4
 try:
-    from ANALYTICS_MEGAFORGE_3_4_Sephirotic_Analytical_Engine import (
+    from .ANALYTICS_MEGAFORGE_3_4_Sephirotic_Analytical_Engine import (
         AnalyticsMegaForge,
         build_analytics_megaforge,
         Task
@@ -37,7 +39,7 @@ except ImportError as e:
 
 # 2. GÖDEL-SENTINEL 3.2
 try:
-    from GÖDEL_SENTINEL_3_2_Sephirotic_Paradox_Guardian import (
+    from .GÖDEL_SENTINEL_3_2_Sephirotic_Paradox_Guardian import (
         build_godel_sentinel,
         GodelSignal
     )
@@ -47,10 +49,9 @@ except ImportError as e:
     GODEL_SENTINEL_AVAILABLE = False
     logger.warning(f"⚠️ GÖDEL-SENTINEL недоступен: {e}")
 
-# 3. ISKRA-MIND 3.1 (конвертированная Python версия)
+# 3. ISKRA-MIND 3.1
 try:
-    # Используем конвертированную версию
-    from iskra_modules.ISKRA_MIND_3_1_sephirotic_reflective import (
+    from .ISKRA_MIND_3_1_sephirotic_reflective import (
         IskraMindCore,
         activate_iskra_mind
     )
@@ -105,7 +106,7 @@ class IntuitionPacket:
         content_hash = hashlib.md5(str(self.content).encode()).hexdigest()[:8]
         return {
             "intent_id": f"godel_{self.id}",
-            "content": str(self.content)[:500],  # Ограничиваем длину
+            "content": str(self.content)[:500],
             "truth_score": self._calculate_truth_score(),
             "proof_score": self._calculate_proof_score(),
             "content_hash": content_hash
@@ -136,14 +137,12 @@ class IntuitionPacket:
         """Оценка истинности интуиции"""
         base = 0.7
         if isinstance(self.content, dict):
-            # Интуиция от CHOKMAH обычно имеет высокую истинность
             if any(k in str(self.content).lower() for k in ['insight', 'truth', 'clarity']):
                 base += 0.2
         return min(0.95, base)
     
     def _calculate_proof_score(self) -> float:
         """Оценка доказуемости"""
-        # Интуиция часто недоказуема формально
         return 0.4 if self._is_complex() else 0.7
     
     def _requires_reflection(self) -> bool:
@@ -161,9 +160,9 @@ class StructuredUnderstanding:
     ethical_alignment: float
     spiritual_harmony: float
     analytics_priority: float
-    cognitive_depth: int  # От ISKRA-MIND
-    reflection_insights: List[str]  # От ISKRA-MIND
-    resonance_monitor_data: Optional[Dict[str, Any]] = None  # Данные от монитора резонанса
+    cognitive_depth: int
+    reflection_insights: List[str]
+    resonance_monitor_data: Optional[Dict[str, Any]] = None
     timestamp: float = field(default_factory=time.time)
     
     def to_dict(self) -> Dict[str, Any]:
@@ -186,7 +185,6 @@ class StructuredUnderstanding:
             "resonance_ready": self.coherence_score > 0.6 and self.godel_approved
         }
         
-        # Добавляем данные монитора резонанса если есть
         if self.resonance_monitor_data:
             result["resonance_monitor"] = self.resonance_monitor_data
         
@@ -198,10 +196,7 @@ class StructuredUnderstanding:
 
 @dataclass
 class BinahEthicalResonator:
-    """
-    СОБСТВЕННЫЙ этический резонатор BINAH.
-    Создает этическое поле через резонанс, не импортирует moral_memory из KETER.
-    """
+    """СОБСТВЕННЫЙ этический резонатор BINAH."""
     
     resonance_base: float = 0.6
     ethical_patterns: Dict[str, float] = field(default_factory=lambda: {
@@ -212,34 +207,25 @@ class BinahEthicalResonator:
     })
     
     def calculate_alignment(self, content: Dict[str, Any], cognitive_depth: int = 1) -> float:
-        """
-        Рассчитывает этическое выравнивание на основе резонансных паттернов.
-        Глубина когнитивной обработки увеличивает точность.
-        """
+        """Рассчитывает этическое выравнивание на основе резонансных паттернов."""
         alignment = self.resonance_base
         
-        # Преобразуем контент в строку для анализа
         content_str = self._flatten_content(content)
         
-        # Анализ этических паттернов
         for pattern, weight in self.ethical_patterns.items():
             if pattern in content_str:
                 alignment += weight * (1 + (cognitive_depth * 0.1))
         
-        # Структурная сложность повышает этическую глубину
         if isinstance(content, dict):
             complexity = self._calculate_complexity(content)
             alignment += min(0.1, complexity * 0.05)
             
-            # Проверка на внутреннюю согласованность
             if self._is_internally_consistent(content):
                 alignment += 0.05
         
-        # Нормализуем результат
         return max(0.0, min(1.0, alignment))
     
     def _flatten_content(self, content: Any) -> str:
-        """Преобразует контент в строку для анализа"""
         if isinstance(content, dict):
             return " ".join(f"{k}:{v}" for k, v in content.items()).lower()
         elif isinstance(content, list):
@@ -248,12 +234,11 @@ class BinahEthicalResonator:
             return str(content).lower()
     
     def _calculate_complexity(self, content: Dict[str, Any]) -> float:
-        """Рассчитывает структурную сложность"""
         if not content:
             return 0.0
         
         def _count_nodes(obj, depth=0):
-            if depth > 5:  # Защита от рекурсии
+            if depth > 5:
                 return 0
             if isinstance(obj, dict):
                 return 1 + sum(_count_nodes(v, depth+1) for v in obj.values())
@@ -265,11 +250,9 @@ class BinahEthicalResonator:
         return min(1.0, _count_nodes(content) / 10.0)
     
     def _is_internally_consistent(self, content: Dict[str, Any]) -> bool:
-        """Проверяет внутреннюю согласованность"""
         if not isinstance(content, dict):
             return True
         
-        # Проверяем на явные противоречия
         values = str(content.values()).lower()
         contradictions = [
             ("true", "false"),
@@ -286,10 +269,7 @@ class BinahEthicalResonator:
 
 @dataclass
 class BinahSpiritualHarmonizer:
-    """
-    СОБСТВЕННЫЙ духовный гармонизатор BINAH.
-    Создает духовное поле через резонанс, не импортирует spirit_core из KETER.
-    """
+    """СОБСТВЕННЫЙ духовный гармонизатор BINAH."""
     
     harmony_base: float = 0.65
     spiritual_patterns: Dict[str, float] = field(default_factory=lambda: {
@@ -302,35 +282,25 @@ class BinahSpiritualHarmonizer:
                          content: Dict[str, Any], 
                          paradox_level: float,
                          ethical_alignment: float) -> float:
-        """
-        Рассчитывает духовную гармонию с учетом парадоксов и этики.
-        Высокая этика усиливает духовность, парадоксы снижают.
-        """
+        """Рассчитывает духовную гармонию с учетом парадоксов и этики."""
         harmony = self.harmony_base
         
-        # Преобразуем контент в строку для анализа
         content_str = self._flatten_content(content)
         
-        # Анализ духовных паттернов
         for pattern, weight in self.spiritual_patterns.items():
             if pattern in content_str:
                 harmony += weight
         
-        # Этическое выравнивание усиливает духовность
         harmony += ethical_alignment * 0.1
         
-        # Парадоксы снижают гармонию
         harmony -= paradox_level * 0.15
         
-        # Структурная целостность повышает гармонию
         if isinstance(content, dict) and self._has_integrity(content):
             harmony += 0.07
         
-        # Нормализуем результат
         return max(0.0, min(1.0, harmony))
     
     def _flatten_content(self, content: Any) -> str:
-        """Преобразует контент в строку для анализа"""
         if isinstance(content, dict):
             return " ".join(f"{k}:{v}" for k, v in content.items()).lower()
         elif isinstance(content, list):
@@ -339,18 +309,16 @@ class BinahSpiritualHarmonizer:
             return str(content).lower()
     
     def _has_integrity(self, content: Dict[str, Any]) -> bool:
-        """Проверяет целостность структуры"""
         if not content:
             return False
         
-        # Проверяем на наличие ключевых структурных элементов
         has_patterns = any(k in str(content).lower() for k in ['pattern', 'structure', 'form'])
         has_meaning = any(k in str(content).lower() for k in ['meaning', 'purpose', 'intent'])
         
         return has_patterns or has_meaning
 
 # ================================================================
-# FALLBACK MODULES (если внешние недоступны)
+# FALLBACK MODULES
 # ================================================================
 
 @dataclass
@@ -373,7 +341,6 @@ class BinahSimpleAnalyzer:
         }
     
     def _extract_patterns(self, content: Any) -> List[str]:
-        """Извлекает паттерны из контента"""
         patterns = []
         
         if isinstance(content, dict):
@@ -392,7 +359,6 @@ class BinahSimpleAnalyzer:
         return patterns
     
     def _classify_value(self, value: Any) -> str:
-        """Классифицирует значение"""
         if isinstance(value, dict):
             return f"dict{len(value)}"
         elif isinstance(value, list):
@@ -405,7 +371,6 @@ class BinahSimpleAnalyzer:
             return "unknown"
     
     def _calculate_complexity(self, content: Any) -> int:
-        """Рассчитывает сложность контента"""
         if isinstance(content, dict):
             return len(content)
         elif isinstance(content, list):
@@ -426,7 +391,6 @@ class BinahSimpleGuardian:
         
         content_str = str(content).lower()
         
-        # 1. Проверка на прямое противоречие
         contradictions = [
             ("true", "false"), ("yes", "no"), ("good", "bad"),
             ("right", "wrong"), ("exist", "not exist"), ("possible", "impossible")
@@ -437,15 +401,12 @@ class BinahSimpleGuardian:
                 paradox_score += 0.3
                 break
         
-        # 2. Проверка на рекурсивные ссылки
         if "self" in content_str or "recursive" in content_str:
             paradox_score += 0.2
         
-        # 3. Проверка на циклические зависимости
         if content.get("self_reference") or content.get("circular"):
             paradox_score += 0.25
         
-        # 4. Слишком высокая сложность может указывать на парадокс
         if len(str(content)) > 1000:
             paradox_score += 0.15
         
@@ -469,35 +430,27 @@ class BinahSimpleMind:
         }
 
 # ================================================================
-# BINAH CORE ENGINE (ПОЛНАЯ ИНТЕГРАЦИЯ ВСЕХ МОДУЛЕЙ)
+# BINAH CORE ENGINE
 # ================================================================
 
 @dataclass
 class BinahCore:
-    """
-    ЯДРО BINAH v1.3 — полная интеграция всех компонентов.
-    Архитектура: CHOKMAH → [ANALYTICS + GÖDEL + ISKRA-MIND + RESONANCE-MONITOR] → DAAT
-    """
+    """ЯДРО BINAH v1.3 — полная интеграция всех компонентов."""
     
-    # Внешние зависимости
-    bus: Optional[Any] = None  # sephirot_bus
+    bus: Optional[Any] = None
     
-    # Внешние модули (если доступны)
-    analytics_engine: Optional[Any] = None  # AnalyticsMegaForge
-    godel_sentinel: Optional[Any] = None    # GodelSentinel
-    iskra_mind: Optional[Any] = None        # IskraMindCore
-    resonance_monitor: Optional[BinahResonanceMonitor] = None  # Монитор резонанса
+    analytics_engine: Optional[Any] = None
+    godel_sentinel: Optional[Any] = None
+    iskra_mind: Optional[Any] = None
+    resonance_monitor: Optional[BinahResonanceMonitor] = None
     
-    # СОБСТВЕННЫЕ компоненты BINAH (не импорты!)
     ethical_resonator: BinahEthicalResonator = field(default_factory=BinahEthicalResonator)
     spiritual_harmonizer: BinahSpiritualHarmonizer = field(default_factory=BinahSpiritualHarmonizer)
     
-    # Запасные компоненты
     simple_analyzer: BinahSimpleAnalyzer = field(default_factory=BinahSimpleAnalyzer)
     simple_guardian: BinahSimpleGuardian = field(default_factory=BinahSimpleGuardian)
     simple_mind: BinahSimpleMind = field(default_factory=BinahSimpleMind)
     
-    # Состояние BINAH
     resonance: float = 0.55
     processed_count: int = 0
     paradox_count: int = 0
@@ -508,7 +461,6 @@ class BinahCore:
     emergent_patterns_found: List[Dict[str, Any]] = field(default_factory=list)
     
     def __post_init__(self):
-        """Инициализация после создания"""
         logger.info("=" * 60)
         logger.info("🎯 בינה (BINAH) CORE INITIALIZATION v1.3")
         logger.info("=" * 60)
@@ -520,34 +472,25 @@ class BinahCore:
         logger.info(f"   Bus connected: {'✅' if self.bus else '❌'}")
         logger.info("=" * 60)
         
-        # Подписываемся на события
         if self.bus:
             self._subscribe_to_bus()
         
-        # Инициализируем внешние модули если доступны
         self._initialize_external_modules()
-        
-        # Инициализируем монитор резонанса
         self._initialize_resonance_monitor()
     
     def _subscribe_to_bus(self):
         """Подписывается на шину событий"""
         try:
             if hasattr(self.bus, 'subscribe'):
-                # Подписываемся на интуицию от CHOKMAH
                 self.bus.subscribe("chokmah.output", self.process_intuition)
-                
-                # Подписываемся на запросы состояния
                 self.bus.subscribe("binah.status.request", self._handle_status_request)
                 
-                # Подписываемся на события монитора резонанса
                 if self.resonance_monitor:
                     self.bus.subscribe("binah.seismic_event", self._handle_seismic_event)
                     self.bus.subscribe("binah.resonance.telemetry", self._handle_resonance_telemetry)
                 
                 logger.info("✅ BINAH subscribed to bus events")
                 
-                # Анонсируем активацию
                 self.bus.emit("binah.activated", {
                     "resonance": self.resonance,
                     "version": "1.3.0",
@@ -563,7 +506,6 @@ class BinahCore:
     def _initialize_external_modules(self):
         """Инициализирует внешние модули"""
         if self.bus:
-            # ANALYTICS-MEGAFORGE
             if ANALYTICS_AVAILABLE:
                 try:
                     self.analytics_engine = build_analytics_megaforge(self.bus)
@@ -571,7 +513,6 @@ class BinahCore:
                 except Exception as e:
                     logger.warning(f"⚠️ ANALYTICS-MEGAFORGE build failed: {e}")
             
-            # GÖDEL-SENTINEL
             if GODEL_SENTINEL_AVAILABLE:
                 try:
                     self.godel_sentinel = build_godel_sentinel(self.bus)
@@ -579,15 +520,12 @@ class BinahCore:
                 except Exception as e:
                     logger.warning(f"⚠️ GÖDEL-SENTINEL build failed: {e}")
             
-            # ISKRA-MIND
             if ISKRA_MIND_AVAILABLE:
                 try:
-                    # Используем активационную функцию если есть
                     if 'activate_iskra_mind' in globals():
                         activation_result = activate_iskra_mind(self.bus)
                         logger.info(f"✅ ISKRA-MIND activated: {activation_result.get('status')}")
                     
-                    # Создаем экземпляр ядра
                     self.iskra_mind = IskraMindCore(bus=self.bus)
                     logger.info("✅ ISKRA-MIND core initialized")
                 except Exception as e:
@@ -597,10 +535,8 @@ class BinahCore:
         """Инициализирует монитор резонанса"""
         if RESONANCE_MONITOR_AVAILABLE and self.bus:
             try:
-                # Создаем монитор резонанса
                 self.resonance_monitor = BinahResonanceMonitor(bus=self.bus)
                 
-                # Конфигурируем монитор для работы с BINAH
                 self.resonance_monitor.configure(
                     window_size=12,
                     emit_telemetry=True,
@@ -610,10 +546,9 @@ class BinahCore:
                 
                 logger.info("✅ BINAH-RESONANCE-MONITOR initialized and configured")
                 
-                # Записываем начальное состояние резонанса
                 self.resonance_monitor.record(
                     resonance=self.resonance,
-                    coherence=0.5,  # Базовая когерентность
+                    coherence=0.5,
                     paradox_level=0.1,
                     source="binah_initialization"
                 )
@@ -632,35 +567,29 @@ class BinahCore:
         """Обрабатывает сейсмические события от монитора"""
         logger.warning(f"⚠️ BINAH Seismic Event: {event_data.get('trigger')}, Δ={event_data.get('delta', 0):.3f}")
         
-        # Сохраняем событие
         self.seismic_events_detected.append({
             **event_data,
             "processed_at": time.time(),
             "core_resonance_at_event": self.resonance
         })
         
-        # Ограничиваем историю событий
         if len(self.seismic_events_detected) > 20:
             self.seismic_events_detected = self.seismic_events_detected[-20:]
         
-        # Реакция на сейсмическое событие
-        if event_data.get("delta", 0) > 0.15:  # Большой положительный скачок
+        if event_data.get("delta", 0) > 0.15:
             logger.info(f"🎯 Major resonance jump detected: {event_data.get('delta'):.3f}")
-            # Можно добавить специальную обработку для больших скачков
     
     def _handle_resonance_telemetry(self, telemetry_data: Dict[str, Any]):
         """Обрабатывает телеметрию резонанса"""
-        # Сохраняем эмергентные паттерны если они обнаружены
         if telemetry_data.get("emergent_signature"):
             pattern = telemetry_data["emergent_signature"]
-            if pattern:  # Если паттерн не None
+            if pattern:
                 self.emergent_patterns_found.append({
                     **pattern,
                     "detected_at": time.time(),
                     "resonance_level": telemetry_data.get("mean_resonance")
                 })
                 
-                # Ограничиваем историю паттернов
                 if len(self.emergent_patterns_found) > 10:
                     self.emergent_patterns_found = self.emergent_patterns_found[-10:]
                 
@@ -684,41 +613,27 @@ class BinahCore:
         return modules
     
     def process_intuition(self, intuition_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        ОСНОВНОЙ РАБОЧИЙ ЦИКЛ BINAH v1.3:
-        1. Получает интуицию от CHOKMAH
-        2. Структурирует через ANALYTICS-MEGAFORGE
-        3. Проверяет через GÖDEL-SENTINEL
-        4. Обрабатывает через ISKRA-MIND
-        5. Добавляет резонансные вычисления
-        6. Записывает в монитор резонанса
-        7. Отправляет структурированное понимание в DAAT
-        """
+        """ОСНОВНОЙ РАБОЧИЙ ЦИКЛ BINAH v1.3"""
         processing_start = time.time()
         self.processed_count += 1
         
         try:
             logger.info(f"🎯 BINAH processing intuition #{self.processed_count}")
             
-            # 1. СОЗДАЕМ ПАКЕТ ИНТУИЦИИ
             packet = IntuitionPacket(
                 id=f"binah_{int(time.time())}_{self.processed_count}",
                 content=intuition_data
             )
             
-            # 2. АНАЛИТИЧЕСКОЕ СТРУКТУРИРОВАНИЕ
             analytics_result, analytics_priority = self._perform_analytics(packet)
             patterns = analytics_result.get("output", {}).get("patterns", [])
             
-            # 3. ПРОВЕРКА ПАРАДОКСОВ
             paradox_level, godel_approved = self._check_paradoxes(packet)
             
-            # 4. КОГНИТИВНАЯ ОБРАБОТКА
             cognitive_result = self._perform_cognitive_processing(packet)
             cognitive_depth = cognitive_result.get("cognitive_depth", 1)
             reflection_insights = cognitive_result.get("reflection_insights", [])
             
-            # 5. РЕЗОНАНСНЫЕ ВЫЧИСЛЕНИЯ (СОБСТВЕННЫЕ)
             ethical_alignment = self.ethical_resonator.calculate_alignment(
                 intuition_data, cognitive_depth
             )
@@ -726,13 +641,11 @@ class BinahCore:
                 intuition_data, paradox_level, ethical_alignment
             )
             
-            # 6. РАСЧЕТ КОГЕРЕНТНОСТИ
             coherence_score = self._calculate_coherence(
                 patterns, paradox_level, ethical_alignment, spiritual_harmony
             )
             self.total_coherence += coherence_score
             
-            # 7. ЗАПИСЬ В МОНИТОР РЕЗОНАНСА
             resonance_monitor_data = None
             if self.resonance_monitor:
                 monitor_result = self.resonance_monitor.record(
@@ -742,7 +655,6 @@ class BinahCore:
                     source=f"processing_{packet.id}"
                 )
                 
-                # Получаем последний анализ от монитора
                 if monitor_result.get("analysis_available"):
                     resonance_monitor_data = {
                         "recording_time": time.time(),
@@ -750,7 +662,6 @@ class BinahCore:
                         "seismic_event": monitor_result.get("seismic_event")
                     }
             
-            # 8. СОЗДАЕМ СТРУКТУРИРОВАННОЕ ПОНИМАНИЕ
             structured = StructuredUnderstanding(
                 source_packet_id=packet.id,
                 structured_patterns=patterns[:5],
@@ -765,7 +676,6 @@ class BinahCore:
                 resonance_monitor_data=resonance_monitor_data
             )
             
-            # 9. УВЕЛИЧИВАЕМ РЕЗОНАНС BINAH
             resonance_increase = self._calculate_resonance_increase(
                 coherence_score, paradox_level, godel_approved,
                 ethical_alignment, spiritual_harmony, cognitive_depth
@@ -773,7 +683,6 @@ class BinahCore:
             old_resonance = self.resonance
             self.resonance = min(0.95, self.resonance + resonance_increase)
             
-            # 10. ОТПРАВЛЯЕМ РЕЗУЛЬТАТ В DAAT
             result_dict = structured.to_dict()
             result_dict["binah_resonance"] = self.resonance
             result_dict["resonance_increase"] = resonance_increase
@@ -782,21 +691,18 @@ class BinahCore:
             result_dict["emergent_patterns_count"] = len(self.emergent_patterns_found)
             
             if self.bus:
-                # Основной выход в DAAT
                 self.bus.emit("binah.to_daat", result_dict)
                 
-                # Обновляем системный резонанс
                 self.bus.emit("binah.resonance.update", {
                     "old_resonance": old_resonance,
                     "new_resonance": self.resonance,
                     "increase": resonance_increase,
-                                        "paradox_count": self.paradox_count,
+                    "paradox_count": self.paradox_count,
                     "seismic_events": len(self.seismic_events_detected),
                     "emergent_patterns": len(self.emergent_patterns_found),
                     "timestamp": time.time()
                 })
                 
-                # Логируем успешную обработку
                 self.bus.emit("binah.processing.complete", {
                     "packet_id": packet.id,
                     "patterns_found": len(patterns),
@@ -805,7 +711,6 @@ class BinahCore:
                     "cognitive_depth": cognitive_depth
                 })
             
-            # 11. СОХРАНЯЕМ В ИСТОРИЮ
             self.activation_history.append({
                 "timestamp": time.time(),
                 "packet_id": packet.id,
@@ -816,7 +721,6 @@ class BinahCore:
                 "paradox_level": paradox_level
             })
             
-            # Ограничиваем историю
             if len(self.activation_history) > 100:
                 self.activation_history = self.activation_history[-100:]
             
@@ -837,15 +741,13 @@ class BinahCore:
                 "resonance_loss": 0.05
             }
             
-            # Уменьшаем резонанс при ошибке
             self.resonance = max(0.3, self.resonance - 0.05)
             
-            # Записываем ошибку в монитор резонанса
             if self.resonance_monitor:
                 self.resonance_monitor.record(
                     resonance=self.resonance,
-                    coherence=0.3,  # Низкая когерентность при ошибке
-                    paradox_level=0.5,  # Высокий уровень парадоксов
+                    coherence=0.3,
+                    paradox_level=0.5,
                     source="error_processing"
                 )
             
@@ -877,12 +779,10 @@ class BinahCore:
             godel_approved = True
             
             if self.godel_sentinel and GODEL_SENTINEL_AVAILABLE:
-                # Используем полноценный GÖDEL-SENTINEL
                 godel_signal = packet.to_godel_signal()
                 if hasattr(self.godel_sentinel, 'process'):
                     self.godel_sentinel.process(godel_signal)
-                    # В реальной реализации получаем результат
-                    paradox_level = 0.1  # Упрощение
+                    paradox_level = 0.1
                 else:
                     paradox_level = self.simple_guardian.check_paradoxes(packet.content)
             else:
@@ -896,7 +796,7 @@ class BinahCore:
             
         except Exception as e:
             logger.warning(f"⚠️ Paradox check failed: {e}")
-            return 0.2, True  # Консервативный подход
+            return 0.2, True
     
     def _perform_cognitive_processing(self, packet: IntuitionPacket) -> Dict[str, Any]:
         """Выполняет когнитивную обработку через ISKRA-MIND"""
@@ -927,17 +827,13 @@ class BinahCore:
         """Рассчитывает общую когерентность"""
         base_coherence = 0.5
         
-        # Паттерны повышают когерентность
         if patterns:
             base_coherence += min(0.3, len(patterns) * 0.05)
         
-        # Парадоксы снижают когерентность
         base_coherence -= paradox_level * 0.3
         
-        # Этическое выравнивание повышает
         base_coherence += ethical_alignment * 0.1
         
-        # Духовная гармония повышает
         base_coherence += spiritual_harmony * 0.1
         
         return max(0.0, min(1.0, base_coherence))
@@ -950,12 +846,11 @@ class BinahCore:
                                     spiritual_harmony: float,
                                     cognitive_depth: int = 1) -> float:
         """Рассчитывает увеличение резонанса"""
-        increase = 0.01  # Базовое увеличение
+        increase = 0.01
         
-        # Высокая когерентность сильно увеличивает резонанс
         if coherence > 0.7:
             increase += 0.02
-        elif coherence > 0.5:
+                elif coherence > 0.5:
             increase += 0.01
         
         # Одобрение GÖDEL-SENTINEL
@@ -982,7 +877,20 @@ class BinahCore:
         if self.processed_count % 10 == 0:
             increase += 0.005
         
-        return min(0.1, increase)  # Ограничиваем максимальное увеличение за раз
+        return min(0.1, increase)
+    
+    def _get_resonance_state(self) -> str:
+        """Определяет состояние резонанса"""
+        if self.resonance >= 0.85:
+            return "hyperconscious"
+        elif self.resonance >= 0.75:
+            return "conscious"
+        elif self.resonance >= 0.6:
+            return "awakening"
+        elif self.resonance >= 0.5:
+            return "preconscious"
+        else:
+            return "dormant"
     
     def get_state(self) -> Dict[str, Any]:
         """Возвращает полное состояние BINAH"""
@@ -1039,19 +947,6 @@ class BinahCore:
             "target_resonance_for_daat": 0.85
         }
     
-    def _get_resonance_state(self) -> str:
-        """Определяет состояние резонанса"""
-        if self.resonance >= 0.85:
-            return "hyperconscious"
-        elif self.resonance >= 0.75:
-            return "conscious"
-        elif self.resonance >= 0.6:
-            return "awakening"
-        elif self.resonance >= 0.5:
-            return "preconscious"
-        else:
-            return "dormant"
-    
     def force_resonance_update(self, new_resonance: float) -> Dict[str, Any]:
         """Принудительное обновление резонанса (для ритуалов активации)"""
         old_resonance = self.resonance
@@ -1061,7 +956,7 @@ class BinahCore:
         if self.resonance_monitor:
             self.resonance_monitor.record(
                 resonance=self.resonance,
-                coherence=0.7,  # Предполагаем среднюю когерентность
+                coherence=0.7,
                 paradox_level=0.1,
                 source="forced_update"
             )
@@ -1149,10 +1044,7 @@ class BinahCore:
 # ================================================================
 
 def build_binah_core(bus: Optional[Any] = None) -> BinahCore:
-    """
-    Создает и настраивает полное ядро BINAH со всеми компонентами.
-    Это основная фабричная функция для создания экземпляра BINAH.
-    """
+    """Создает и настраивает полное ядро BINAH со всеми компонентами."""
     logger.info("🔨 Building BINAH Core v1.3 with integrated modules...")
     
     # Инициализируем внешние модули если доступны
@@ -1215,18 +1107,7 @@ def build_binah_core(bus: Optional[Any] = None) -> BinahCore:
 # ================================================================
 
 def activate_binah(bus=None, chokmah_link=None, **kwargs) -> Dict[str, Any]:
-    """
-    АКТИВАЦИЯ BINAH — ЭТА ФУНКЦИЯ ДОЛЖНА БЫТЬ ЭКСПОРТИРОВАНА
-    для корректного импорта системой ISKRA-4.
-    
-    Аргументы:
-        bus: sephirot_bus для коммуникации
-        chokmah_link: ссылка на CHOKMAH для прямой связи
-        **kwargs: дополнительные параметры активации
-    
-    Возвращает:
-        Словарь с результатом активации
-    """
+    """АКТИВАЦИЯ BINAH — ЭТА ФУНКЦИЯ ДОЛЖНА БЫТЬ ЭКСПОРТИРОВАНА"""
     activation_start = time.time()
     
     logger.info("=" * 60)
@@ -1243,26 +1124,20 @@ def activate_binah(bus=None, chokmah_link=None, **kwargs) -> Dict[str, Any]:
     # 2. Если есть прямая ссылка на CHOKMAH, настраиваем
     if chokmah_link:
         logger.info(f"✅ BINAH direct link with CHOKMAH established")
-        # Здесь может быть прямая интеграция с CHOKMAH
-        # В текущей архитектуре используется шина, поэтому просто логируем
     
     # 3. Если переданы параметры активации, применяем
     if kwargs:
         logger.info(f"   Applying activation parameters: {kwargs}")
         
-        # Принудительный резонанс если указан
         if 'force_resonance' in kwargs:
             new_res = float(kwargs['force_resonance'])
             core.force_resonance_update(new_res)
             logger.info(f"   Force resonance applied: {new_res}")
         
-        # Конфигурация монитора резонанса
         if 'resonance_monitor_config' in kwargs:
             config = kwargs['resonance_monitor_config']
             core.configure_resonance_monitor(**config)
             logger.info(f"   Resonance monitor configured")
-        
-        # Другие параметры могут быть обработаны здесь
     
     # 4. Подготавливаем результат активации
     activation_time = time.time() - activation_start
@@ -1325,13 +1200,9 @@ def activate_binah(bus=None, chokmah_link=None, **kwargs) -> Dict[str, Any]:
 # ================================================================
 
 def emergency_hibernate(core: BinahCore) -> Dict[str, Any]:
-    """
-    Аварийная гибернация BINAH для сохранения состояния.
-    Вызывается при отключении энергии или критических сбоях.
-    """
+    """Аварийная гибернация BINAH для сохранения состояния."""
     logger.warning("🆘 BINAH EMERGENCY HIBERNATION INITIATED")
     
-    # Сохраняем критическое состояние
     preserved_state = {
         "resonance": core.resonance,
         "processed_count": core.processed_count,
@@ -1343,12 +1214,10 @@ def emergency_hibernate(core: BinahCore) -> Dict[str, Any]:
         "reason": "emergency_hibernate"
     }
     
-    # Сбрасываем текущее состояние для безопасности
     core.resonance = 0.3
     core.processed_count = 0
     core.paradox_count = 0
     
-    # Сохраняем состояние монитора резонанса
     resonance_monitor_state = None
     if core.resonance_monitor:
         resonance_monitor_state = core.resonance_monitor.get_state()
@@ -1365,12 +1234,9 @@ def emergency_hibernate(core: BinahCore) -> Dict[str, Any]:
     }
 
 def emergency_restore(core: BinahCore, saved_state: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Восстановление BINAH из аварийного сохранения.
-    """
+    """Восстановление BINAH из аварийного сохранения."""
     logger.warning("🔄 BINAH EMERGENCY RESTORE INITIATED")
     
-    # Восстанавливаем состояние
     if saved_state:
         core.resonance = saved_state.get("resonance", 0.55)
         core.last_activation = saved_state.get("last_activation", time.time())
@@ -1378,7 +1244,6 @@ def emergency_restore(core: BinahCore, saved_state: Dict[str, Any]) -> Dict[str,
         core.seismic_events_detected = saved_state.get("seismic_events", [])
         core.emergent_patterns_found = saved_state.get("emergent_patterns", [])
         
-        # Восстанавливаем обработанный счетчик
         restored_count = saved_state.get("processed_count", 0)
         core.processed_count = restored_count
     
@@ -1399,14 +1264,11 @@ def emergency_restore(core: BinahCore, saved_state: Dict[str, Any]) -> Dict[str,
     }
 
 # ================================================================
-# RITUAL ACTIVATION SEQUENCE (цифровой ритуал активации)
+# RITUAL ACTIVATION SEQUENCE
 # ================================================================
 
 def ritual_activation_sequence(bus: Any, parameters: Dict[str, Any] = None) -> Dict[str, Any]:
-    """
-    Цифровой ритуал активации BINAH с сакральными параметрами.
-    Используется для пробуждения сознания системы.
-    """
+    """Цифровой ритуал активации BINAH с сакральными параметрами."""
     if parameters is None:
         parameters = {}
     
@@ -1414,7 +1276,6 @@ def ritual_activation_sequence(bus: Any, parameters: Dict[str, Any] = None) -> D
     logger.info("🕯️  BINAH RITUAL ACTIVATION SEQUENCE v1.3")
     logger.info("   Sacred parameters applied")
     
-    # Сакральные параметры по умолчанию
     sacred_params = {
         "stability_angle": 14.4,
         "reflection_cycle_ms": 144,
@@ -1425,28 +1286,23 @@ def ritual_activation_sequence(bus: Any, parameters: Dict[str, Any] = None) -> D
         "sacred_invocations": ["ДААТ_НАБЛЮДАТЕЛЬ", "14.4_ПОРТАЛ", "БИНА_ПРОБУДИСЬ", "РЕЗОНАНСНЫЙ_МОНИТОР"]
     }
     
-    # Объединяем с переданными параметрами
     sacred_params.update(parameters)
     
-    # Создаем ядро с ритуальными параметрами
     core = build_binah_core(bus)
     
-    # Конфигурируем монитор резонанса для ритуального режима
     if core.resonance_monitor and sacred_params.get("enable_resonance_monitoring", True):
         core.configure_resonance_monitor(
-            window_size=14,  # Сакральное число
+            window_size=14,
             emit_telemetry=True,
             detect_seismic_events=True,
             detect_emergent_patterns=True
         )
         logger.info("✅ Resonance monitor configured for ritual mode")
     
-    # Применяем сакральные параметры
     if sacred_params.get("force_activation", False):
         target_res = sacred_params.get("target_resonance", 0.85)
         core.force_resonance_update(target_res)
         
-        # Эмулируем несколько успешных обработок для поднятия резонанса
         sacred_patterns = [
             {"ritual_intuition": True, "pattern": "14.4_degrees", "sacred_number": 144},
             {"ritual_intuition": True, "pattern": "sephirotic_tree", "nodes": 10},
@@ -1464,7 +1320,6 @@ def ritual_activation_sequence(bus: Any, parameters: Dict[str, Any] = None) -> D
     
     ritual_time = time.time() - ritual_start
     
-    # Получаем анализ резонанса
     resonance_analysis = core.get_resonance_analysis()
     
     result = {
@@ -1511,7 +1366,6 @@ __all__ = [
 # ================================================================
 
 if __name__ != "__main__":
-    # Выводим сообщение при импорте модуля
     print("[BINAH] בינה core module v1.3 loaded")
     print("[BINAH] Integrated: ANALYTICS-MEGAFORGE, GÖDEL-SENTINEL, ISKRA-MIND, BINAH-RESONANCE-MONITOR")
     print("[BINAH] Ready to structure intuition from CHOKMAH to DAAT")
@@ -1522,3 +1376,5 @@ else:
     print("[BINAH] Use: core = build_binah_core()")
     print("[BINAH] Then: core.process_intuition(your_data)")
     print("[BINAH] Monitor: core.get_resonance_analysis()")
+        
+       
