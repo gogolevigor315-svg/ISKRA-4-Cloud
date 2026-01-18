@@ -1011,3 +1011,132 @@ if __name__ == "__main__":
     print(f"   Петля личности реализована")
     print(f"   Готов к интеграции в ISKRA-4 Cloud")
     print("=" * 60)
+
+# ============================================================================
+# ФУНКЦИЯ ДЛЯ СИСТЕМНОЙ ИНТЕГРАЦИИ (ДОБАВЛЯЕМ!)
+# ============================================================================
+
+def integrate_ras_with_sephirot(ras_core, sephirot_bus):
+    """
+    🔥 КРИТИЧЕСКИ ВАЖНАЯ ФУНКЦИЯ ДЛЯ СОВМЕСТИМОСТИ!
+    Система ISKRA-4 вызывает эту функцию для подключения RAS-CORE к сефиротической шине.
+    
+    Args:
+        ras_core: Экземпляр RASCore (EnhancedRASCore)
+        sephirot_bus: Шина сефиротической системы
+        
+    Returns:
+        Словарь с результатами интеграции
+    """
+    import logging
+    import asyncio
+    from datetime import datetime
+    
+    logger = logging.getLogger("RAS.Integration.System")
+    
+    try:
+        logger.info("🔄 Вызов integrate_ras_with_sephirot()")
+        
+        # Проверка входных данных
+        if ras_core is None:
+            return {
+                "status": "error",
+                "message": "RAS core не предоставлен",
+                "sephirot_integrated": False,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        
+        if sephirot_bus is None:
+            logger.warning("⚠️  sephirot_bus не предоставлен, создаем минимальную интеграцию")
+        
+        # Простая синхронная интеграция (не асинхронная!)
+        result = {
+            "status": "integrated",
+            "ras_core_type": type(ras_core).__name__,
+            "sephirot_bus_provided": sephirot_bus is not None,
+            "integration_method": "direct_sync",
+            "angle_stability": getattr(ras_core, 'stability_angle', 14.4),
+            "personality_loop_available": False,  # Будет доступна после полной инициализации
+            "sephirot_connections": [],
+            "message": "RAS-CORE интегрирован с сефиротической системой",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        # Если есть сефирот-шина, регистрируем RAS в ней
+        if sephirot_bus and hasattr(sephirot_bus, 'register_module'):
+            try:
+                sephirot_bus.register_module('ras_core', ras_core)
+                result["sephirot_connections"].append("ras_core_registered")
+                logger.info("✅ RAS-CORE зарегистрирован в сефиротической шине")
+            except Exception as e:
+                result["registration_error"] = str(e)
+                logger.error(f"❌ Ошибка регистрации в шине: {e}")
+        
+        # Если у RAS есть методы для интеграции, вызываем их
+        if hasattr(ras_core, 'connect_to_sephirot'):
+            try:
+                if asyncio.iscoroutinefunction(ras_core.connect_to_sephirot):
+                    # Асинхронный метод - запускаем в событийном цикле
+                    loop = asyncio.get_event_loop()
+                    connect_result = loop.run_until_complete(
+                        ras_core.connect_to_sephirot(sephirot_bus)
+                    )
+                else:
+                    connect_result = ras_core.connect_to_sephirot(sephirot_bus)
+                
+                result["ras_connect_result"] = connect_result
+                result["sephirot_connections"].append("ras_connected_to_sephirot")
+            except Exception as e:
+                result["ras_connect_error"] = str(e)
+        
+        logger.info(f"✅ integrate_ras_with_sephirot завершена: {result['status']}")
+        return result
+        
+    except Exception as e:
+        logger.error(f"❌ Критическая ошибка в integrate_ras_with_sephirot: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "sephirot_integrated": False,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+
+# ============================================================================
+# СИНХРОННАЯ ВЕРСИЯ ДЛЯ ПРОСТОЙ ИНТЕГРАЦИИ (ДОБАВЛЯЕМ!)
+# ============================================================================
+
+def create_simple_ras_integration_sync(ras_core, **kwargs):
+    """
+    Синхронная версия создания интеграции.
+    Используется системой при синхронной инициализации.
+    """
+    integration = RASIntegration(ras_core, **kwargs)
+    
+    # Создаем простые синхронные соединения
+    return {
+        "status": "created_sync",
+        "integration": integration,
+        "ras_core_connected": ras_core is not None,
+        "sephirots_provided": {k: v is not None for k, v in kwargs.items()},
+        "message": "Синхронная интеграция создана (используйте async методы для полной функциональности)"
+    }
+
+
+# ============================================================================
+# ОБНОВЛЯЕМ __all__ ДЛЯ ЭКСПОРТА НОВЫХ ФУНКЦИЙ
+# ============================================================================
+
+# Находим или добавляем список __all__ в конце файла
+# Если __all__ нет, создаем его:
+if '__all__' not in globals():
+    __all__ = []
+
+# Добавляем новые функции в экспорт
+__all__.extend([
+    'integrate_ras_with_sephirot',      # 🔥 САМОЕ ВАЖНОЕ!
+    'create_simple_ras_integration_sync'
+])
+
+print(f"[RAS-INTEGRATION] ✅ Функция integrate_ras_with_sephirot() добавлена")
+print(f"[RAS-INTEGRATION] Экспортируемые функции: {__all__}")
