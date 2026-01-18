@@ -329,11 +329,11 @@ class IntegrityVerifier:
         return diagnostics
 
 # ============================================================================
-# ЗАГРУЗЧИК МОДУЛЕЙ (ОБНОВЛЁННЫЙ)
+# ЗАГРРУЗЧИК МОДУЛЕЙ (ОБНОВЛЁННЫЙ С АВТОАКТИВАЦИЕЙ)
 # ============================================================================
 
 class DS24ModuleLoader:
-    """Продвинутый загрузчик модулей DS24"""
+    """Продвинутый загрузчик модулей DS24 с автоактивацией системы"""
     
     def __init__(self, modules_dir: str = MODULES_DIR):
         self.modules_dir = modules_dir
@@ -341,12 +341,19 @@ class DS24ModuleLoader:
         self.module_diagnostics = {}
         self.sephirotic_tree = None
         self.sephirotic_engine = None  # Для внешнего движка
+        
+        # 🔥 ДОБАВЛЯЕМ ФЛАГ АВТОАКТИВАЦИИ
+        self.auto_activate = True
+        
         self.stats = {
             "total_modules_found": 0,
             "modules_loaded": 0,
             "modules_initialized": 0,
             "modules_failed": 0,
-            "total_load_time_ms": 0.0
+            "total_load_time_ms": 0.0,
+            "auto_activation_attempted": 0,
+            "auto_activation_successful": 0,
+            "auto_activation_failed": 0
         }
         
         # Подсистемы
@@ -522,8 +529,8 @@ print("✅ ISKRA-4 Modules package loaded")
             }
     
     async def load_all_modules(self) -> Dict:
-        """Загрузка всех модулей (асинхронная версия)"""
-        logger.info("🚀 Начинаю загрузку модулей DS24...")
+        """Загрузка всех модулей с АВТОАКТИВАЦИЕЙ системы"""
+        logger.info("🚀 Начинаю загрузку модулей DS24 с автоактивацией...")
         
         module_files = self.scan_modules()
         logger.info(f"📁 Найдено модулей: {len(module_files)}")
@@ -548,7 +555,7 @@ print("✅ ISKRA-4 Modules package loaded")
             result = self.load_single_module(module_name, module_path)
             results.append(result)
         
-        # 🔥 ПОПЫТКА ИНИЦИАЛИЗАЦИИ СЕФИРОТИЧЕСКОЙ СИСТЕМЫ
+        # 🔥 ПОПЫТКА ИНИЦИАЛИЗАЦИИ СЕФИРОТИЧЕСКОЙ СИСТЕМЫ С АВТОАКТИВАЦИЕЙ
         try:
             from sephirotic_engine import initialize_sephirotic_in_iskra
             sephirot_result = await initialize_sephirotic_in_iskra()
@@ -557,21 +564,76 @@ print("✅ ISKRA-4 Modules package loaded")
                 self.sephirotic_engine = sephirot_result["engine"]
                 logger.info("✅ Внешняя сефиротическая система инициализирована")
                 self.sephirotic_tree = self.sephirotic_engine.tree
+                
+                # 🔥 АВТОАКТИВАЦИЯ ВНЕШНЕГО ДВИЖКА
+                if self.auto_activate:
+                    self.stats["auto_activation_attempted"] += 1
+                    try:
+                        logger.info("⚡ Активация внешнего сефиротического движка...")
+                        activation_result = await self.sephirotic_engine.activate()
+                        self.stats["auto_activation_successful"] += 1
+                        logger.info(f"✅ Внешний движок автоактивирован: {activation_result.get('status', 'unknown')}")
+                        if activation_result.get('success'):
+                            logger.info(f"   Coherence: {activation_result.get('personality_coherence', 0):.3f}")
+                    except Exception as e:
+                        self.stats["auto_activation_failed"] += 1
+                        logger.error(f"⚠️ Ошибка активации внешнего движка: {e}")
             else:
-                logger.warning(f"⚠️  Ошибка внешней сефиротической системы: {sephirot_result.get('error', 'unknown')}")
+                logger.warning(f"⚠️ Ошибка внешней сефиротической системы: {sephirot_result.get('error', 'unknown')}")
                 # Создаём локальное дерево как fallback
                 self.sephirotic_tree = SephiroticTree()
                 logger.info("🌳 Локальное сефиротическое дерево создано")
                 
+                # 🔥 АВТОАКТИВАЦИЯ ЛОКАЛЬНОГО ДЕРЕВА
+                if self.auto_activate:
+                    self.stats["auto_activation_attempted"] += 1
+                    try:
+                        logger.info("⚡ Активация локального сефиротического дерева...")
+                        activation_result = self.sephirotic_tree.activate()
+                        self.stats["auto_activation_successful"] += 1
+                        logger.info(f"✅ Локальное дерево автоактивировано")
+                        logger.info(f"   Резонанс: {activation_result.get('total_resonance', 0):.1f}")
+                        logger.info(f"   Энергия: {activation_result.get('total_energy', 0):.1f}")
+                    except Exception as e:
+                        self.stats["auto_activation_failed"] += 1
+                        logger.error(f"⚠️ Ошибка автоактивации локального дерева: {e}")
+                
         except ImportError as e:
-            logger.warning(f"⚠️  Модуль sephirotic_engine не найден: {e}")
+            logger.warning(f"⚠️ Модуль sephirotic_engine не найден: {e}")
             # Создаём локальное дерево
             self.sephirotic_tree = SephiroticTree()
             logger.info("🌳 Локальное сефиротическое дерево создано")
+            
+            # 🔥 АВТОАКТИВАЦИЯ ЛОКАЛЬНОГО ДЕРЕВА (IMPORT ERROR)
+            if self.auto_activate:
+                self.stats["auto_activation_attempted"] += 1
+                try:
+                    logger.info("⚡ Активация локального дерева (import error)...")
+                    activation_result = self.sephirotic_tree.activate()
+                    self.stats["auto_activation_successful"] += 1
+                    logger.info(f"✅ Локальное дерево автоактивировано")
+                    logger.info(f"   Резонанс: {activation_result.get('total_resonance', 0):.1f}")
+                except Exception as e2:
+                    self.stats["auto_activation_failed"] += 1
+                    logger.error(f"⚠️ Ошибка автоактивации: {e2}")
+                    
         except Exception as e:
             logger.error(f"💥 Ошибка инициализации сефиротической системы: {e}")
             self.sephirotic_tree = SephiroticTree()
             logger.info("🌳 Локальное сефиротическое дерево создано (fallback)")
+            
+            # 🔥 АВТОАКТИВАЦИЯ ЛОКАЛЬНОГО ДЕРЕВА (ОБЩАЯ ОШИБКА)
+            if self.auto_activate:
+                self.stats["auto_activation_attempted"] += 1
+                try:
+                    logger.info("⚡ Активация локального дерева (fallback)...")
+                    activation_result = self.sephirotic_tree.activate()
+                    self.stats["auto_activation_successful"] += 1
+                    logger.info(f"✅ Локальное дерево автоактивировано (fallback)")
+                    logger.info(f"   Резонанс: {activation_result.get('total_resonance', 0):.1f}")
+                except Exception as e2:
+                    self.stats["auto_activation_failed"] += 1
+                    logger.error(f"⚠️ Ошибка автоактивации fallback: {e2}")
         
         total_time = (time.perf_counter() - total_start) * 1000
         self.stats["total_load_time_ms"] = total_time
@@ -581,11 +643,13 @@ print("✅ ISKRA-4 Modules package loaded")
         failed = sum(1 for r in results if r.get("status") == "error")
         
         logger.info(f"\n{'='*60}")
-        logger.info("📊 ОТЧЕТ О ЗАГРУЗКЕ DS24")
+        logger.info("📊 ОТЧЕТ О ЗАГРУЗКЕ DS24 С АВТОАКТИВАЦИЕЙ")
         logger.info(f"{'='*60}")
         logger.info(f"✅ Успешно: {successful}")
         logger.info(f"❌ Ошибок: {failed}")
         logger.info(f"🌳 Сефирот-система: {'Да' if self.sephirotic_tree else 'Нет'}")
+        logger.info(f"⚡ Автоактивация: {self.stats['auto_activation_successful']}/{self.stats['auto_activation_attempted']} успешно")
+        logger.info(f"📊 Резонанс: {self.sephirotic_tree.get_tree_state()['average_resonance'] if self.sephirotic_tree else 0.0:.3f}")
         logger.info(f"⏱️  Общее время: {total_time:.1f} мс")
         logger.info(f"{'='*60}")
         
@@ -600,6 +664,13 @@ print("✅ ISKRA-4 Modules package loaded")
             "results": results,
             "sephirot_loaded": self.sephirotic_tree is not None,
             "external_sephirot": self.sephirotic_engine is not None,
+            "sephirot_activated": self.sephirotic_tree.activated if self.sephirotic_tree else False,
+            "average_resonance": self.sephirotic_tree.get_tree_state()['average_resonance'] if self.sephirotic_tree else 0.0,
+            "auto_activation_stats": {
+                "attempted": self.stats["auto_activation_attempted"],
+                "successful": self.stats["auto_activation_successful"],
+                "failed": self.stats["auto_activation_failed"]
+            },
             "total_time_ms": total_time
         }
     
@@ -612,6 +683,14 @@ print("✅ ISKRA-4 Modules package loaded")
                 policy_module = name
                 break
         
+        # Получаем состояние сефиротического дерева если есть
+        sephirot_state = None
+        if self.sephirotic_tree:
+            try:
+                sephirot_state = self.sephirotic_tree.get_tree_state()
+            except:
+                sephirot_state = {"error": "failed_to_get_state"}
+        
         return {
             "architecture": DS24_ARCHITECTURE,
             "protocol": DS24_PROTOCOL,
@@ -619,7 +698,15 @@ print("✅ ISKRA-4 Modules package loaded")
             "modules_loaded": len(self.loaded_modules),
             "sephirot_active": self.sephirotic_tree is not None,
             "sephirot_engine": self.sephirotic_engine is not None,
+            "sephirot_activated": self.sephirotic_tree.activated if self.sephirotic_tree else False,
             "policy_governor": policy_module,
+            "auto_activation_enabled": self.auto_activate,
+            "auto_activation_stats": {
+                "attempted": self.stats.get("auto_activation_attempted", 0),
+                "successful": self.stats.get("auto_activation_successful", 0),
+                "failed": self.stats.get("auto_activation_failed", 0)
+            },
+            "sephirot_state": sephirot_state,
             "stats": self.stats,
             "python_version": sys.version,
             "platform": sys.platform,
@@ -627,7 +714,7 @@ print("✅ ISKRA-4 Modules package loaded")
         }
 
 # ============================================================================
-# FLASK API (ОБНОВЛЁННЫЙ)
+# FLASK API (ОБНОВЛЁННЫЙ С АВТОАКТИВАЦИЕЙ)
 # ============================================================================
 
 # Глобальные объекты
@@ -638,9 +725,9 @@ app_start_time = time.time()
 app = Flask(__name__)
 
 async def initialize_system():
-    """Инициализация системы при запуске"""
+    """Инициализация системы при запуске с АВТОАКТИВАЦИЕЙ"""
     global loader
-    logger.info("🔄 Инициализация ISKRA-4 Cloud...")
+    logger.info("🔄 Инициализация ISKRA-4 Cloud с автоактивацией...")
     
     # Проверка Python версии
     python_version = sys.version_info
@@ -650,11 +737,17 @@ async def initialize_system():
     # Создание загрузчика
     loader = DS24ModuleLoader()
     
-    # Загрузка модулей (асинхронная)
+    # Загрузка модулей с автоактивацией (асинхронная)
     result = await loader.load_all_modules()
     
     if result["status"] == "completed":
+        # Проверяем статус автоактивации
+        auto_activated = result.get("auto_activation_stats", {}).get("successful", 0) > 0
+        resonance = result.get("average_resonance", 0.0)
+        
         logger.info(f"✅ ISKRA-4 Cloud готов: {result['stats']['modules_loaded']} модулей")
+        logger.info(f"⚡ Автоактивация: {'✅ УСПЕШНО' if auto_activated else '❌ НЕ УДАЛАСЬ'}")
+        logger.info(f"📊 Резонанс системы: {resonance:.3f}")
         logger.info(f"📡 API доступен по порту {os.environ.get('PORT', 8080)}")
         
         # Логирование Policy Governor
@@ -664,7 +757,7 @@ async def initialize_system():
                 if hasattr(module, 'get_diagnostics'):
                     try:
                         diag = module.get_diagnostics()
-                        logger.info(f"📊 Policy Governor diagnostics: {json.dumps(diag, indent=2, default=str)}")
+                        logger.info(f"📊 Policy Governor diagnostics: активен")
                     except Exception as e:
                         logger.warning(f"⚠️ Ошибка диагностики Policy Governor: {e}")
     else:
@@ -686,10 +779,18 @@ def health():
     
     system_status = loader.get_system_status()
     
-    return jsonify({
+    # Добавляем информацию об автоактивации
+    health_info = {
         **system_status,
         "uptime_seconds": int(time.time() - app_start_time),
         "health": "healthy",
+        "auto_activation": {
+            "enabled": getattr(loader, 'auto_activate', False),
+            "successful": system_status.get("auto_activation_stats", {}).get("successful", 0) > 0,
+            "stats": system_status.get("auto_activation_stats", {})
+        },
+        "sephirot_active": system_status.get("sephirot_activated", False),
+        "average_resonance": system_status.get("sephirot_state", {}).get("average_resonance", 0.0) if system_status.get("sephirot_state") else 0.0,
         "endpoints": {
             "health": "/",
             "modules": "/modules",
@@ -702,7 +803,9 @@ def health():
             "info": "/info",
             "reload": "/reload (POST)"
         }
-    })
+    }
+    
+    return jsonify(health_info)
 
 # Список модулей
 @app.route('/modules')
@@ -729,7 +832,9 @@ def list_modules():
         "loaded": len(loader.loaded_modules),
         "initialized": sum(1 for m in modules_list if m["status"] == "initialized"),
         "sephirot_available": loader.sephirotic_tree is not None,
+        "sephirot_activated": loader.sephirotic_tree.activated if loader.sephirotic_tree else False,
         "policy_governor_available": any('policy' in m['name'].lower() and 'governor' in m['name'].lower() for m in modules_list),
+        "auto_activation_enabled": getattr(loader, 'auto_activate', False),
         "timestamp": datetime.now(timezone.utc).isoformat()
     })
 
@@ -740,12 +845,28 @@ def system_stats():
     if loader is None:
         return jsonify({"error": "System not initialized"}), 503
     
+    # Получаем резонанс если есть дерево
+    resonance = 0.0
+    if loader.sephirotic_tree:
+        try:
+            tree_state = loader.sephirotic_tree.get_tree_state()
+            resonance = tree_state.get("average_resonance", 0.0)
+        except:
+            resonance = 0.0
+    
     return jsonify({
         "stats": loader.stats,
         "verification_stats": loader.integrity_verifier.stats,
         "uptime_seconds": int(time.time() - app_start_time),
         "memory_usage_mb": psutil.Process().memory_info().rss / 1024 / 1024,
         "cpu_percent": psutil.cpu_percent(interval=0.1),
+        "sephirot_stats": {
+            "tree_exists": loader.sephirotic_tree is not None,
+            "engine_exists": loader.sephirotic_engine is not None,
+            "activated": loader.sephirotic_tree.activated if loader.sephirotic_tree else False,
+            "average_resonance": resonance,
+            "auto_activation_enabled": getattr(loader, 'auto_activate', False)
+        },
         "timestamp": datetime.now(timezone.utc).isoformat()
     })
 
@@ -753,6 +874,19 @@ def system_stats():
 @app.route('/system')
 def system_info():
     """Информация о системе"""
+    sephirot_info = {}
+    if loader and loader.sephirotic_tree:
+        try:
+            tree_state = loader.sephirotic_tree.get_tree_state()
+            sephirot_info = {
+                "sephirot_activated": tree_state.get("activated", False),
+                "average_resonance": tree_state.get("average_resonance", 0.0),
+                "total_energy": tree_state.get("total_energy", 0.0),
+                "auto_activation_enabled": getattr(loader, 'auto_activate', False)
+            }
+        except:
+            sephirot_info = {"error": "failed_to_get_state"}
+    
     return jsonify({
         "architecture": DS24_ARCHITECTURE,
         "protocol": DS24_PROTOCOL,
@@ -761,6 +895,7 @@ def system_info():
         "python_version": sys.version,
         "platform": sys.platform,
         "working_directory": os.getcwd(),
+        "sephirot_system": sephirot_info,
         "environment": {
             "PORT": os.environ.get("PORT", "8080"),
             "PYTHON_VERSION": os.environ.get("PYTHON_VERSION", "Unknown"),
@@ -785,10 +920,26 @@ def sephirot_info():
     
     tree_state = loader.sephirotic_tree.get_tree_state()
     
+    # Добавляем информацию об автоактивации
+    auto_activation_info = {}
+    if hasattr(loader, 'auto_activate'):
+        auto_activation_info = {
+            "auto_activation_enabled": loader.auto_activate,
+            "auto_activation_stats": loader.stats.get("auto_activation_stats", {}),
+            "already_auto_activated": tree_state.get("activated", False)
+        }
+    
     return jsonify({
         "status": "active",
         "tree": tree_state,
         "external_engine": loader.sephirotic_engine is not None,
+        "activation": {
+            "auto_activated": tree_state.get("activated", False),
+            "resonance": tree_state.get("average_resonance", 0.0),
+            "can_activate_manually": True,
+            "manual_endpoint": "/sephirot/activate (POST)"
+        },
+        **auto_activation_info,
         "endpoints": {
             "activate": "/sephirot/activate (POST)",
             "state": "/sephirot/state",
@@ -799,7 +950,7 @@ def sephirot_info():
 
 @app.route('/sephirot/activate', methods=['POST'])
 def activate_sephirot():
-    """Активация сефиротической системы"""
+    """Ручная активация сефиротической системы (даже если уже автоактивирована)"""
     if loader is None:
         return jsonify({"error": "System not initialized"}), 503
     
@@ -807,7 +958,13 @@ def activate_sephirot():
         return jsonify({"error": "Сефиротическая система не доступна"}), 404
     
     try:
-        # Активация локального дерева
+        # Проверяем текущее состояние
+        was_activated = loader.sephirotic_tree.activated
+        previous_resonance = loader.sephirotic_tree.get_tree_state().get("average_resonance", 0.0)
+        
+        logger.info(f"🔄 Ручная активация запрошена (было активировано: {was_activated}, резонанс: {previous_resonance:.3f})")
+        
+        # Активация локального дерева (повторная активация увеличит резонанс)
         result = loader.sephirotic_tree.activate()
         
         # Если есть внешний движок, активируем его тоже
@@ -815,8 +972,10 @@ def activate_sephirot():
             try:
                 engine_result = asyncio.run(loader.sephirotic_engine.activate())
                 result["external_engine"] = engine_result
+                result["external_engine_activated"] = True
             except Exception as e:
                 result["external_engine_error"] = str(e)
+                result["external_engine_activated"] = False
         
         # Активация связанных модулей
         activated_modules = []
@@ -831,14 +990,37 @@ def activate_sephirot():
                 except Exception as e:
                     logger.warning(f"Ошибка активации модуля {module_name}: {e}")
         
+        # Получаем новое состояние
+        new_state = loader.sephirotic_tree.get_tree_state()
+        new_resonance = new_state.get("average_resonance", 0.0)
+        resonance_delta = new_resonance - previous_resonance
+        
         result["activated_modules"] = activated_modules
-        result["total_energy"] = loader.sephirotic_tree.get_tree_state()["total_energy"]
+        result["total_energy"] = new_state.get("total_energy", 0.0)
+        result["manual_activation"] = {
+            "was_previously_activated": was_activated,
+            "previous_resonance": previous_resonance,
+            "new_resonance": new_resonance,
+            "resonance_delta": resonance_delta,
+            "resonance_increased": resonance_delta > 0
+        }
+        result["auto_activation_info"] = {
+            "enabled": getattr(loader, 'auto_activate', False),
+            "stats": loader.stats.get("auto_activation_stats", {})
+        }
+        
+        logger.info(f"✅ Ручная активация завершена")
+        logger.info(f"   Было активировано: {was_activated}")
+        logger.info(f"   Резонанс: {previous_resonance:.3f} → {new_resonance:.3f} (Δ{resonance_delta:+.3f})")
         
         return jsonify(result)
     except Exception as e:
         logger.error(f"Ошибка активации сефиротической системы: {e}")
         return jsonify({
             "error": f"Ошибка активации: {str(e)}",
+            "auto_activation_enabled": getattr(loader, 'auto_activate', False),
+            "already_activated": loader.sephirotic_tree.activated if loader.sephirotic_tree else False,
+            "current_resonance": loader.sephirotic_tree.get_tree_state().get("average_resonance", 0.0) if loader.sephirotic_tree else 0.0,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }), 500
 
@@ -848,7 +1030,21 @@ def sephirot_state():
     if loader is None or loader.sephirotic_tree is None:
         return jsonify({"error": "Сефиротическая система не доступна"}), 404
     
-    return jsonify(loader.sephirotic_tree.get_tree_state())
+    tree_state = loader.sephirotic_tree.get_tree_state()
+    
+    # Добавляем информацию об автоактивации
+    enhanced_state = {
+        **tree_state,
+        "auto_activation": {
+            "enabled": getattr(loader, 'auto_activate', False),
+            "successful": getattr(loader, 'auto_activate', False) and tree_state.get("activated", False),
+            "stats": loader.stats.get("auto_activation_stats", {}) if hasattr(loader, 'stats') else {}
+        },
+        "can_activate_manually": True,
+        "activation_endpoint": "/sephirot/activate (POST)"
+    }
+    
+    return jsonify(enhanced_state)
 
 @app.route('/sephirot/modules')
 def sephirot_modules():
@@ -866,25 +1062,37 @@ def sephirot_modules():
                     "module": node.connected_module,
                     "module_loaded": node.connected_module in loader.loaded_modules,
                     "energy": node.energy,
-                    "resonance": node.resonance
+                    "resonance": node.resonance,
+                    "resonance_increased": node.resonance > 0.5  # Показываем увеличился ли резонанс
                 }
                 module_connections.append(module_info)
+    
+    # Считаем средний резонанс
+    avg_resonance = 0.0
+    if module_connections:
+        avg_resonance = sum(m["resonance"] for m in module_connections) / len(module_connections)
     
     return jsonify({
         "connections": module_connections,
         "total_connections": len(module_connections),
+        "average_resonance": avg_resonance,
+        "system_activated": loader.sephirotic_tree.activated if loader.sephirotic_tree else False,
+        "auto_activation_enabled": getattr(loader, 'auto_activate', False),
         "timestamp": datetime.now(timezone.utc).isoformat()
     })
 
 # ============================================================================
-# POLICY GOVERNOR API
+# POLICY GOVERNOR API (ОБНОВЛЁННЫЙ С ИНФОРМАЦИЕЙ О АВТОАКТИВАЦИИ)
 # ============================================================================
 
 @app.route('/policy/status', methods=['GET'])
 def policy_status():
-    """Статус Policy Governor"""
+    """Статус Policy Governor с контекстом автоактивации"""
     if loader is None:
         return jsonify({"error": "System not initialized"}), 503
+    
+    # Получаем состояние системы для контекста
+    system_context = _get_system_activation_context()
     
     # Ищем policy governor
     policy_module = None
@@ -900,7 +1108,13 @@ def policy_status():
         return jsonify({
             "status": "not_found",
             "message": "Policy Governor не найден",
-            "available_modules": list(loader.loaded_modules.keys())
+            "available_modules": list(loader.loaded_modules.keys()),
+            "system_context": system_context,
+            "activation_info": {
+                "auto_activation_enabled": getattr(loader, 'auto_activate', False),
+                "sephirot_activated": system_context.get("sephirot_activated", False),
+                "average_resonance": system_context.get("average_resonance", 0.0)
+            }
         }), 404
     
     # Получаем статус
@@ -912,6 +1126,12 @@ def policy_status():
                 "module": policy_module_name,
                 "diagnostics": diagnostics,
                 "methods": [m for m in dir(policy_module) if not m.startswith('_')][:20],
+                "system_context": system_context,
+                "activation_context": {
+                    "policy_governor_in_active_system": system_context.get("sephirot_activated", False),
+                    "can_influence_activation": True,
+                    "system_resonance": system_context.get("average_resonance", 0.0)
+                },
                 "timestamp": datetime.now(timezone.utc).isoformat()
             })
         elif hasattr(policy_module, 'status'):
@@ -919,6 +1139,7 @@ def policy_status():
                 "status": "loaded",
                 "module": policy_module_name,
                 "module_status": policy_module.status,
+                "system_context": system_context,
                 "timestamp": datetime.now(timezone.utc).isoformat()
             })
         else:
@@ -926,6 +1147,7 @@ def policy_status():
                 "status": "loaded",
                 "module": policy_module_name,
                 "attributes": [attr for attr in dir(policy_module) if not attr.startswith('_')][:15],
+                "system_context": system_context,
                 "timestamp": datetime.now(timezone.utc).isoformat()
             })
     except Exception as e:
@@ -933,51 +1155,80 @@ def policy_status():
             "status": "error",
             "module": policy_module_name,
             "error": str(e),
+            "system_context": system_context,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }), 500
 
 @app.route('/policy/rules', methods=['GET'])
 def policy_rules():
-    """Получение правил Policy Governor"""
+    """Получение правил Policy Governor с контекстом автоактивации"""
     if loader is None:
         return jsonify({"error": "System not initialized"}), 503
     
+    # Получаем состояние системы
+    system_context = _get_system_activation_context()
+    
     # Ищем policy governor
     policy_module = None
+    policy_module_name = None
     for name, module in loader.loaded_modules.items():
         if 'policy' in name.lower() and 'governor' in name.lower():
             policy_module = module
+            policy_module_name = name
             break
     
     if not policy_module:
-        return jsonify({"error": "Policy Governor не найден"}), 404
+        return jsonify({
+            "error": "Policy Governor не найден",
+            "system_context": system_context,
+            "available_modules": list(loader.loaded_modules.keys())
+        }), 404
     
     try:
         if hasattr(policy_module, 'get_rules'):
             rules = policy_module.get_rules()
+            
+            # Проверяем есть ли правила связанные с активацией
+            activation_rules = []
+            if isinstance(rules, list):
+                activation_rules = [r for r in rules if any(keyword in str(r).lower() 
+                    for keyword in ['activate', 'activation', 'resonance', 'sephirot', 'energy'])]
+            
             return jsonify({
                 "rules": rules,
                 "total_rules": len(rules) if isinstance(rules, list) else "unknown",
+                "activation_related_rules": len(activation_rules),
+                "system_context": system_context,
+                "policy_governor_context": {
+                    "module": policy_module_name,
+                    "in_activated_system": system_context.get("sephirot_activated", False),
+                    "can_modify_activation": True
+                },
                 "timestamp": datetime.now(timezone.utc).isoformat()
             })
         else:
             return jsonify({
                 "message": "Метод get_rules не найден",
                 "available_methods": [m for m in dir(policy_module) if not m.startswith('_')],
+                "system_context": system_context,
                 "timestamp": datetime.now(timezone.utc).isoformat()
             })
     except Exception as e:
         return jsonify({
             "error": f"Ошибка получения правил: {str(e)}",
+            "system_context": system_context,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }), 500
 
 # Диагностика
 @app.route('/diagnostics')
 def diagnostics():
-    """Полная диагностика системы"""
+    """Полная диагностика системы с информацией об автоактивации"""
     if loader is None:
         return jsonify({"error": "System not initialized"}), 503
+    
+    # Получаем состояние системы
+    system_context = _get_system_activation_context()
     
     diagnostics_list = {}
     for module_name, diag in loader.module_diagnostics.items():
@@ -991,8 +1242,28 @@ def diagnostics():
             "attributes": [attr for attr in dir(module) if not attr.startswith('_')][:10],
             "has_initialize": hasattr(module, 'initialize'),
             "has_get_state": hasattr(module, 'get_state'),
-            "has_get_diagnostics": hasattr(module, 'get_diagnostics')
+            "has_get_diagnostics": hasattr(module, 'get_diagnostics'),
+            "has_on_sephirot_activate": hasattr(module, 'on_sephirot_activate')
         }
+    
+    # Информация об автоактивации
+    activation_info = {
+        "auto_activation_enabled": getattr(loader, 'auto_activate', False),
+        "auto_activation_stats": loader.stats.get("auto_activation_stats", {}) if hasattr(loader, 'stats') else {},
+        "sephirot_system": {
+            "tree_exists": loader.sephirotic_tree is not None,
+            "engine_exists": loader.sephirotic_engine is not None,
+            "activated": system_context.get("sephirot_activated", False),
+            "average_resonance": system_context.get("average_resonance", 0.0),
+            "total_energy": system_context.get("total_energy", 0.0)
+        }
+    }
+    
+    # Модули которые могут реагировать на активацию
+    activation_aware_modules = []
+    for module_name, module in loader.loaded_modules.items():
+        if hasattr(module, 'on_sephirot_activate'):
+            activation_aware_modules.append(module_name)
     
     return jsonify({
         "diagnostics": diagnostics_list,
@@ -1001,56 +1272,136 @@ def diagnostics():
         "loaded_modules": len(loader.loaded_modules),
         "sephirot_loaded": loader.sephirotic_tree is not None,
         "verification_cache_size": len(loader.integrity_verifier.verification_cache),
+        "activation_info": activation_info,
+        "activation_aware_modules": activation_aware_modules,
+        "system_context": system_context,
         "timestamp": datetime.now(timezone.utc).isoformat()
     })
 
 # Перезагрузка системы
 @app.route('/reload', methods=['POST'])
 def reload_system():
-    """Перезагрузка системы"""
+    """Перезагрузка системы с сохранением автоактивации"""
     global loader
-    logger.info("🔄 Запрошена перезагрузка системы")
+    logger.info("🔄 Запрошена перезагрузка системы с автоактивацией...")
+    
+    # Сохраняем настройки автоактивации
+    auto_activate_was_enabled = getattr(loader, 'auto_activate', False) if loader else True
     
     try:
         # Очистка кэша верификации
         if loader:
+            logger.info("🧹 Очистка кэша верификации...")
             loader.integrity_verifier.verification_cache.clear()
         
         # Переинициализация
+        logger.info("🚀 Переинициализация системы...")
         result = asyncio.run(initialize_system())
+        
+        # Проверяем статус автоактивации после перезагрузки
+        auto_activation_status = "unknown"
+        if loader and hasattr(loader, 'stats'):
+            auto_stats = loader.stats.get("auto_activation_stats", {})
+            if auto_stats.get("successful", 0) > 0:
+                auto_activation_status = "successful"
+            elif auto_stats.get("attempted", 0) > 0:
+                auto_activation_status = "failed"
         
         return jsonify({
             "status": "reloaded",
             "result": result,
+            "activation_preserved": {
+                "auto_activation_was_enabled": auto_activate_was_enabled,
+                "auto_activation_now_enabled": getattr(loader, 'auto_activate', False) if loader else False,
+                "auto_activation_status": auto_activation_status,
+                "sephirot_reactivated": loader.sephirotic_tree.activated if loader and loader.sephirotic_tree else False
+            },
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
     except Exception as e:
         logger.error(f"Ошибка перезагрузки: {e}")
         return jsonify({
             "error": f"Ошибка перезагрузки: {str(e)}",
+            "auto_activation_was_enabled": auto_activate_was_enabled,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }), 500
 
 # ============================================================================
-# ДОПОЛНИТЕЛЬНЫЕ ЭНДПОИНТЫ
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# ============================================================================
+
+def _get_system_activation_context():
+    """Получение контекста активации системы"""
+    if not loader:
+        return {"error": "loader_not_initialized"}
+    
+    context = {
+        "sephirot_available": loader.sephirotic_tree is not None,
+        "external_engine_available": loader.sephirotic_engine is not None,
+        "auto_activation_enabled": getattr(loader, 'auto_activate', False)
+    }
+    
+    # Добавляем информацию о сефиротической системе
+    if loader.sephirotic_tree:
+        try:
+            tree_state = loader.sephirotic_tree.get_tree_state()
+            context.update({
+                "sephirot_activated": tree_state.get("activated", False),
+                "average_resonance": tree_state.get("average_resonance", 0.0),
+                "total_energy": tree_state.get("total_energy", 0.0),
+                "total_paths": tree_state.get("total_paths", 0)
+            })
+        except Exception as e:
+            context["sephirot_state_error"] = str(e)
+    
+    # Добавляем статистику автоактивации
+    if hasattr(loader, 'stats'):
+        context["auto_activation_stats"] = loader.stats.get("auto_activation_stats", {})
+    
+    return context
+
+# ============================================================================
+# ДОПОЛНИТЕЛЬНЫЕ ЭНДПОИНТЫ (ОБНОВЛЁННЫЕ С АВТОАКТИВАЦИЕЙ)
 # ============================================================================
 
 @app.route('/modules/<module_name>')
 def module_info(module_name):
-    """Информация о конкретном модуле"""
+    """Информация о конкретном модуле с контекстом автоактивации"""
     if loader is None:
         return jsonify({"error": "System not initialized"}), 503
+    
+    # Получаем контекст системы
+    system_context = _get_system_activation_context()
     
     if module_name not in loader.loaded_modules:
         return jsonify({
             "error": f"Модуль {module_name} не найден",
-            "available_modules": list(loader.loaded_modules.keys())
+            "available_modules": list(loader.loaded_modules.keys()),
+            "system_context": system_context,
+            "activation_info": {
+                "auto_activation_enabled": system_context.get("auto_activation_enabled", False),
+                "sephirot_activated": system_context.get("sephirot_activated", False),
+                "average_resonance": system_context.get("average_resonance", 0.0)
+            }
         }), 404
     
     module = loader.loaded_modules[module_name]
     
     # Получаем диагностику
     diag = loader.module_diagnostics.get(module_name, {})
+    
+    # Проверяем связан ли модуль с сефиротической системой
+    sephirot_connection = None
+    if loader.sephirotic_tree and hasattr(loader.sephirotic_tree, 'nodes'):
+        for node_name, node in loader.sephirotic_tree.nodes.items():
+            if hasattr(node, 'connected_module') and node.connected_module == module_name:
+                sephirot_connection = {
+                    "sephira": node_name,
+                    "energy": node.energy,
+                    "resonance": node.resonance,
+                    "resonance_increased": node.resonance > 0.5
+                }
+                break
     
     # Собираем информацию о модуле
     info = {
@@ -1063,9 +1414,20 @@ def module_info(module_name):
             "protocol": getattr(module, "__protocol__", "unknown"),
             "version": getattr(module, "__version__", "unknown")
         },
-        "has_initialize": hasattr(module, 'initialize'),
-        "has_get_state": hasattr(module, 'get_state'),
-        "has_get_diagnostics": hasattr(module, 'get_diagnostics'),
+        "capabilities": {
+            "has_initialize": hasattr(module, 'initialize'),
+            "has_get_state": hasattr(module, 'get_state'),
+            "has_get_diagnostics": hasattr(module, 'get_diagnostics'),
+            "has_on_sephirot_activate": hasattr(module, 'on_sephirot_activate')
+        },
+        "sephirot_connection": sephirot_connection,
+        "activation_context": {
+            "module_in_activated_system": system_context.get("sephirot_activated", False),
+            "can_respond_to_activation": hasattr(module, 'on_sephirot_activate'),
+            "system_resonance": system_context.get("average_resonance", 0.0),
+            "auto_activation_enabled": system_context.get("auto_activation_enabled", False)
+        },
+        "system_context": system_context,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
@@ -1076,25 +1438,41 @@ def module_info(module_name):
         except Exception as e:
             info["state_error"] = str(e)
     
+    # Добавляем диагностику если есть
+    if hasattr(module, 'get_diagnostics'):
+        try:
+            info["module_diagnostics"] = module.get_diagnostics()
+        except Exception as e:
+            info["module_diagnostics_error"] = str(e)
+    
     return jsonify(info)
 
 @app.route('/system/health')
 def system_health():
-    """Детальная проверка здоровья системы"""
+    """Детальная проверка здоровья системы с проверкой автоактивации"""
     if loader is None:
-        return jsonify({"health": "initializing", "status": "down"}), 503
+        return jsonify({
+            "health": "initializing", 
+            "status": "down",
+            "message": "Система загружается...",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }), 503
     
+    # Получаем контекст системы
+    system_context = _get_system_activation_context()
+    
+    # Основные проверки здоровья
     health_checks = {
         "loader_initialized": loader is not None,
         "modules_loaded": len(loader.loaded_modules) > 0,
         "sephirot_available": loader.sephirotic_tree is not None,
+        "sephirot_activated": system_context.get("sephirot_activated", False),
+        "auto_activation_enabled": system_context.get("auto_activation_enabled", False),
         "api_responsive": True,
         "memory_usage": psutil.Process().memory_info().rss / 1024 / 1024 < 500,  # < 500 MB
         "cpu_usage": psutil.cpu_percent(interval=0.1) < 80,
         "disk_space": psutil.disk_usage('/').percent < 90
     }
-    
-    all_healthy = all(health_checks.values())
     
     # Проверяем Policy Governor
     policy_governor_healthy = False
@@ -1114,29 +1492,74 @@ def system_health():
     
     health_checks["policy_governor"] = policy_governor_healthy
     
+    # Проверяем автоактивацию
+    auto_activation_check = {
+        "enabled": system_context.get("auto_activation_enabled", False),
+        "successful": False,
+        "resonance_above_threshold": False
+    }
+    
+    if system_context.get("auto_activation_enabled", False):
+        auto_stats = system_context.get("auto_activation_stats", {})
+        auto_activation_check["successful"] = auto_stats.get("successful", 0) > 0
+        auto_activation_check["attempted"] = auto_stats.get("attempted", 0)
+        auto_activation_check["failed"] = auto_stats.get("failed", 0)
+    
+    # Проверяем резонанс
+    resonance = system_context.get("average_resonance", 0.0)
+    auto_activation_check["resonance_above_threshold"] = resonance > 0.5
+    auto_activation_check["current_resonance"] = resonance
+    
+    # Определяем общее здоровье
+    all_healthy = all(health_checks.values())
+    activation_healthy = (auto_activation_check["successful"] or 
+                         system_context.get("sephirot_activated", False))
+    
+    # Итоговый статус
+    if all_healthy and activation_healthy:
+        health_status = "healthy"
+        system_status = "up"
+    elif all_healthy and not activation_healthy:
+        health_status = "degraded"
+        system_status = "partial"  # Система работает, но не активирована
+    else:
+        health_status = "degraded"
+        system_status = "partial"
+    
     return jsonify({
-        "health": "healthy" if all_healthy else "degraded",
-        "status": "up" if all_healthy else "partial",
+        "health": health_status,
+        "status": system_status,
         "checks": health_checks,
         "failed_checks": [k for k, v in health_checks.items() if not v],
+        "auto_activation_check": auto_activation_check,
+        "sephirot_system": {
+            "activated": system_context.get("sephirot_activated", False),
+            "average_resonance": resonance,
+            "total_energy": system_context.get("total_energy", 0.0),
+            "ready_for_daat": resonance > 0.85  # Порог для DAAT
+        },
         "policy_governor": {
             "found": policy_module_name is not None,
             "name": policy_module_name,
             "healthy": policy_governor_healthy
         },
         "uptime_seconds": int(time.time() - app_start_time),
+        "memory_usage_mb": psutil.Process().memory_info().rss / 1024 / 1024,
+        "cpu_percent": psutil.cpu_percent(interval=0.1),
+        "disk_usage_percent": psutil.disk_usage('/').percent,
+        "activation_ready": activation_healthy,
         "timestamp": datetime.now(timezone.utc).isoformat()
     })
 
 # ============================================================================
-# ЗАПУСК СЕРВЕРА (ОБНОВЛЁННЫЙ)
+# ЗАПУСК СЕРВЕРА (ОБНОВЛЁННЫЙ С АВТОАКТИВАЦИЕЙ)
 # ============================================================================
 
 if __name__ == "__main__":
     print("\n" + "="*70)
     print("🚀 ISKRA-4 CLOUD DEPLOYMENT - ВЕРСИЯ 4.0.1")
     print("🔗 DS24 QUANTUM-DETERMINISTIC ARCHITECTURE")
-    print("🌳 ПОЛНАЯ СЕФИРОТИЧЕСКАЯ ИНТЕГРАЦИЯ")
+    print("🌳 ПОЛНАЯ СЕФИРОТИЧЕСКАЯ ИНТЕГРАЦИЯ С АВТОАКТИВАЦИЕЙ")
     print("="*70)
     
     # Информация о системе
@@ -1147,29 +1570,52 @@ if __name__ == "__main__":
     print(f"   Modules dir: {MODULES_DIR}")
     print(f"   Architecture: {DS24_ARCHITECTURE}")
     print(f"   Version: {DS24_VERSION}")
+    print(f"   Auto-activation: ✅ ВКЛЮЧЕНА")
     
     # Асинхронная инициализация системы
-    print(f"\n🔄 Инициализация ISKRA-4 Cloud...")
+    print(f"\n🔄 Инициализация ISKRA-4 Cloud с автоактивацией...")
     
     try:
         # Запускаем асинхронную инициализацию
         init_result = asyncio.run(initialize_system())
         
         if init_result["status"] == "completed":
+            # Получаем информацию об автоактивации
+            auto_activated = init_result.get("auto_activation_stats", {}).get("successful", 0) > 0
+            resonance = init_result.get("average_resonance", 0.0)
+            activated = init_result.get("sephirot_activated", False)
+            
             print(f"✅ ISKRA-4 Cloud успешно инициализирован")
             print(f"   Загружено модулей: {init_result['stats']['modules_loaded']}")
-            print(f"   Сефирот-система: {'Да' if init_result['sephirot_loaded'] else 'Нет'}")
-            print(f"   Внешний движок: {'Да' if init_result.get('external_sephirot', False) else 'Нет'}")
+            print(f"   Сефирот-система: {'✅ АКТИВИРОВАНА' if activated else '❌ НЕ АКТИВИРОВАНА'}")
+            print(f"   Автоактивация: {'✅ УСПЕШНО' if auto_activated else '❌ НЕ УДАЛАСЬ'}")
+            print(f"   Резонанс: {resonance:.3f} {'(>0.5 ✅)' if resonance > 0.5 else '(≤0.5 ⚠️)'}")
+            print(f"   Внешний движок: {'✅ Да' if init_result.get('external_sephirot', False) else '❌ Нет'}")
             
             # Проверяем Policy Governor
             if loader:
+                policy_governor_found = False
                 for name in loader.loaded_modules.keys():
                     if 'policy' in name.lower() and 'governor' in name.lower():
                         print(f"🎯 Policy Governor: {name} ✅")
+                        policy_governor_found = True
+                
+                if not policy_governor_found:
+                    print(f"🎯 Policy Governor: ❌ не найден")
             
+            # Критическая информация для DAAT
+            if resonance >= 0.85:
+                print(f"\n🔮 DAAT ГОТОВ К ПРОБУЖДЕНИЮ! (резонанс ≥0.85)")
+            elif resonance >= 0.5:
+                print(f"\n⏳ Система в предсознании (резонанс ≥0.5)")
+            else:
+                print(f"\n⚠️  Низкий резонанс, требуется диагностика")
+                
         else:
             print(f"⚠️ ISKRA-4 Cloud загружен с ошибками")
             print(f"   Сообщение: {init_result.get('message', 'Unknown')}")
+            if 'auto_activation' in str(init_result):
+                print(f"   Автоактивация: вероятно не сработала")
         
     except Exception as e:
         print(f"💥 КРИТИЧЕСКАЯ ОШИБКА ИНИЦИАЛИЗАЦИИ:")
@@ -1178,7 +1624,7 @@ if __name__ == "__main__":
         sys.exit(1)
     
     # Конфигурация сервера
-    port = int(os.environ.get("PORT", 10000))  # Используем порт 10000 как в логах
+    port = int(os.environ.get("PORT", 10000))
     host = os.environ.get("HOST", "0.0.0.0")
     
     print(f"\n🌐 КОНФИГУРАЦИЯ СЕРВЕРА:")
@@ -1189,15 +1635,15 @@ if __name__ == "__main__":
     # Эндпоинты
     print(f"\n📡 ДОСТУПНЫЕ ЭНДПОИНТЫ:")
     endpoints = [
-        ("/", "Health check"),
+        ("/", "Health check с автоактивацией"),
         ("/modules", "Список модулей"),
         ("/modules/<name>", "Информация о модуле"),
         ("/system", "Информация о системе"),
-        ("/system/health", "Проверка здоровья"),
+        ("/system/health", "Проверка здоровья + автоактивация"),
         ("/stats", "Статистика"),
         ("/sephirot", "Сефиротическая система"),
-        ("/sephirot/activate (POST)", "Активация сефирот"),
-        ("/sephirot/state", "Состояние дерева"),
+        ("/sephirot/activate (POST)", "Ручная активация"),
+        ("/sephirot/state", "Состояние дерева (резонанс)"),
         ("/sephirot/modules", "Подключенные модули"),
         ("/policy/status", "Статус Policy Governor"),
         ("/policy/rules", "Правила Policy Governor"),
@@ -1208,8 +1654,13 @@ if __name__ == "__main__":
     for endpoint, description in endpoints:
         print(f"   • http://{host}:{port}{endpoint:30} - {description}")
     
+    print(f"\n🔧 КЛЮЧЕВЫЕ ЭНДПОИНТЫ ДЛЯ ПРОВЕРКИ АВТОАКТИВАЦИИ:")
+    print(f"   GET  /sephirot/state      - проверить activated и резонанс")
+    print(f"   GET  /system/health       - здоровье системы + автоактивация")
+    print(f"   POST /sephirot/activate   - ручная активация (если нужно)")
+    
     print(f"\n{'='*70}")
-    print("🚀 ЗАПУСК СЕРВЕРА ISKRA-4 CLOUD...")
+    print("🚀 ЗАПУСК СЕРВЕРА ISKRA-4 CLOUD С АВТОАКТИВАЦИЕЙ...")
     print(f"{'='*70}")
     
     # Запуск сервера
