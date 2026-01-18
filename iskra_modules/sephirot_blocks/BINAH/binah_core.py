@@ -850,7 +850,7 @@ class BinahCore:
         
         if coherence > 0.7:
             increase += 0.02
-                elif coherence > 0.5:
+        elif coherence > 0.5:
             increase += 0.01
         
         # Одобрение GÖDEL-SENTINEL
