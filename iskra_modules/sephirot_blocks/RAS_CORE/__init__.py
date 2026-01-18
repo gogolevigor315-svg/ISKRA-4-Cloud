@@ -1,7 +1,7 @@
 """
 ИНИЦИАЛИЗАЦИЯ RAS-CORE v4.1
 Модуль сефиротического внимания с золотым углом устойчивости 14.4°
-Версия 4.1.1 - Исправлены импорты и обработка отсутствующих классов
+Версия 4.1.2 - Полностью исправлены импорты и функции совместимости
 """
 
 from .constants import (
@@ -27,7 +27,7 @@ from .constants import (
 )
 
 # ================================================================
-# 1. RASConfig (ДОБАВЛЕНО - ОТСУТСТВОВАЛО В ЭКСПОРТЕ!)
+# 1. RASConfig (ОСНОВНОЙ КЛАСС КОНФИГУРАЦИИ)
 # ================================================================
 
 class RASConfig:
@@ -66,17 +66,52 @@ class RASConfig:
         return cls(**config_dict)
 
 # ================================================================
-# 2. УСЛОВНЫЕ ИМПОРТЫ ИЗ ras_core_v4_1.py
+# 2. ФУНКЦИИ ДЛЯ СОВМЕСТИМОСТИ С СИСТЕМОЙ (ДОБАВЛЕНО СРАЗУ!)
+# ================================================================
+
+def get_config(config_name: str = "default") -> dict:
+    """
+    🔥 КРИТИЧЕСКИ ВАЖНАЯ ФУНКЦИЯ!
+    Система ISKRA-4 ищет именно get_config()
+    Возвращает конфигурацию RAS-CORE в формате словаря
+    """
+    config = RASConfig()
+    result = {
+        "status": "loaded",
+        "config_name": config_name,
+        "stability_angle": config.stability_angle,
+        "reflection_cycle_ms": config.reflection_cycle_ms,
+        "enable_self_reflection": config.enable_self_reflection,
+        "max_concurrent_signals": config.max_concurrent_signals,
+        "triad_balancing_enabled": config.triad_balancing_enabled,
+        "personality_coherence_threshold": config.personality_coherence_threshold,
+        "sephirotic_targets": SEPHIROTIC_TARGETS,
+        "default_focus_patterns": DEFAULT_FOCUS_PATTERNS,
+        "golden_angle": GOLDEN_STABILITY_ANGLE,
+        "version": "4.1.2",
+        "message": "RAS-CORE configuration loaded successfully"
+    }
+    return result
+
+def get_ras_config() -> RASConfig:
+    """
+    Альтернативная функция для получения объекта конфигурации
+    """
+    return RASConfig()
+
+def create_default_ras_config() -> dict:
+    """Создает конфигурацию по умолчанию для инициализации"""
+    return get_config("default")
+
+# ================================================================
+# 3. УСЛОВНЫЕ ИМПОРТЫ ИЗ ras_core_v4_1.py
 # ================================================================
 
 # Базовые классы (должны существовать)
 try:
     from .ras_core_v4_1 import EnhancedRASCore, RASSignal
     ENHANCED_RAS_CORE_AVAILABLE = True
-    print("[RAS-CORE] ✅ EnhancedRASCore и RASSignal загружены")
 except ImportError as e:
-    print(f"[RAS-CORE] ⚠️  Ошибка загрузки EnhancedRASCore/RASSignal: {e}")
-    
     # Fallback реализации
     class EnhancedRASCore:
         def __init__(self, config=None):
@@ -101,7 +136,6 @@ try:
 except ImportError:
     PrioritySignalQueue = None
     PRIORITY_QUEUE_AVAILABLE = False
-    print("[RAS-CORE] ⚠️  PrioritySignalQueue не найден, используем None")
 
 try:
     from .ras_core_v4_1 import StabilityAwarePriorityQueue
@@ -109,7 +143,6 @@ try:
 except ImportError:
     StabilityAwarePriorityQueue = None
     STABILITY_QUEUE_AVAILABLE = False
-    print("[RAS-CORE] ⚠️  StabilityAwarePriorityQueue не найден, используем None")
 
 # Менеджер конфигурации
 try:
@@ -118,7 +151,6 @@ try:
 except ImportError:
     RASConfigManager = None
     CONFIG_MANAGER_AVAILABLE = False
-    print("[RAS-CORE] ⚠️  RASConfigManager не найден, используем None")
 
 # Паттерны обучения
 try:
@@ -127,7 +159,6 @@ try:
 except ImportError:
     PatternLearner = None
     PATTERN_LEARNER_AVAILABLE = False
-    print("[RAS-CORE] ⚠️  PatternLearner не найден, используем None")
 
 # Роутер
 try:
@@ -136,7 +167,6 @@ try:
 except ImportError:
     AngleAwareSephiroticRouter = None
     ROUTER_AVAILABLE = False
-    print("[RAS-CORE] ⚠️  AngleAwareSephiroticRouter не найден, используем None")
 
 # Метрики
 try:
@@ -145,7 +175,6 @@ try:
 except ImportError:
     StabilityMetricsCollector = None
     METRICS_COLLECTOR_AVAILABLE = False
-    print("[RAS-CORE] ⚠️  StabilityMetricsCollector не найден, используем None")
 
 # Движок саморефлексии
 try:
@@ -154,7 +183,6 @@ try:
 except ImportError:
     SelfReflectionEngine = None
     REFLECTION_ENGINE_AVAILABLE = False
-    print("[RAS-CORE] ⚠️  SelfReflectionEngine не найден, используем None")
 
 # Монитор триады
 try:
@@ -163,7 +191,6 @@ try:
 except ImportError:
     TriadStabilityMonitor = None
     TRIAD_MONITOR_AVAILABLE = False
-    print("[RAS-CORE] ⚠️  TriadStabilityMonitor не найден, используем None")
 
 # Mock шина
 try:
@@ -172,7 +199,6 @@ try:
 except ImportError:
     EnhancedMockBus = None
     MOCK_BUS_AVAILABLE = False
-    print("[RAS-CORE] ⚠️  EnhancedMockBus не найден, используем None")
 
 # Другие классы из ras_core_v4_1
 try:
@@ -191,7 +217,10 @@ except ImportError:
     create_ras_core = None
     initialize_ras_with_angle = None
     RAS_PATTERN_AVAILABLE = False
-    print("[RAS-CORE] ⚠️  Дополнительные классы из ras_core_v4_1 не найдены")
+
+# ================================================================
+# 4. ИМПОРТЫ ИЗ ДРУГИХ МОДУЛЕЙ RAS_CORE
+# ================================================================
 
 # Интеграционный класс RAS-CORE
 try:
@@ -201,9 +230,7 @@ try:
         integrate_ras_with_sephirot
     )
     RAS_INTEGRATION_AVAILABLE = True
-    print("[RAS-CORE] ✅ RASIntegration загружен")
 except ImportError as e:
-    print(f"[RAS-CORE] ⚠️  Ошибка загрузки RASIntegration: {e}")
     RASIntegration = None
     create_ras_integration = None
     integrate_ras_with_sephirot = None
@@ -213,15 +240,13 @@ except ImportError as e:
 try:
     from .ras_api import RASAPI, create_ras_api
     RAS_API_AVAILABLE = True
-    print("[RAS-CORE] ✅ RASAPI загружен")
 except ImportError:
     RASAPI = None
     create_ras_api = None
     RAS_API_AVAILABLE = False
-    print("[RAS-CORE] ⚠️  RASAPI не найден")
 
 # ================================================================
-# 3. ФУНКЦИЯ ДЛЯ ПРОВЕРКИ ГОТОВНОСТИ RAS-CORE
+# 5. ФУНКЦИЯ ДЛЯ ПРОВЕРКИ ГОТОВНОСТИ RAS-CORE
 # ================================================================
 
 def is_ras_core_ready() -> dict:
@@ -230,7 +255,8 @@ def is_ras_core_ready() -> dict:
     Возвращает словарь со статусами
     """
     return {
-        "ras_config": True,  # Всегда доступен (локальный класс)
+        "ras_config": True,
+        "get_config": True,  # Теперь всегда доступна
         "enhanced_ras_core": ENHANCED_RAS_CORE_AVAILABLE,
         "priority_queue": PRIORITY_QUEUE_AVAILABLE,
         "stability_queue": STABILITY_QUEUE_AVAILABLE,
@@ -245,24 +271,28 @@ def is_ras_core_ready() -> dict:
         "ras_integration": RAS_INTEGRATION_AVAILABLE,
         "ras_api": RAS_API_AVAILABLE,
         "fully_ready": (
-            True and  # RASConfig всегда доступен
             ENHANCED_RAS_CORE_AVAILABLE and
-            RAS_INTEGRATION_AVAILABLE
+            RAS_INTEGRATION_AVAILABLE and
+            RAS_API_AVAILABLE
         )
     }
 
 # ================================================================
-# 4. ЭКСПОРТ ДОСТУПНЫХ КОМПОНЕНТОВ
+# 6. ЭКСПОРТ ДОСТУПНЫХ КОМПОНЕНТОВ
 # ================================================================
 
 __all__ = [
-    # 1. КОНФИГУРАЦИЯ (ГЛАВНОЕ ИСПРАВЛЕНИЕ!)
-    "RASConfig",  # ← ТЕПЕРЬ В ЭКСПОРТЕ!
+    # 1. КОНФИГУРАЦИЯ И ФУНКЦИИ СОВМЕСТИМОСТИ (ВАЖНО!)
+    "RASConfig",
+    "get_config",           # 🔥 СИСТЕМА ИЩЕТ ИМЕННО ЭТУ ФУНКЦИЮ
+    "get_ras_config",
+    "create_default_ras_config",
     
-    # 2. КОНСТАНТЫ (всегда доступны)
+    # 2. КОНСТАНТЫ
     "GOLDEN_STABILITY_ANGLE",
     "calculate_stability_factor",
     "angle_to_priority",
+    "calculate_angle_boost",
     "normalize_focus_vector",
     "get_stability_level",
     "calculate_composite_stability",
@@ -305,25 +335,10 @@ __all__ = [
     
     # 7. УТИЛИТЫ
     "is_ras_core_ready",
-    
-    # 8. ФЛАГИ ДОСТУПНОСТИ
-    "ENHANCED_RAS_CORE_AVAILABLE",
-    "PRIORITY_QUEUE_AVAILABLE",
-    "STABILITY_QUEUE_AVAILABLE",
-    "CONFIG_MANAGER_AVAILABLE",
-    "PATTERN_LEARNER_AVAILABLE",
-    "ROUTER_AVAILABLE",
-    "METRICS_COLLECTOR_AVAILABLE",
-    "REFLECTION_ENGINE_AVAILABLE",
-    "TRIAD_MONITOR_AVAILABLE",
-    "MOCK_BUS_AVAILABLE",
-    "RAS_PATTERN_AVAILABLE",
-    "RAS_INTEGRATION_AVAILABLE",
-    "RAS_API_AVAILABLE"
 ]
 
 # ================================================================
-# 5. ИНИЦИАЛИЗАЦИОННОЕ СООБЩЕНИЕ
+# 7. ИНИЦИАЛИЗАЦИОННОЕ СООБЩЕНИЕ
 # ================================================================
 
 if __name__ != "__main__":
@@ -332,17 +347,26 @@ if __name__ != "__main__":
     total_count = sum(1 for v in readiness.values() if isinstance(v, bool))
     
     print(f"[RAS-CORE] 📊 Готовность: {ready_count}/{total_count} компонентов")
+    print(f"[RAS-CORE] ✅ get_config() доступна: {readiness.get('get_config', False)}")
     print(f"[RAS-CORE] ✅ RASConfig доступен: {readiness.get('ras_config', False)}")
     
     if readiness["fully_ready"]:
         print("[RAS-CORE] ✅ Полностью готов к активации личности")
     else:
-        print("[RAS-CORE] ⚠️  Частично готов. Отсутствующие критические компоненты:")
+        missing_critical = []
         for name, status in readiness.items():
-            if not status and name != "fully_ready" and name != "ras_config":
+            if not status and name in ["enhanced_ras_core", "ras_integration", "ras_api"]:
+                missing_critical.append(name)
+        
+        if missing_critical:
+            print("[RAS-CORE] ⚠️  Отсутствуют критические компоненты:")
+            for name in missing_critical:
                 print(f"  - ❌ {name}")
     
-    print("[RAS-CORE] 🌟 Критические компоненты для личности:")
-    print(f"  - RASConfig: {'✅' if readiness.get('ras_config') else '❌'}")
-    print(f"  - EnhancedRASCore: {'✅' if ENHANCED_RAS_CORE_AVAILABLE else '❌'}")
-    print(f"  - RASIntegration: {'✅' if RAS_INTEGRATION_AVAILABLE else '❌'}")
+    # Выводим тестовую конфигурацию
+    try:
+        config = get_config()
+        print(f"[RAS-CORE] 🧪 get_config() test: {config.get('status', 'unknown')}")
+        print(f"[RAS-CORE] 🧪 Угол устойчивости: {config.get('stability_angle', 'unknown')}°")
+    except Exception as e:
+        print(f"[RAS-CORE] 🧪 get_config() test failed: {e}")
