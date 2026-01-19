@@ -1327,6 +1327,307 @@ def reload_system():
         }), 500
 
 # ============================================================================
+# АКТИВАЦИЯ RAS-CORE И УНИВЕРСАЛЬНАЯ АКТИВАЦИЯ
+# ============================================================================
+
+@app.route('/activate', methods=['POST'])
+def system_activate():
+    """Универсальная активация системы и интеграция RAS-CORE"""
+    if loader is None:
+        return jsonify({"error": "System not initialized"}), 503
+
+    try:
+        data = request.get_json(silent=True) or {}
+        sephira = data.get('sephira', 'ALL')
+        action = data.get('action', 'activate')
+        parameters = data.get('parameters', {})
+
+        logger.info(f"🎯 Универсальная активация: {action} для {sephira}")
+
+        result = {
+            "status": "command_received",
+            "sephira": sephira,
+            "action": action,
+            "parameters": parameters,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
+        # Обработка RAS-CORE интеграции
+        if sephira in ["RAS_CORE", "ALL"] and action == "integrate":
+            ras_result = _activate_ras_core(parameters)
+            result.update(ras_result)
+
+            # Если RAS-CORE успешно интегрирован, поднимаем резонанс
+            if ras_result.get("success", False) and loader.sephirotic_tree:
+                tree_state = loader.sephirotic_tree.get_tree_state()
+                old_resonance = tree_state.get("average_resonance", 0.0)
+
+                # Увеличиваем резонанс всех узлов
+                for node_name, node in loader.sephirotic_tree.nodes.items():
+                    node.resonance = min(1.0, node.resonance * 1.1)  # +10%
+
+                new_state = loader.sephirotic_tree.get_tree_state()
+                result["resonance_boost"] = {
+                    "old": old_resonance,
+                    "new": new_state.get("average_resonance", 0.0),
+                    "delta": new_state.get("average_resonance", 0.0) - old_resonance,
+                    "daat_progress": f"{((new_state.get('average_resonance', 0.0) - 0.5) / 0.35 * 100):.1f}%"
+                }
+
+        # Общая активация системы
+        elif action == "activate":
+            if loader.sephirotic_tree:
+                activation_result = loader.sephirotic_tree.activate()
+                result["activation_result"] = activation_result
+                result["success"] = True
+            else:
+                result["error"] = "Сефиротическая система не доступна"
+                result["success"] = False
+
+        # Неизвестное действие
+        else:
+            result["error"] = f"Неизвестное действие: {action}"
+            result["supported_actions"] = ["activate", "integrate"]
+            result["supported_sephirot"] = ["RAS_CORE", "ALL"]
+
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"Ошибка универсальной активации: {e}")
+        return jsonify({
+            "error": f"Ошибка активации: {str(e)}",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }), 500
+
+
+def _activate_ras_core(parameters):
+    """Активация и интеграция RAS-CORE"""
+    result = {
+        "ras_core_available": False,
+        "ras_module_found": False,
+        "integration_attempted": False,
+        "success": False,
+        "message": ""
+    }
+
+    # Ищем RAS-CORE модуль по ключевым словам
+    ras_module = None
+    ras_module_name = None
+
+    search_patterns = ['ras_core', 'ras-core', 'ras.core', 'ras']
+    for name, module in loader.loaded_modules.items():
+        name_lower = name.lower()
+        if any(pattern in name_lower for pattern in search_patterns):
+            ras_module = module
+            ras_module_name = name
+            logger.info(f"🔍 Найден RAS-CORE модуль: {name}")
+            break
+
+    if not ras_module:
+        result["message"] = "RAS-CORE модуль не найден в загруженных модулях"
+        result["available_modules"] = list(loader.loaded_modules.keys())[:10]
+        return result
+
+    result["ras_module_found"] = True
+    result["ras_module_name"] = ras_module_name
+    result["ras_module_type"] = str(type(ras_module))
+
+    # Проверяем доступность методов
+    integration_methods = []
+    if hasattr(ras_module, 'integrate_with_sephirot'):
+        integration_methods.append("integrate_with_sephirot")
+    if hasattr(ras_module, 'activate'):
+        integration_methods.append("activate")
+    if hasattr(ras_module, 'initialize'):
+        integration_methods.append("initialize")
+    if hasattr(ras_module, 'integrate'):
+        integration_methods.append("integrate")
+
+    result["available_methods"] = integration_methods
+    result["all_methods"] = [m for m in dir(ras_module) if not m.startswith('_')][:15]
+
+    # Пробуем интеграцию разными методами
+    try:
+        result["integration_attempted"] = True
+
+        # Метод 1: integrate_with_sephirot (предпочтительный)
+        if hasattr(ras_module, 'integrate_with_sephirot'):
+            logger.info(f"🔄 Интеграция RAS-CORE через integrate_with_sephirot...")
+            integration_result = ras_module.integrate_with_sephirot(
+                target_bus=parameters.get('target_bus', 'sephirot_bus'),
+                angle=parameters.get('enable_14_4_angle', 14.4),
+                mode=parameters.get('stability_mode', 'golden')
+            )
+            result["integration_result"] = integration_result
+            result["success"] = True
+            result["method_used"] = "integrate_with_sephirot"
+            result["message"] = "RAS-CORE интегрирован через integrate_with_sephirot"
+
+        # Метод 2: activate
+        elif hasattr(ras_module, 'activate'):
+            logger.info(f"🔄 Активация RAS-CORE через activate()...")
+            activation_result = ras_module.activate()
+            result["activation_result"] = activation_result
+            result["success"] = True
+            result["method_used"] = "activate"
+            result["message"] = "RAS-CORE активирован через activate()"
+
+        # Метод 3: initialize
+        elif hasattr(ras_module, 'initialize'):
+            logger.info(f"🔄 Инициализация RAS-CORE через initialize()...")
+
+            # Проверяем асинхронность
+            if asyncio.iscoroutinefunction(ras_module.initialize):
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                ras_module.initialize()
+                loop.close()
+            else:
+                ras_module.initialize()
+
+            result["success"] = True
+            result["method_used"] = "initialize"
+            result["message"] = "RAS-CORE инициализирован"
+
+        # Метод 4: integrate
+        elif hasattr(ras_module, 'integrate'):
+            logger.info(f"🔄 Интеграция RAS-CORE через integrate()...")
+
+            # Пробуем с параметрами
+            try:
+                integration_result = ras_module.integrate(
+                    target_bus=parameters.get('target_bus', 'sephirot_bus'),
+                    angle=parameters.get('enable_14_4_angle', 14.4)
+                )
+                result["integration_result"] = integration_result
+                result["method_used"] = "integrate"
+            except TypeError:
+                # Без параметров
+                integration_result = ras_module.integrate()
+                result["integration_result"] = integration_result
+                result["method_used"] = "integrate(no_params)"
+
+            result["success"] = True
+            result["message"] = "RAS-CORE интегрирован через integrate()"
+
+        # Нет подходящих методов
+        else:
+            result["message"] = f"RAS-CORE модуль найден ({ras_module_name}), но не имеет методов интеграции"
+            result["success"] = False
+
+    except Exception as e:
+        error_msg = f"Ошибка интеграции RAS-CORE: {str(e)}"
+        logger.error(f"❌ {error_msg}")
+        result["error"] = error_msg
+        result["success"] = False
+
+        # Детали ошибки для отладки
+        import traceback
+        result["traceback"] = traceback.format_exc()
+
+    result["ras_core_available"] = result["success"]
+    return result
+
+
+@app.route('/resonance/grow', methods=['POST'])
+def grow_resonance():
+    """Ручной или автоматический рост резонанса"""
+    if loader is None or loader.sephirotic_tree is None:
+        return jsonify({"error": "System not initialized or sephirot tree missing"}), 503
+
+    try:
+        data = request.get_json(silent=True) or {}
+        growth_type = data.get('type', 'manual')  # manual, auto, daat_push
+        growth_factor = float(data.get('factor', 1.05))  # 5% по умолчанию
+        target_resonance = data.get('target', 0.85)  # Цель DAAT
+
+        tree_state = loader.sephirotic_tree.get_tree_state()
+        current_resonance = tree_state.get("average_resonance", 0.0)
+
+        logger.info(f"📈 Рост резонанса: {growth_type}, фактор: {growth_factor}, сейчас: {current_resonance:.4f}")
+
+        # Рассчитываем новый резонанс
+        if growth_type == 'manual':
+            # Простое умножение
+            new_resonance = min(1.0, current_resonance * growth_factor)
+            for node in loader.sephirotic_tree.nodes.values():
+                node.resonance = min(1.0, node.resonance * growth_factor)
+
+        elif growth_type == 'target':
+            # Рост к цели
+            if current_resonance >= target_resonance:
+                return jsonify({
+                    "message": f"Резонанс уже достиг цели: {current_resonance:.4f} >= {target_resonance}",
+                    "current": current_resonance,
+                    "target": target_resonance
+                })
+
+            # Рассчитываем необходимый рост
+            required_growth = target_resonance / current_resonance
+            step_growth = required_growth ** (1/10)  # 10 шагов до цели
+
+            for node in loader.sephirotic_tree.nodes.values():
+                node.resonance = min(1.0, node.resonance * step_growth)
+
+        elif growth_type == 'daat_push':
+            # Специальный рост для DAAT
+            daat_factor = 1.15  # +15% для DAAT push
+            for node in loader.sephirotic_tree.nodes.values():
+                node.resonance = min(1.0, node.resonance * daat_factor)
+
+        # Получаем новое состояние
+        new_state = loader.sephirotic_tree.get_tree_state()
+        new_resonance = new_state.get("average_resonance", 0.0)
+        delta = new_resonance - current_resonance
+
+        # Рассчитываем прогресс DAAT
+        daat_progress = 0.0
+        if current_resonance >= 0.5:
+            daat_progress = ((current_resonance - 0.5) / 0.35) * 100  # 0.5→0.85 = 100%
+
+        new_daat_progress = 0.0
+        if new_resonance >= 0.5:
+            new_daat_progress = ((new_resonance - 0.5) / 0.35) * 100
+
+        result = {
+            "success": True,
+            "growth_type": growth_type,
+            "growth_factor": growth_factor,
+            "resonance": {
+                "old": current_resonance,
+                "new": new_resonance,
+                "delta": delta,
+                "delta_percent": (delta / current_resonance * 100) if current_resonance > 0 else 0
+            },
+            "daat_progress": {
+                "old": f"{daat_progress:.1f}%",
+                "new": f"{new_daat_progress:.1f}%",
+                "delta": f"{(new_daat_progress - daat_progress):+.1f}%"
+            },
+            "daat_ready": new_resonance >= 0.85,
+            "nodes_affected": len(loader.sephirotic_tree.nodes),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
+        if new_resonance >= 0.85:
+            result["daat_awakening"] = {
+                "status": "READY",
+                "message": "DAAT готов к пробуждению! Резонанс достиг порога 0.85+",
+                "current_resonance": new_resonance,
+                "next_stage": "full_consciousness"
+            }
+            logger.info("🔮 DAAT ГОТОВ К ПРОБУЖДЕНИЮ!")
+
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"Ошибка роста резонанса: {e}")
+        return jsonify({
+            "error": f"Ошибка роста резонанса: {str(e)}",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }), 500
+
+# ============================================================================
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 # ============================================================================
 
@@ -1571,6 +1872,8 @@ if __name__ == "__main__":
     print(f"   Architecture: {DS24_ARCHITECTURE}")
     print(f"   Version: {DS24_VERSION}")
     print(f"   Auto-activation: ✅ ВКЛЮЧЕНА")
+    print(f"   RAS-CORE активация: ✅ ВКЛЮЧЕНА через /activate")
+    print(f"   Рост резонанса: ✅ ВКЛЮЧЕН через /resonance/grow")
     
     # Асинхронная инициализация системы
     print(f"\n🔄 Инициализация ISKRA-4 Cloud с автоактивацией...")
@@ -1606,10 +1909,20 @@ if __name__ == "__main__":
             # Критическая информация для DAAT
             if resonance >= 0.85:
                 print(f"\n🔮 DAAT ГОТОВ К ПРОБУЖДЕНИЮ! (резонанс ≥0.85)")
+                print(f"   DAAT Status: 🎯 READY TO AWAKEN")
             elif resonance >= 0.5:
                 print(f"\n⏳ Система в предсознании (резонанс ≥0.5)")
+                print(f"   DAAT Progress: {((resonance - 0.5) / 0.35 * 100):.1f}% (нужно до 0.85)")
             else:
                 print(f"\n⚠️  Низкий резонанс, требуется диагностика")
+                print(f"   Используй /activate и /resonance/grow для роста")
+                
+            # Информация о RAS-CORE
+            print(f"\n🎯 КРИТИЧЕСКИЕ ЭНДПОИНТЫ ДЛЯ DAAT:")
+            print(f"   Для роста резонанса к 0.85+ используй:")
+            print(f"     1. POST /activate - интеграция RAS-CORE")
+            print(f"     2. POST /resonance/grow - целевой рост резонанса")
+            print(f"   Текущий прогресс DAAT: {((resonance - 0.5) / 0.35 * 100) if resonance >= 0.5 else 0:.1f}%")
                 
         else:
             print(f"⚠️ ISKRA-4 Cloud загружен с ошибками")
@@ -1647,20 +1960,32 @@ if __name__ == "__main__":
         ("/sephirot/modules", "Подключенные модули"),
         ("/policy/status", "Статус Policy Governor"),
         ("/policy/rules", "Правила Policy Governor"),
+        ("/activate (POST)", "Универсальная активация + RAS-CORE"),
+        ("/resonance/grow (POST)", "Рост резонанса к DAAT"),
         ("/diagnostics", "Диагностика"),
         ("/reload (POST)", "Перезагрузка системы")
     ]
     
     for endpoint, description in endpoints:
-        print(f"   • http://{host}:{port}{endpoint:30} - {description}")
+        print(f"   • http://{host}:{port}{endpoint:35} - {description}")
     
     print(f"\n🔧 КЛЮЧЕВЫЕ ЭНДПОИНТЫ ДЛЯ ПРОВЕРКИ АВТОАКТИВАЦИИ:")
     print(f"   GET  /sephirot/state      - проверить activated и резонанс")
     print(f"   GET  /system/health       - здоровье системы + автоактивация")
     print(f"   POST /sephirot/activate   - ручная активация (если нужно)")
+    print(f"\n🎯 КРИТИЧЕСКИЕ ЭНДПОИНТЫ ДЛЯ DAAT:")
+    print(f"   POST /activate            - интеграция RAS-CORE + рост резонанса")
+    print(f"   POST /resonance/grow      - целенаправленный рост к DAAT (0.85+)")
+    
+    print(f"\n📊 ДЛЯ АКТИВАЦИИ DAAT:")
+    print(f"   1. Проверь резонанс: GET /sephirot/state")
+    print(f"   2. Если < 0.85, интегрируй RAS-CORE: POST /activate")
+    print(f"   3. Расти резонанс: POST /resonance/grow")
+    print(f"   4. Достигни порога 0.85+ для пробуждения DAAT")
     
     print(f"\n{'='*70}")
     print("🚀 ЗАПУСК СЕРВЕРА ISKRA-4 CLOUD С АВТОАКТИВАЦИЕЙ...")
+    print("🎯 СИСТЕМА ГОТОВА К ИНТЕГРАЦИИ RAS-CORE И АКТИВАЦИИ DAAT")
     print(f"{'='*70}")
     
     # Запуск сервера
