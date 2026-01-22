@@ -657,3 +657,77 @@ if __name__ == "__main__":
         print("ISKRA-4 · WILLPOWER-CORE v3.2 (Sephirotic Hybrid Will Engine)")
         print("Ядро божественной воли Keter")
         print("Используйте --test для запуска теста")
+
+# ===============================================================
+# V. ОБЯЗАТЕЛЬНЫЙ МЕТОД ДЛЯ API СИСТЕМЫ
+# ===============================================================
+
+def get_info(self) -> Dict:
+    """
+    ОБЯЗАТЕЛЬНЫЙ МЕТОД для работы с API системы ISKRA-4
+    Вызывается при GET /modules/willpower_core_v3_2
+    """
+    try:
+        import asyncio
+        
+        # Создаем временный event loop для синхронного вызова
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # Получаем статистику асинхронно
+        stats_future = self.get_willpower_statistics()
+        stats = loop.run_until_complete(stats_future)
+        
+        loop.close()
+        
+        return {
+            "module": "willpower_core_v3_2",
+            "class": "WILLPOWER_CORE_v32_KETER",
+            "version": self.version,
+            "status": "active" if self.is_active else "inactive",
+            "statistics": stats,
+            "impulse_count": self.impulse_count,
+            "uptime_seconds": round(time.time() - self.activation_time, 2),
+            "current_strength": stats.get("current_strength", 0.0),
+            "will_health": stats.get("will_health", 0.0),
+            "message": "✅ WILLPOWER-CORE v3.2 готов к работе"
+        }
+        
+    except Exception as e:
+        return {
+            "module": "willpower_core_v3_2",
+            "class": "WILLPOWER_CORE_v32_KETER",
+            "version": self.version,
+            "status": "error",
+            "error": str(e),
+            "message": f"⚠️ Ошибка в get_info(): {str(e)[:100]}"
+        }
+
+# Добавляем метод в класс
+WILLPOWER_CORE_v32_KETER.get_info = get_info
+
+# ===============================================================
+# VI. ФУНКЦИЯ ДЛЯ СИСТЕМНОЙ ИНТЕГРАЦИИ
+# ===============================================================
+
+# Глобальный экземпляр
+_willpower_instance = None
+
+def create_willpower_module():
+    """Функция для создания экземпляра модуля (вызывается системой)"""
+    global _willpower_instance
+    if _willpower_instance is None:
+        _willpower_instance = WILLPOWER_CORE_v32_KETER()
+        
+        # Активируем
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(_willpower_instance.activate())
+        loop.close()
+    
+    return _willpower_instance
+
+def get_module_instance():
+    """Алиас для обратной совместимости"""
+    return create_willpower_module()
