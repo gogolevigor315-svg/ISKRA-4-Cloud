@@ -319,3 +319,29 @@ logger.info(f"KETHER PACKAGE v{__version__} ГОТОВ К ИСПОЛЬЗОВАН
 logger.info(f"Алиас WillpowerCore создан: {WillpowerCore is WillpowerCoreV3_2}")
 logger.info(f"API совместимость: {IMPORT_SUCCESS}")
 logger.info("=" * 60)
+
+# ============================================================
+# 10. SPIRIT АЛИАС ДЛЯ СИСТЕМНОЙ СОВМЕСТИМОСТИ
+# ============================================================
+
+try:
+    # Регистрируем SPIRIT в sys.modules для совместимости
+    sys.modules['sephirot_blocks.SPIRIT'] = sys.modules['sephirot_blocks.KETER.spirit_core_v3_4']
+    logger.info("✅ SPIRIT алиас создан: sephirot_blocks.SPIRIT → sephirot_blocks.KETER.spirit_core_v3_4")
+    
+    # Также регистрируем для импорта из willpower_core_v3_2.py
+    sys.modules['KETER.SPIRIT'] = sys.modules['sephirot_blocks.KETER.spirit_core_v3_4']
+    logger.info("✅ KETER.SPIRIT алиас создан")
+    
+except Exception as e:
+    logger.error(f"⚠️ Ошибка создания SPIRIT алиаса: {e}")
+
+# ============================================================
+# 11. ФИНАЛЬНЫЙ ЭКСПОРТ
+# ============================================================
+
+__all__.extend([
+    # Добавляем новые алиасы если нужно
+])
+
+logger.info(f"✅ Пакет KETHER полностью инициализирован")
