@@ -1496,3 +1496,75 @@ async def test_api():
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=10000)
+
+# ===============================================================
+# ДОБАВЛЯЕМ МЕТОД ДЛЯ API СИСТЕМЫ
+# ===============================================================
+
+def get_info(self) -> Dict:
+    """Обязательный метод для API системы ISKRA-4"""
+    try:
+        return {
+            "module": "keter_api",
+            "class": "KetherAPI",
+            "version": getattr(self, 'version', '1.0.0'),
+            "status": "active",
+            "endpoints_available": getattr(self, 'endpoints_count', 0),
+            "api_gateway": True,
+            "message": "✅ KETER-API готов к работе",
+            "features": [
+                "sephirotic_integration",
+                "energy_distribution", 
+                "module_coordination",
+                "state_broadcasting"
+            ]
+        }
+        
+    except Exception as e:
+        return {
+            "module": "keter_api",
+            "class": "KetherAPI",
+            "version": "1.0.0",
+            "status": "error",
+            "error": str(e),
+            "message": f"⚠️ Ошибка в get_info(): {str(e)[:100]}"
+        }
+
+# Добавляем метод в класс если он существует
+if 'KetherAPI' in locals():
+    KetherAPI.get_info = get_info
+
+# ===============================================================
+# ФУНКЦИЯ ДЛЯ СИСТЕМНОЙ ИНТЕГРАЦИИ
+# ===============================================================
+
+_keter_api_instance = None
+
+def create_keter_api_module():
+    """Функция для создания экземпляра KETER-API"""
+    global _keter_api_instance
+    if _keter_api_instance is None:
+        try:
+            _keter_api_instance = KetherAPI()
+            
+            # Инициализируем если есть метод
+            if hasattr(_keter_api_instance, 'initialize'):
+                _keter_api_instance.initialize()
+                
+        except Exception as e:
+            # Создаем минимальный экземпляр
+            class FallbackKetherAPI:
+                def get_info(self):
+                    return {
+                        "module": "keter_api_fallback",
+                        "status": "fallback_mode",
+                        "message": f"Оригинальный модуль не загружен: {str(e)[:100]}",
+                        "api_available": False
+                    }
+            _keter_api_instance = FallbackKetherAPI()
+    
+    return _keter_api_instance
+
+def get_module_instance():
+    """Алиас для обратной совместимости"""
+    return create_keter_api_module()
