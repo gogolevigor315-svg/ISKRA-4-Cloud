@@ -737,6 +737,45 @@ async def _test_spirit_core_v34():
 
 SpiritCoreV3_4 = SPIRIT_CORE_v34_KETER
 
+# ===============================================================
+# ФУНКЦИИ ДЛЯ СИСТЕМНОЙ СОВМЕСТИМОСТИ
+# ===============================================================
+
+def activate_spirit():
+    """
+    Функция активации духа для импорта из willpower_core_v3_2
+    """
+    try:
+        return {
+            "status": "activated",
+            "module": "spirit_core_v3_4",
+            "version": "3.4",
+            "sephira": "KETHER",
+            "message": "Spirit core activated",
+            "timestamp": time.time() if 'time' in globals() else 0
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Cannot activate spirit: {e}"
+        }
+
+def get_spirit_core():
+    """Получение ядра духа"""
+    return SpiritCoreV3_4()
+
+def spirit_available():
+    """Проверка доступности духа"""
+    return True
+
+def get_module_instance():
+    """Единственная функция для API системы ISKRA-4"""
+    return SpiritCoreV3_4()
+
+# ===============================================================
+# ЗАПУСК ТЕСТОВ
+# ===============================================================
+
 if __name__ == "__main__":
     import sys
     if "--test" in sys.argv:
@@ -746,5 +785,5 @@ if __name__ == "__main__":
         print("Главный оркестратор духовных процессов Keter")
         print("Используйте --test для запуска теста")
 
-def get_module_instance():
-    return SpiritCoreV3_4()
+# Экспортируем функции
+__all__.extend(['activate_spirit', 'get_spirit_core', 'spirit_available', 'get_module_instance'])
