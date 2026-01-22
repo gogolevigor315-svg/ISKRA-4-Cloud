@@ -2066,3 +2066,84 @@ print("=" * 60)
 print("✅ ГОТОВ К ИНТЕГРАЦИИ В KETHERIC BLOCK")
 print("=" * 60)
 
+# ===============================================================
+# ДОБАВЛЯЕМ МЕТОД ДЛЯ API СИСТЕМЫ
+# ===============================================================
+
+def get_info(self) -> Dict:
+    """Обязательный метод для API системы ISKRA-4"""
+    try:
+        return {
+            "module": "core_govx_3_1",
+            "class": "CoreGovXSystem",
+            "version": getattr(self, 'version', '3.1.0'),
+            "status": "active",
+            "governance_level": "divine",
+            "subsystems_available": getattr(self, 'subsystem_count', 5),
+            "message": "✅ CORE-GOVX 3.1 готов к работе",
+            "features": [
+                "divine_governance",
+                "sephirotic_homeostasis", 
+                "cosmic_audit_trails",
+                "ethical_escalation",
+                "keteric_integration"
+            ]
+        }
+        
+    except Exception as e:
+        return {
+            "module": "core_govx_3_1",
+            "class": "CoreGovXSystem",
+            "version": "3.1.0",
+            "status": "error",
+            "error": str(e),
+            "message": f"⚠️ Ошибка в get_info(): {str(e)[:100]}"
+        }
+
+# Добавляем метод в класс если он существует
+if 'CoreGovXSystem' in locals():
+    CoreGovXSystem.get_info = get_info
+elif 'CoreGovX_3_1' in locals():
+    CoreGovX_3_1.get_info = get_info
+
+# ===============================================================
+# ФУНКЦИЯ ДЛЯ СИСТЕМНОЙ ИНТЕГРАЦИИ
+# ===============================================================
+
+_core_govx_instance = None
+
+def create_core_govx_module():
+    """Функция для создания экземпляра CORE-GOVX"""
+    global _core_govx_instance
+    if _core_govx_instance is None:
+        try:
+            # Пробуем разные возможные имена класса
+            if 'CoreGovXSystem' in locals():
+                _core_govx_instance = CoreGovXSystem()
+            elif 'CoreGovX_3_1' in locals():
+                _core_govx_instance = CoreGovX_3_1()
+            else:
+                raise ImportError("Класс CoreGovX не найден")
+            
+            # Инициализируем если есть метод
+            if hasattr(_core_govx_instance, 'initialize'):
+                _core_govx_instance.initialize()
+                
+        except Exception as e:
+            # Создаем минимальный экземпляр
+            class FallbackCoreGovX:
+                def get_info(self):
+                    return {
+                        "module": "core_govx_fallback",
+                        "status": "fallback_mode",
+                        "message": f"Оригинальный модуль не загружен: {str(e)[:100]}",
+                        "governance_available": False
+                    }
+            _core_govx_instance = FallbackCoreGovX()
+    
+    return _core_govx_instance
+
+def get_module_instance():
+    """Алиас для обратной совместимости"""
+    return create_core_govx_module()
+
