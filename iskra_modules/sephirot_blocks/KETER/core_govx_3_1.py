@@ -2068,4 +2068,37 @@ print("=" * 60)
 
 def get_module_instance():
     """Функция для API системы ISKRA-4"""
-    return CoreGovX31()
+    return CoreGovX31(ds24_core_path=None)
+
+# ============================================================
+# API СОВМЕСТИМОСТЬ ДЛЯ ISKRA-4
+# ============================================================
+
+def _get_info_for_api(self):
+    """
+    Метод get_info() для API системы ISKRA-4
+    Вызывается при GET /modules/core_govx_3_1
+    """
+    import time
+    return {
+        "module": "core_govx_3_1",
+        "class": "CoreGovX31",
+        "status": "available",
+        "version": "3.1-sephirotic-governance",
+        "sephira": "KETHER",
+        "timestamp": time.time(),
+        "info": {
+            "core_function": "governance",
+            "authority": "supreme",
+            "type": "governance_core",
+            "active": self._active if hasattr(self, '_active') else False,
+            "hsbi": self._homeostasis_state.get('hsbi', 0.0) if hasattr(self, '_homeostasis_state') else 0.0,
+            "subsystems": 5
+        }
+    }
+
+
+# Добавляем метод get_info в класс CoreGovX31
+CoreGovX31.get_info = _get_info_for_api
+
+print("✅ core_govx_3_1: API compatibility methods added")
