@@ -661,3 +661,63 @@ if __name__ == "__main__":
 def get_module_instance():
     """Функция для API системы ISKRA-4"""
     return WILLPOWER_CORE_v32_KETER()
+
+# ===============================================================
+# VII. КОМПАТИБИЛЬНОСТЬ ДЛЯ API СИСТЕМЫ ISKRA-4
+# ===============================================================
+
+def _get_info_for_api(self):
+    """
+    Метод get_info() для API системы ISKRA-4
+    Вызывается при GET /modules/willpower_core_v3_2
+    """
+    import time
+    return {
+        "module": "willpower_core_v3_2",
+        "class": "WILLPOWER_CORE_v32_KETER",
+        "status": "available",
+        "version": "3.2.0",
+        "sephira": "KETHER",
+        "timestamp": time.time(),
+        "info": {
+            "core_function": "willpower",
+            "strength": "high",
+            "type": "willpower_core",
+            "active": self.is_active if hasattr(self, 'is_active') else False,
+            "impulse_count": self.impulse_count if hasattr(self, 'impulse_count') else 0
+        }
+    }
+
+
+# Добавляем метод get_info в класс WILLPOWER_CORE_v32_KETER
+WILLPOWER_CORE_v32_KETER.get_info = _get_info_for_api
+
+
+# ===============================================================
+# VIII. FALLBACK ДЛЯ ИМПОРТНОЙ СОВМЕСТИМОСТИ (SPIRIT)
+# ===============================================================
+
+def activate_spirit_fallback():
+    """
+    Fallback функция для импорта из других модулей
+    Если какой-то модуль пытается импортировать:
+        from sephirot_blocks.SPIRIT import activate_spirit
+    """
+    return {
+        "status": "activated",
+        "message": "SPIRIT activation via willpower_core fallback",
+        "module": "willpower_core_v3_2",
+        "sephira": "KETHER",
+        "timestamp": time.time() if 'time' in globals() else 0
+    }
+
+
+# Экспортируем для возможного импорта
+__all__ = [
+    'get_module_instance',
+    'activate_spirit_fallback',
+    'WILLPOWER_CORE_v32_KETER',
+    'WillpowerCoreV3_2'
+]
+
+print("✅ willpower_core_v3_2: API compatibility layer added")
