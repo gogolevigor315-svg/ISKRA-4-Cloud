@@ -787,3 +787,36 @@ if __name__ == "__main__":
 
 # Функции уже доступны для импорта, не нужно добавлять в __all__
 # Если где-то в начале файла есть __all__ = [], он останется пустым
+
+# ===============================================================
+# API СОВМЕСТИМОСТЬ ДЛЯ ISKRA-4
+# ===============================================================
+
+def _get_info_for_api(self):
+    """
+    Метод get_info() для API системы ISKRA-4
+    Вызывается при GET /modules/spirit_core_v3_4
+    """
+    import time
+    return {
+        "module": "spirit_core_v3_4",
+        "class": "SPIRIT_CORE_v34_KETER",
+        "status": "available",
+        "version": "3.4.0",
+        "sephira": "KETHER",
+        "timestamp": time.time(),
+        "info": {
+            "core_function": "orchestration",
+            "essence": "pure",
+            "type": "spirit_core",
+            "active": self.is_active if hasattr(self, 'is_active') else False,
+            "cycle_count": self.cycle_count if hasattr(self, 'cycle_count') else 0
+        }
+    }
+
+
+# Добавляем метод get_info в основной класс
+SPIRIT_CORE_v34_KETER.get_info = _get_info_for_api
+SpiritCoreV3_4.get_info = _get_info_for_api  # И для алиаса
+
+print("✅ spirit_core_v3_4: API compatibility method added")
