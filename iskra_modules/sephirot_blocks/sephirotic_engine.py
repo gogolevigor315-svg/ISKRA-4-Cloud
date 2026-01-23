@@ -82,9 +82,7 @@ except ImportError as e:
 try:
     from sephirot_blocks.KETER import (
         activate_keter,
-        get_keter,
-        KetherCore,
-        WillpowerCore
+        get_keter
     )
     KETER_AVAILABLE = True
 except ImportError as e:
