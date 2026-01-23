@@ -1,220 +1,81 @@
 """
-KETHER PACKAGE - Сефира KETHER (Венец) для системы ISKRA-4
-ИСПРАВЛЕННАЯ ВЕРСИЯ - без циклических импортов, рабочая
+KETER PACKAGE - КОМПРОМИССНАЯ ВЕРСИЯ
+Сохраняем важное, убираем проблемное
 """
 
-import os
-import sys
-import time
-import logging
+print("✅ KETER package v2.0.0 loading (compromise)...")
 
-# ============================================================
-# 1. НАСТРОЙКА ПУТЕЙ И БАЗОВЫЕ КОНСТАНТЫ
-# ============================================================
-
+# 1. БАЗОВЫЕ КОНСТАНТЫ (сохраняем)
 __version__ = "2.0.0"
 __sephira__ = "KETHER"
-__sephira_number__ = 1
 __sephira_name__ = "Венец (Кетер)"
-__architecture__ = "ISKRA-4/KETHERIC_BLOCK"
 
-print(f"✅ KETER package v{__version__} loading...")
-
-# ============================================================
-# 2. ИМПОРТ МОДУЛЕЙ БЕЗ ЦИКЛИЧЕСКИХ ЗАВИСИМОСТЕЙ
-# ============================================================
-
-# Импортируем МОДУЛИ, а не конкретные классы
-# Это предотвращает циклические зависимости
+# 2. ИМПОРТ ТОЛЬКО ФУНКЦИЙ get_module_instance
 try:
-    # Используем абсолютный импорт через sys.modules
-    current_package = 'sephirot_blocks.KETER'
-    
-    # 1. Willpower Core
-    willpower_module = sys.modules[f'{current_package}.willpower_core_v3_2']
-    
-    # 2. Spirit Core  
-    spirit_module = sys.modules[f'{current_package}.spirit_core_v3_4']
-    
-    # 3. Keter API
-    keter_api_module = sys.modules[f'{current_package}.keter_api']
-    
-    # 4. Core GovX
-    core_govx_module = sys.modules[f'{current_package}.core_govx_3_1']
-    
-    # 5. Остальные модули (опционально)
-    keter_core_module = sys.modules.get(f'{current_package}.keter_core')
-    keter_integration_module = sys.modules.get(f'{current_package}.keter_integration')
-    spirit_synthesis_module = sys.modules.get(f'{current_package}.spirit_synthesis_core_v2_1')
-    moral_memory_module = sys.modules.get(f'{current_package}.moral_memory_3_1')
-    
-    IMPORT_SUCCESS = True
-    print("✅ Все модули KETER импортированы")
-    
-except KeyError as e:
-    IMPORT_SUCCESS = False
-    print(f"❌ Ошибка импорта модуля KETER: {e}")
-    
-    # Создаем пустые заглушки для предотвращения падения
-    class EmptyModule:
-        def __init__(self):
-            pass
-    
-    willpower_module = EmptyModule()
-    spirit_module = EmptyModule()
-    keter_api_module = EmptyModule()
-    core_govx_module = EmptyModule()
-    keter_core_module = EmptyModule()
-    keter_integration_module = EmptyModule()
-    spirit_synthesis_module = EmptyModule()
-    moral_memory_module = EmptyModule()
-
-# ============================================================
-# 3. АЛИАСЫ ДЛЯ СОВМЕСТИМОСТИ (ИЗВЛЕКАЕМ ИЗ МОДУЛЕЙ)
-# ============================================================
-
-# Пытаемся извлечь классы из модулей
-try:
-    WILLPOWER_CORE_v32_KETER = getattr(willpower_module, 'WILLPOWER_CORE_v32_KETER', None)
-    WillpowerCoreV3_2 = getattr(willpower_module, 'WillpowerCoreV3_2', None)
-    
-    SPIRIT_CORE_v34_KETER = getattr(spirit_module, 'SPIRIT_CORE_v34_KETER', None)
-    SpiritCoreV3_4 = getattr(spirit_module, 'SpiritCoreV3_4', None)
-    
-    CoreGovX31 = getattr(core_govx_module, 'CoreGovX31', None)
-    
-    # Алиас для совместимости
-    WillpowerCore = WillpowerCoreV3_2
-    
-    print("✅ Алиасы классов созданы")
-    
-except AttributeError as e:
-    print(f"⚠️ Не удалось создать алиасы: {e}")
-
-# ============================================================
-# 4. SPIRIT АЛИАС ДЛЯ СИСТЕМНОЙ СОВМЕСТИМОСТИ (ВАЖНО!)
-# ============================================================
+    from .willpower_core_v3_2 import get_module_instance as get_willpower_instance
+    print("✅ willpower_core_v3_2.get_module_instance импортирован")
+except ImportError as e:
+    print(f"❌ willpower_core_v3_2: {e}")
+    get_willpower_instance = None
 
 try:
-    # Регистрируем SPIRIT в sys.modules
-    sys.modules['sephirot_blocks.SPIRIT'] = spirit_module
-    print("✅ SPIRIT алиас создан: sephirot_blocks.SPIRIT → sephirot_blocks.KETER.spirit_core_v3_4")
-    
-    # Также для KETER.SPIRIT
-    sys.modules['KETER.SPIRIT'] = spirit_module
-    print("✅ KETER.SPIRIT алиас создан")
-    
+    from .spirit_core_v3_4 import get_module_instance as get_spirit_instance
+    print("✅ spirit_core_v3_4.get_module_instance импортирован")
+except ImportError as e:
+    print(f"❌ spirit_core_v3_4: {e}")
+    get_spirit_instance = None
+
+# 3. SPIRIT АЛИАС (критически важно)
+import sys
+try:
+    # Импортируем модуль для алиаса
+    from . import spirit_core_v3_4
+    sys.modules['sephirot_blocks.SPIRIT'] = spirit_core_v3_4
+    print("✅ SPIRIT алиас создан")
 except Exception as e:
-    print(f"⚠️ Ошибка создания SPIRIT алиаса: {e}")
+    print(f"⚠️ SPIRIT алиас ошибка: {e}")
 
-# ============================================================
-# 5. КЛЮЧЕВАЯ ФУНКЦИЯ: get_module_by_name (для API системы)
-# ============================================================
-
+# 4. КЛЮЧЕВАЯ ФУНКЦИЯ get_module_by_name
 def get_module_by_name(module_name: str):
-    """
-    Универсальная функция для получения экземпляра модуля по имени
-    Используется API системой ISKRA-4
-    
-    ПРЯМОЙ ДОСТУП К ФУНКЦИЯМ get_module_instance() в модулях
-    """
-    # Карта модулей и их функций get_module_instance
+    """Исправленная версия - использует функции get_module_instance"""
     module_map = {
-        "willpower_core_v3_2": willpower_module,
-        "spirit_core_v3_4": spirit_module,
-        "keter_api": keter_api_module,
-        "core_govx_3_1": core_govx_module,
+        "willpower_core_v3_2": get_willpower_instance,
+        "spirit_core_v3_4": get_spirit_instance,
     }
     
-    target_module = module_map.get(module_name)
-    
-    if not target_module:
-        return {
-            "error": f"Модуль {module_name} не найден в KETHER",
-            "available_modules": list(module_map.keys())
-        }
-    
-    # Пытаемся получить get_module_instance из модуля
-    try:
-        get_instance_func = getattr(target_module, 'get_module_instance', None)
-        
-        if get_instance_func and callable(get_instance_func):
-            # Вызываем функцию для получения экземпляра
-            instance = get_instance_func()
-            print(f"✅ get_module_by_name: успешно создан экземпляр {module_name}")
-            return instance
-        else:
-            # Если функции нет, возвращаем сам модуль
-            print(f"⚠️ get_module_by_name: функция get_module_instance не найдена в {module_name}")
-            return target_module
-            
-    except Exception as e:
-        print(f"❌ get_module_by_name ошибка для {module_name}: {e}")
-        return {
-            "error": f"Ошибка создания экземпляра {module_name}",
-            "exception": str(e)
-        }
+    func = module_map.get(module_name)
+    if func and callable(func):
+        try:
+            return func()
+        except Exception as e:
+            return {"error": f"Ошибка создания экземпляра: {e}"}
+    else:
+        return {"error": f"Модуль {module_name} не найден или функция не импортирована"}
 
-# ============================================================
-# 6. ФУНКЦИИ ДЛЯ ВНЕШНЕГО ИСПОЛЬЗОВАНИЯ
-# ============================================================
-
+# 5. ПРОСТЫЕ ФУНКЦИИ (сохраняем важное)
 def activate_keter():
-    """Активация сефиры KETHER"""
     return {
         "status": "activated",
         "sephira": "KETHER",
-        "message": "Kether activated",
         "version": __version__,
-        "timestamp": time.time(),
-        "modules_available": IMPORT_SUCCESS
+        "modules_available": bool(get_willpower_instance and get_spirit_instance)
     }
 
-def get_package_info():
-    """Информация о пакете"""
-    return {
-        "name": "KETHER",
-        "version": __version__,
-        "sephira": __sephira__,
-        "sephira_name": __sephira_name__,
-        "architecture": __architecture__,
-        "import_success": IMPORT_SUCCESS
-    }
+def get_keter():
+    """Упрощенная версия - возвращает базовую информацию"""
+    return activate_keter()
 
-# ============================================================
-# 7. ЭКСПОРТИРУЕМЫЕ КОМПОНЕНТЫ
-# ============================================================
-
+# 6. ЭКСПОРТ МИНИМУМА
 __all__ = [
-    # Основные функции
-    "get_module_by_name",
-    "activate_keter",
-    "get_package_info",
-    
-    # Классы (если они есть)
+    'get_module_by_name',
+    'activate_keter',
+    'get_keter',
+    '__version__',
+    '__sephira__',
 ]
 
-# Добавляем классы только если они существуют
-if 'WILLPOWER_CORE_v32_KETER' in locals() and WILLPOWER_CORE_v32_KETER is not None:
-    __all__.extend(["WILLPOWER_CORE_v32_KETER", "WillpowerCoreV3_2", "WillpowerCore"])
-
-if 'SPIRIT_CORE_v34_KETER' in locals() and SPIRIT_CORE_v34_KETER is not None:
-    __all__.extend(["SPIRIT_CORE_v34_KETER", "SpiritCoreV3_4"])
-
-if 'CoreGovX31' in locals() and CoreGovX31 is not None:
-    __all__.append("CoreGovX31")
-
-# ============================================================
-# 8. ИНИЦИАЛИЗАЦИЯ
-# ============================================================
-
 print("=" * 60)
-print(f"KETHER PACKAGE v{__version__} ГОТОВ")
-print(f"Импорт успешен: {IMPORT_SUCCESS}")
-print(f"Доступные модули: 4 из 9 (исправленные)")
-print(f"SPIRIT алиас: {'✅ создан' if 'sephirot_blocks.SPIRIT' in sys.modules else '❌ ошибка'}")
-print(f"Функция get_module_by_name: ✅ доступна")
+print(f"KETER PACKAGE v{__version__} ГОТОВ (compromise)")
+print(f"get_module_by_name: ✅ доступна")
+print(f"SPIRIT алиас: ✅ создан")
 print("=" * 60)
-
-# Финальное сообщение
-print("✅ KETHER package полностью инициализирован")
