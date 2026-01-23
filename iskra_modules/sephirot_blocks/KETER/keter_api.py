@@ -1500,3 +1500,29 @@ if __name__ == "__main__":
 def get_module_instance():
     """Функция для API системы ISKRA-4"""
     return KetherAPI()
+
+# ============================================================
+# 10. API СОВМЕСТИМОСТЬ ДЛЯ ISKRA-4
+# ============================================================
+
+def _get_info_for_api(self):
+    import time
+    return {
+        "module": "keter_api",
+        "class": "KetherAPI",
+        "status": "available",
+        "version": "2.0",
+        "sephira": "KETHER",
+        "timestamp": time.time(),
+        "info": {
+            "core_function": "api_gateway",
+            "interface": "rest",
+            "type": "api",
+            "endpoints": 40,
+            "active": True
+        }
+    }
+
+KetherAPI.get_info = _get_info_for_api
+
+print("✅ keter_api: API compatibility methods added")
