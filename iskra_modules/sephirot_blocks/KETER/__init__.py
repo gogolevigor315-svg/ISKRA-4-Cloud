@@ -1,85 +1,97 @@
 """
-KETER PACKAGE - ГАРАНТИРОВАННО РАБОЧАЯ ВЕРСИЯ
+KETER PACKAGE - РЕАЛЬНЫЕ МОДУЛИ, А НЕ ЗАГЛУШКИ
+Версия: 5.0 - Только реальные модули
 """
 
 import sys
 import time
 
-print("🚀 KETER package (guaranteed) loading...")
+print("🚀 KETER PACKAGE v5.0 - REAL MODULES ONLY")
 
-# 1. SPIRIT АЛИАС (критически важно!)
-try:
-    class SpiritStub:
-        def activate_spirit(self):
-            return {"status": "stub", "message": "SPIRIT stub activated"}
+# ==================== ИМПОРТ РЕАЛЬНЫХ МОДУЛЕЙ ====================
+
+def import_real_module(module_name):
+    """Импорт реального модуля и создание экземпляра"""
+    try:
+        module = __import__(f'iskra_modules.sephirot_blocks.KETER.{module_name}', fromlist=[''])
         
-        def get_spirit(self):
-            return self  # Добавляем get_spirit!
-    
-    sys.modules['sephirot_blocks.SPIRIT'] = SpiritStub()
-    print("✅ SPIRIT алиас создан (stub)")
-except Exception as e:
-    print(f"⚠️ SPIRIT алиас ошибка: {e}")
+        if hasattr(module, 'get_module_instance'):
+            instance = module.get_module_instance()
+            print(f"✅ {module_name}: реальный экземпляр создан")
+            return instance
+        else:
+            print(f"⚠️ {module_name}: нет get_module_instance()")
+            return None
+    except Exception as e:
+        print(f"❌ {module_name}: ошибка импорта: {e}")
+        return None
 
-# 2. ГАРАНТИРОВАННО РАБОЧАЯ get_module_by_name
+# ==================== РЕАЛЬНЫЕ ЭКЗЕМПЛЯРЫ МОДУЛЕЙ ====================
+
+# ЗАГРУЖАЕМ РЕАЛЬНЫЕ МОДУЛИ
+_real_modules = {
+    "willpower_core_v3_2": import_real_module("willpower_core_v3_2"),
+    "spirit_core_v3_4": import_real_module("spirit_core_v3_4"),
+    "keter_api": import_real_module("keter_api"),
+    "core_govx_3_1": import_real_module("core_govx_3_1"),
+}
+
+# ==================== ГЛАВНАЯ ФУНКЦИЯ ====================
+
 def get_module_by_name(module_name: str):
-    """Всегда возвращает валидный ответ для API системы ISKRA-4"""
+    """
+    Возвращает РЕАЛЬНЫЙ экземпляр модуля Keter
+    """
+    print(f"🔍 get_module_by_name: '{module_name}'")
     
-    response = {
-        "module": module_name,
-        "status": "available",
-        "sephira": "KETHER",
-        "timestamp": time.time(),
-        "info": {}
-    }
-    
-    if module_name == "willpower_core_v3_2":
-        response.update({
-            "core_function": "willpower",
-            "class": "WILLPOWER_CORE_v32_KETER"
-        })
-    elif module_name == "spirit_core_v3_4":
-        response.update({
-            "core_function": "spirit", 
-            "class": "SPIRIT_CORE_v34_KETER"
-        })
-    elif module_name == "keter_api":
-        response.update({
-            "core_function": "api",
-            "class": "KetherAPI"
-        })
-    elif module_name == "core_govx_3_1":
-        response.update({
-            "core_function": "governance",
-            "class": "CoreGovX31"
-        })
-    
-    print(f"✅ get_module_by_name вызван для {module_name}")
-    return response
+    if module_name in _real_modules and _real_modules[module_name] is not None:
+        instance = _real_modules[module_name]
+        print(f"✅ Возвращаю реальный экземпляр {module_name}")
+        return instance
+    else:
+        # Если реальный модуль не загружен - хотя бы правильная структура
+        print(f"⚠️ Модуль {module_name} не найден, возвращаю структуру")
+        return {
+            "module": module_name,
+            "status": "error",
+            "error": "Module not properly loaded",
+            "sephira": "KETHER",
+            "timestamp": time.time(),
+            "info": {"type": "error_fallback"}
+        }
 
-# 3. ФУНКЦИИ КОТОРЫЕ ОЖИДАЕТ СИСТЕМА
+# ==================== ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ ====================
+
 def activate_keter():
-    """Функция которую ожидает система"""
     return {
         "status": "activated",
         "sephira": "KETHER",
-        "message": "Kether activated (guaranteed version)",
-        "version": "2.0.0",
-        "timestamp": time.time()
+        "version": "5.0",
+        "message": "Keter activated with real modules",
+        "timestamp": time.time(),
+        "modules_loaded": len([m for m in _real_modules.values() if m is not None])
     }
 
 def get_keter():
-    """Получение KETER (нужно для системы)"""
     return {
         "status": "available",
         "sephira": "KETHER",
-        "message": "Keter stub"
+        "real_modules": list(_real_modules.keys()),
+        "loaded_modules": [name for name, instance in _real_modules.items() if instance is not None]
     }
 
-# 4. Экспорт ВСЕХ необходимых функций
+# ==================== ЭКСПОРТ ====================
+
 __all__ = ['get_module_by_name', 'activate_keter', 'get_keter']
 
-print("✅ KETER package ready (guaranteed 200 OK)")
+# ==================== СТАТИСТИКА ====================
+
+loaded = sum(1 for m in _real_modules.values() if m is not None)
 print("=" * 60)
-print("Готов к интеграции в систему ISKRA-4")
+print(f"📊 РЕАЛЬНЫЕ МОДУЛИ KETER ЗАГРУЖЕНЫ: {loaded}/4")
+for name, instance in _real_modules.items():
+    status = "✅" if instance else "❌"
+    print(f"   {status} {name}")
+print("=" * 60)
+print("🚀 KETER ГОТОВ С РЕАЛЬНЫМИ МОДУЛЯМИ")
 print("=" * 60)
