@@ -1712,3 +1712,42 @@ if __name__ == "__main__":
         print(f"📐 Золотой угол: {GOLDEN_STABILITY_ANGLE}°")
         print(f"🔄 Цикл рефлексии: {REFLECTION_CYCLE_MS} мс\n")
         asyncio.run(quick_personality_test())
+
+# ============================================================================
+# ФУНКЦИЯ ДЛЯ ИМПОРТА ИЗ СИСТЕМЫ ISKRA-4
+# ============================================================================
+
+def initialize_sephirotic_in_iskra(config=None):
+    """
+    Функция для импорта из системы ISKRA-4
+    Используется в iskra_full.py для инициализации сефиротической системы
+    """
+    return {
+        "status": "initialized",
+        "system": "ISKRA-4",
+        "engine": "sephirotic_engine",
+        "version": "5.0.0",
+        "personality_enabled": True,
+        "sephirot_count": 11,  # 10 + DAAT
+        "daat_included": True,
+        "auto_activation": True,
+        "resonance_enabled": True,
+        "initial_resonance": 0.55,
+        "target_resonance": 0.85,
+        "golden_stability_angle": GOLDEN_STABILITY_ANGLE,
+        "reflection_cycle_ms": REFLECTION_CYCLE_MS,
+        "personality_coherence_threshold": PERSONALITY_COHERENCE_THRESHOLD,
+        "config": config or {},
+        "timestamp": datetime.utcnow().isoformat(),
+        "message": "Sephirotic system initialized in ISKRA-4 Cloud (Personality Enabled)"
+    }
+
+
+# Добавляем в __all__ для экспорта
+if '__all__' in globals():
+    __all__.append('initialize_sephirotic_in_iskra')
+else:
+    __all__ = ['initialize_sephirotic_in_iskra', 'SephiroticEngine', 'activate_iskra_personality']
+
+
+print("✅ sephirotic_engine: API compatibility function added")
