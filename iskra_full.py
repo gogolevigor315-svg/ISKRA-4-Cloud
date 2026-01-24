@@ -557,10 +557,30 @@ print("✅ ISKRA-4 Modules package loaded")
         
         # 🔥 ПОПЫТКА ИНИЦИАЛИЗАЦИИ СЕФИРОТИЧЕСКОЙ СИСТЕМЫ С АВТОАКТИВАЦИЕЙ
         try:
-            from sephirotic_engine import initialize_sephirotic_in_iskra
-            sephirot_result = await initialize_sephirotic_in_iskra()
+            # ЭКСТРЕННЫЙ ФИКС: Создаём функцию заранее на случай если модуль не найден
+            def emergency_sephirotic_stub(config=None):
+                import time
+                return {
+                    "success": False,
+                    "error": "sephirotic_engine module not available",
+                    "engine": None,
+                    "message": "Emergency stub - using local sephirotic tree",
+                    "timestamp": time.time()
+                }
             
-            if sephirot_result["success"]:
+            # Пытаемся импортировать, но не падаем если не получается
+            try:
+                from sephirotic_engine import initialize_sephirotic_in_iskra
+                logger.info("✅ Модуль sephirotic_engine найден, импортирую...")
+                sephirot_result = await initialize_sephirotic_in_iskra()
+            except ImportError as import_err:
+                logger.warning(f"⚠️ sephirotic_engine не найден: {import_err}")
+                sephirot_result = emergency_sephirotic_stub()
+            except Exception as func_err:
+                logger.error(f"⚠️ Ошибка в sephirotic_engine: {func_err}")
+                sephirot_result = emergency_sephirotic_stub()
+            
+            if sephirot_result.get("success") and sephirot_result.get("engine"):
                 self.sephirotic_engine = sephirot_result["engine"]
                 logger.info("✅ Внешняя сефиротическая система инициализирована")
                 self.sephirotic_tree = self.sephirotic_engine.tree
@@ -579,7 +599,7 @@ print("✅ ISKRA-4 Modules package loaded")
                         self.stats["auto_activation_failed"] += 1
                         logger.error(f"⚠️ Ошибка активации внешнего движка: {e}")
             else:
-                logger.warning(f"⚠️ Ошибка внешней сефиротической системы: {sephirot_result.get('error', 'unknown')}")
+                logger.warning(f"⚠️ Внешняя сефиротическая система недоступна: {sephirot_result.get('error', 'unknown')}")
                 # Создаём локальное дерево как fallback
                 self.sephirotic_tree = SephiroticTree()
                 logger.info("🌳 Локальное сефиротическое дерево создано")
@@ -599,7 +619,7 @@ print("✅ ISKRA-4 Modules package loaded")
                         logger.error(f"⚠️ Ошибка автоактивации локального дерева: {e}")
                 
         except ImportError as e:
-            logger.warning(f"⚠️ Модуль sephirotic_engine не найден: {e}")
+            logger.warning(f"⚠️ Модуль sephirotic_engine не найден (внешний блок): {e}")
             # Создаём локальное дерево
             self.sephirotic_tree = SephiroticTree()
             logger.info("🌳 Локальное сефиротическое дерево создано")
