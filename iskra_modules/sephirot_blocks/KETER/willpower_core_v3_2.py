@@ -721,3 +721,40 @@ __all__ = [
 ]
 
 print("✅ willpower_core_v3_2: API compatibility layer added")
+
+# ===============================================================
+# IX. ИСПРАВЛЕНИЕ ДЛЯ API СОВМЕСТИМОСТИ
+# ===============================================================
+
+def add_api_compatibility_to_class():
+    """Добавляем метод get_info() к классу WILLPOWER_CORE_v32_KETER"""
+    
+    def get_info_method(self):
+        """Метод для API системы ISKRA-4"""
+        import time
+        return {
+            "module": "willpower_core_v3_2",
+            "class": self.__class__.__name__,
+            "status": "active" if hasattr(self, 'is_active') and self.is_active else "available",
+            "version": self.version if hasattr(self, 'version') else "3.2.0",
+            "sephira": "KETHER",
+            "timestamp": time.time(),
+            "info": {
+                "core_function": "willpower",
+                "strength": "high",
+                "type": "willpower_core",
+                "actual_module": True,
+                "api_compatible": True
+            }
+        }
+    
+    # Добавляем метод к классу
+    WILLPOWER_CORE_v32_KETER.get_info = get_info_method
+    
+    # Также добавляем to_dict() для JSON сериализации
+    WILLPOWER_CORE_v32_KETER.to_dict = get_info_method
+    
+    print("✅ API compatibility methods added to WILLPOWER_CORE_v32_KETER")
+
+# Вызываем функцию для добавления методов
+add_api_compatibility_to_class()
