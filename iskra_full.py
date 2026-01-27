@@ -1687,49 +1687,81 @@ def _get_system_activation_context():
 
 @app.route('/modules/<module_name>')
 def module_info(module_name):
-    """Информация о конкретном модуле с контекстом автоактивации"""
+    """Информация о конкретном модуле - ФИКС ДЛЯ KETER МОДУЛЕЙ"""
     if loader is None:
         return jsonify({"error": "System not initialized"}), 503
-    
-    # Получаем контекст системы
-    system_context = _get_system_activation_context()
     
     if module_name not in loader.loaded_modules:
         return jsonify({
             "error": f"Модуль {module_name} не найден",
-            "available_modules": list(loader.loaded_modules.keys()),
-            "system_context": system_context,
-            "activation_info": {
-                "auto_activation_enabled": system_context.get("auto_activation_enabled", False),
-                "sephirot_activated": system_context.get("sephirot_activated", False),
-                "average_resonance": system_context.get("average_resonance", 0.0)
-            }
+            "available_modules": list(loader.loaded_modules.keys())
         }), 404
     
     module = loader.loaded_modules[module_name]
     
+    # 🔥 ФИКС №1: Сначала пробуем get_info() если есть на самом модуле
+    if hasattr(module, 'get_info'):
+        try:
+            result = module.get_info()
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({
+                "error": f"get_info() failed: {str(e)}",
+                "module": module_name
+            }), 500
+    
+    # 🔥 ФИКС №2: Ищем классы внутри модуля которые имеют get_info()
+    import inspect
+    for attr_name in dir(module):
+        if not attr_name.startswith('_'):
+            attr = getattr(module, attr_name)
+            if inspect.isclass(attr) and hasattr(attr, 'get_info'):
+                try:
+                    # Создаем экземпляр класса и вызываем get_info()
+                    instance = attr()
+                    result = instance.get_info()
+                    return jsonify(result)
+                except Exception as e:
+                    continue  # Пробуем следующий класс
+    
+    # 🔥 ФИКС №3: Для модулей Keter пробуем специальные имена классов
+    if 'keter' in module_name.lower() or module_name in ['willpower_core_v3_2', 'spirit_core_v3_4', 'keter_api', 'core_govx_3_1']:
+        # Пробуем стандартные имена классов для Keter модулей
+        class_names_to_try = [
+            module_name.upper().replace('_', ''),
+            f"{module_name}_KETER",
+            f"{module_name.upper()}_KETER",
+            f"KETER_{module_name}",
+            "WILLPOWER_CORE_v32_KETER",  # Для willpower_core_v3_2
+            "SPIRIT_CORE_v34_KETER",     # Для spirit_core_v3_4
+            "KETER_API",                  # Для keter_api
+            "CORE_GOVX_31_KETER"         # Для core_govx_3_1
+        ]
+        
+        for class_name in class_names_to_try:
+            if hasattr(module, class_name):
+                try:
+                    klass = getattr(module, class_name)
+                    if inspect.isclass(klass) and hasattr(klass, 'get_info'):
+                        instance = klass()
+                        result = instance.get_info()
+                        return jsonify(result)
+                except Exception as e:
+                    continue
+    
+    # 🔥 ФИКС №4: Fallback - возвращаем базовую информацию (без проблемных полей)
+    # Получаем контекст системы для обратной совместимости
+    system_context = _get_system_activation_context()
+    
     # Получаем диагностику
     diag = loader.module_diagnostics.get(module_name, {})
     
-    # Проверяем связан ли модуль с сефиротической системой
-    sephirot_connection = None
-    if loader.sephirotic_tree and hasattr(loader.sephirotic_tree, 'nodes'):
-        for node_name, node in loader.sephirotic_tree.nodes.items():
-            if hasattr(node, 'connected_module') and node.connected_module == module_name:
-                sephirot_connection = {
-                    "sephira": node_name,
-                    "energy": node.energy,
-                    "resonance": node.resonance,
-                    "resonance_increased": node.resonance > 0.5
-                }
-                break
-    
-    # Собираем информацию о модуле
     info = {
-        "name": module_name,
-        "type": str(type(module)),
+        "module": module_name,
+        "status": "loaded",
+        "has_get_info": False,
+        "type": "Python module",
         "diagnostics": diag,
-        "attributes": [attr for attr in dir(module) if not attr.startswith('_')],
         "ds24_attributes": {
             "architecture": getattr(module, "__architecture__", "unknown"),
             "protocol": getattr(module, "__protocol__", "unknown"),
@@ -1741,33 +1773,12 @@ def module_info(module_name):
             "has_get_diagnostics": hasattr(module, 'get_diagnostics'),
             "has_on_sephirot_activate": hasattr(module, 'on_sephirot_activate')
         },
-        "sephirot_connection": sephirot_connection,
-        "activation_context": {
-            "module_in_activated_system": system_context.get("sephirot_activated", False),
-            "can_respond_to_activation": hasattr(module, 'on_sephirot_activate'),
-            "system_resonance": system_context.get("average_resonance", 0.0),
-            "auto_activation_enabled": system_context.get("auto_activation_enabled", False)
-        },
         "system_context": system_context,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
-    # Добавляем состояние если есть
-    if hasattr(module, 'get_state'):
-        try:
-            info["state"] = module.get_state()
-        except Exception as e:
-            info["state_error"] = str(e)
-    
-    # Добавляем диагностику если есть
-    if hasattr(module, 'get_diagnostics'):
-        try:
-            info["module_diagnostics"] = module.get_diagnostics()
-        except Exception as e:
-            info["module_diagnostics_error"] = str(e)
-    
     return jsonify(info)
-
+    
 @app.route('/system/health')
 def system_health():
     """Детальная проверка здоровья системы с проверкой автоактивации"""
