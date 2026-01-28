@@ -1711,7 +1711,7 @@ def module_info(module_name):
     if module_name in ['willpower_core_v3_2', 'spirit_core_v3_4', 'keter_api', 'core_govx_3_1']:
         logger.info(f"=== DIAGNOSTICS KETER {module_name} ===")
         module_contents = [x for x in dir(module) if not x.startswith('_')]
-        logger.info(f"Module contents: {module_contents}")  # 🔥 ЗАМЕНИЛ: подробный вывод
+        logger.info(f"Module contents: {module_contents}")
     
     # 🔥 ФИКС №0: Если модуль САМ возвращает dict через __call__ или как функцию
     if callable(module):
@@ -1731,13 +1731,44 @@ def module_info(module_name):
     def handle_keter_module(m_name, m):
         """Обработчик для всех Keter модулей"""
         
-        # ТОЧНЫЕ ИМЕНА КЛАССОВ ДЛЯ ИЗВЕСТНЫХ МОДУЛЕЙ
+        # ТОЧНЫЕ ИМЕНА КЛАССОВ ДЛЯ ИЗВЕСТНЫХ МОДУЛЕЙ - ОБНОВЛЁННЫЕ!
         exact_map = {
             'willpower_core_v3_2': ['WILLPOWER_CORE_v32_KETER'],
             'spirit_core_v3_4': ['SPIRIT_CORE_v34_KETER'],
-            'keter_api': ['KETER_API', 'KETERAPI'],
-            'core_govx_3_1': ['CORE_GOVX_31_KETER', 'CORE_GOVX_31', 'CORE_GOVX']
+            'keter_api': ['KetherAPI', 'KetherCoreWithAPI', 'KETER_API', 'KETERAPI', 'Kether', 'KETER'],
+            'core_govx_3_1': ['CoreGovX31', 'CoreGovX', 'KethericModule', 'CORE_GOVX_31_KETER', 'CORE_GOVX']
         }
+        
+        # 🔥 ДОПОЛНИТЕЛЬНЫЙ ФИКС: Проверяем фабричные функции для keter_api
+        if m_name == "keter_api":
+            # Проверяем фабричные функции
+            if hasattr(m, 'create_keter_api_gateway'):
+                try:
+                    logger.info(f"🔧 Found factory function create_keter_api_gateway")
+                    instance = m.create_keter_api_gateway()
+                    if hasattr(instance, 'get_info'):
+                        info = instance.get_info()
+                        return {
+                            "success": True,
+                            "class": "KetherAPI (factory:create_keter_api_gateway)",
+                            "info": info
+                        }
+                except Exception as e:
+                    logger.debug(f"Factory function create_keter_api_gateway failed: {str(e)}")
+            
+            if hasattr(m, 'create_keter_core_with_api'):
+                try:
+                    logger.info(f"🔧 Found factory function create_keter_core_with_api")
+                    instance = m.create_keter_core_with_api()
+                    if hasattr(instance, 'get_info'):
+                        info = instance.get_info()
+                        return {
+                            "success": True,
+                            "class": "KetherCoreWithAPI (factory:create_keter_core_with_api)",
+                            "info": info
+                        }
+                except Exception as e:
+                    logger.debug(f"Factory function create_keter_core_with_api failed: {str(e)}")
         
         # ВОЗМОЖНЫЕ ВАРИАНТЫ ДЛЯ НЕИЗВЕСТНЫХ
         possible_patterns = [
@@ -1761,12 +1792,25 @@ def module_info(module_name):
             except:
                 pass
         
-        # 3. Ищем класс в модуле
-        for class_name in candidates:
+        # 3. Ищем ВСЕ классы в модуле (приоритет 3)
+        all_class_names = [name for name in dir(m) if not name.startswith('_') and inspect.isclass(getattr(m, name))]
+        candidates.extend(all_class_names)
+        
+        # 4. Удаляем дубликаты сохраняя порядок
+        seen = set()
+        unique_candidates = []
+        for c in candidates:
+            if c not in seen:
+                seen.add(c)
+                unique_candidates.append(c)
+        
+        logger.info(f"🔍 Все кандидаты для {m_name}: {unique_candidates}")
+        
+        # 5. Ищем класс в модуле
+        for class_name in unique_candidates:
             try:
                 if hasattr(m, class_name):
                     klass = getattr(m, class_name)
-                    # 🔥 УБРАЛ дублирующий import inspect здесь
                     if inspect.isclass(klass):
                         # Пробуем создать экземпляр
                         instance = klass()
@@ -1813,8 +1857,21 @@ def module_info(module_name):
             }), 200
         else:
             # 🔥 ФИКС: ВОЗВРАЩАЕМ ДИАГНОСТИКУ ВМЕСТО 500
-            # 🔥 УБРАЛ дублирующий import inspect здесь
             module_contents = [x for x in dir(module) if not x.startswith('_')]
+            
+            # Обновляем список проверенных классов
+            exact_classes_checked = []
+            if module_name == "keter_api":
+                exact_classes_checked = ['KetherAPI', 'KetherCoreWithAPI', 'KETER_API', 'KETERAPI', 'Kether', 'KETER']
+            elif module_name == "core_govx_3_1":
+                exact_classes_checked = ['CoreGovX31', 'CoreGovX', 'KethericModule', 'CORE_GOVX_31_KETER', 'CORE_GOVX']
+            else:
+                exact_classes_checked = [
+                    'WILLPOWER_CORE_v32_KETER',
+                    'SPIRIT_CORE_v34_KETER', 
+                    'KETER_API',
+                    'CORE_GOVX_31_KETER'
+                ]
             
             return jsonify({
                 "module": module_name,
@@ -1826,12 +1883,7 @@ def module_info(module_name):
                     "module_contents": module_contents[:20],
                     "is_callable": callable(module),
                     "has_get_info": hasattr(module, 'get_info'),
-                    "exact_classes_checked": [
-                        'WILLPOWER_CORE_v32_KETER',
-                        'SPIRIT_CORE_v34_KETER', 
-                        'KETER_API',
-                        'CORE_GOVX_31_KETER'
-                    ]
+                    "exact_classes_checked": exact_classes_checked
                 },
                 "timestamp": time.time()
             }), 200  # 🔥 200 вместо 500 для диагностики!
@@ -1849,7 +1901,6 @@ def module_info(module_name):
             }), 500
     
     # 2. Ищем классы внутри модуля которые имеют get_info()
-    # 🔥 УБРАЛ дублирующий import inspect здесь
     for attr_name in dir(module):
         if not attr_name.startswith('_'):
             attr = getattr(module, attr_name)
