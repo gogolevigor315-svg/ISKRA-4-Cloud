@@ -1687,7 +1687,15 @@ def _get_system_activation_context():
 
 @app.route('/modules/<module_name>')
 def module_info(module_name):
-    """Информация о конкретном модуле - ФИКС ДЛЯ KETER МОДУЛЕЙ"""
+    """Информация о конкретном модуле - ФИНАЛЬНЫЙ ФИКС ДЛЯ KETER МОДУЛЕЙ"""
+    
+    import logging
+    import time
+    import inspect
+    from datetime import datetime, timezone  # 🔥 ДОБАВЬ ЭТО!
+    
+    logger = logging.getLogger('ISKRA-4')
+    
     if loader is None:
         return jsonify({"error": "System not initialized"}), 503
     
@@ -1699,7 +1707,137 @@ def module_info(module_name):
     
     module = loader.loaded_modules[module_name]
     
-    # 🔥 ФИКС №1: Сначала пробуем get_info() если есть на самом модуле
+    # 🔥 ДИАГНОСТИКА: Что реально есть в модуле?
+    if module_name in ['willpower_core_v3_2', 'spirit_core_v3_4', 'keter_api', 'core_govx_3_1']:
+        logger.info(f"=== DIAGNOSTICS KETER {module_name} ===")
+        module_contents = [x for x in dir(module) if not x.startswith('_')]
+        logger.info(f"Module contents: {module_contents}")  # 🔥 ЗАМЕНИЛ: подробный вывод
+    
+    # 🔥 ФИКС №0: Если модуль САМ возвращает dict через __call__ или как функцию
+    if callable(module):
+        try:
+            result = module()
+            if isinstance(result, dict):
+                return jsonify({
+                    "module": module_name,
+                    "type": "callable_module",
+                    "result": result,
+                    "timestamp": time.time()
+                })
+        except:
+            pass
+    
+    # 🔥 ФИКС №1: УНИВЕРСАЛЬНЫЙ KETER HANDLER
+    def handle_keter_module(m_name, m):
+        """Обработчик для всех Keter модулей"""
+        
+        # ТОЧНЫЕ ИМЕНА КЛАССОВ ДЛЯ ИЗВЕСТНЫХ МОДУЛЕЙ
+        exact_map = {
+            'willpower_core_v3_2': ['WILLPOWER_CORE_v32_KETER'],
+            'spirit_core_v3_4': ['SPIRIT_CORE_v34_KETER'],
+            'keter_api': ['KETER_API', 'KETERAPI'],
+            'core_govx_3_1': ['CORE_GOVX_31_KETER', 'CORE_GOVX_31', 'CORE_GOVX']
+        }
+        
+        # ВОЗМОЖНЫЕ ВАРИАНТЫ ДЛЯ НЕИЗВЕСТНЫХ
+        possible_patterns = [
+            lambda n: n.upper().replace('_', ''),
+            lambda n: n.split('_')[0].upper() + '_' + n.split('_')[1].upper(),
+            lambda n: n.upper(),
+            lambda n: n.replace('_', ' ').title().replace(' ', '')
+        ]
+        
+        # СОБИРАЕМ ВСЕ ВАРИАНТЫ
+        candidates = []
+        
+        # 1. Точные имена (приоритет 1)
+        if m_name in exact_map:
+            candidates.extend(exact_map[m_name])
+        
+        # 2. Сгенерированные имена (приоритет 2)
+        for pattern in possible_patterns:
+            try:
+                candidates.append(pattern(m_name))
+            except:
+                pass
+        
+        # 3. Ищем класс в модуле
+        for class_name in candidates:
+            try:
+                if hasattr(m, class_name):
+                    klass = getattr(m, class_name)
+                    # 🔥 УБРАЛ дублирующий import inspect здесь
+                    if inspect.isclass(klass):
+                        # Пробуем создать экземпляр
+                        instance = klass()
+                        
+                        # 🔥 ФИКС: Если класс имеет get_info()
+                        if hasattr(instance, 'get_info'):
+                            info = instance.get_info()
+                            return {
+                                "success": True,
+                                "class": class_name,
+                                "info": info
+                            }
+                        # 🔥 ФИКС: Или если сам инстанс callable
+                        elif callable(instance):
+                            result = instance()
+                            if isinstance(result, dict):
+                                return {
+                                    "success": True,
+                                    "class": class_name,
+                                    "info": result
+                                }
+            except Exception as e:
+                logger.debug(f"Class {class_name} failed: {str(e)}")
+                continue
+        
+        return {"success": False, "error": f"No valid class found in {m_name}"}
+    
+    # 🔥 ФИКС №2: ПРИМЕНЯЕМ HANDLER ДЛЯ KETER МОДУЛЕЙ
+    keter_modules = ['willpower_core_v3_2', 'spirit_core_v3_4', 'keter_api', 'core_govx_3_1']
+    
+    if module_name in keter_modules:
+        logger.info(f"🔥 Processing Keter module: {module_name}")
+        result = handle_keter_module(module_name, module)
+        
+        if result["success"]:
+            return jsonify({
+                "module": module_name,
+                "class": result["class"],
+                "sephira": "KETHER",
+                "status": "available",
+                "info": result["info"],
+                "timestamp": time.time(),
+                "version": result["info"].get("version", "unknown")
+            }), 200
+        else:
+            # 🔥 ФИКС: ВОЗВРАЩАЕМ ДИАГНОСТИКУ ВМЕСТО 500
+            # 🔥 УБРАЛ дублирующий import inspect здесь
+            module_contents = [x for x in dir(module) if not x.startswith('_')]
+            
+            return jsonify({
+                "module": module_name,
+                "sephira": "KETHER",
+                "status": "diagnostic_mode",
+                "error": result["error"],
+                "diagnostics": {
+                    "module_type": str(type(module)),
+                    "module_contents": module_contents[:20],
+                    "is_callable": callable(module),
+                    "has_get_info": hasattr(module, 'get_info'),
+                    "exact_classes_checked": [
+                        'WILLPOWER_CORE_v32_KETER',
+                        'SPIRIT_CORE_v34_KETER', 
+                        'KETER_API',
+                        'CORE_GOVX_31_KETER'
+                    ]
+                },
+                "timestamp": time.time()
+            }), 200  # 🔥 200 вместо 500 для диагностики!
+    
+    # 🔥 ФИКС №3: ОБРАБОТКА ОСТАЛЬНЫХ МОДУЛЕЙ
+    # 1. Прямой вызов get_info() если есть
     if hasattr(module, 'get_info'):
         try:
             result = module.get_info()
@@ -1710,50 +1848,21 @@ def module_info(module_name):
                 "module": module_name
             }), 500
     
-    # 🔥 ФИКС №2: Ищем классы внутри модуля которые имеют get_info()
-    import inspect
+    # 2. Ищем классы внутри модуля которые имеют get_info()
+    # 🔥 УБРАЛ дублирующий import inspect здесь
     for attr_name in dir(module):
         if not attr_name.startswith('_'):
             attr = getattr(module, attr_name)
             if inspect.isclass(attr) and hasattr(attr, 'get_info'):
                 try:
-                    # Создаем экземпляр класса и вызываем get_info()
                     instance = attr()
                     result = instance.get_info()
                     return jsonify(result)
                 except Exception as e:
-                    continue  # Пробуем следующий класс
-    
-    # 🔥 ФИКС №3: Для модулей Keter пробуем специальные имена классов
-    if 'keter' in module_name.lower() or module_name in ['willpower_core_v3_2', 'spirit_core_v3_4', 'keter_api', 'core_govx_3_1']:
-        # Пробуем стандартные имена классов для Keter модулей
-        class_names_to_try = [
-            module_name.upper().replace('_', ''),
-            f"{module_name}_KETER",
-            f"{module_name.upper()}_KETER",
-            f"KETER_{module_name}",
-            "WILLPOWER_CORE_v32_KETER",  # Для willpower_core_v3_2
-            "SPIRIT_CORE_v34_KETER",     # Для spirit_core_v3_4
-            "KETER_API",                  # Для keter_api
-            "CORE_GOVX_31_KETER"         # Для core_govx_3_1
-        ]
-        
-        for class_name in class_names_to_try:
-            if hasattr(module, class_name):
-                try:
-                    klass = getattr(module, class_name)
-                    if inspect.isclass(klass) and hasattr(klass, 'get_info'):
-                        instance = klass()
-                        result = instance.get_info()
-                        return jsonify(result)
-                except Exception as e:
                     continue
     
-    # 🔥 ФИКС №4: Fallback - возвращаем базовую информацию (без проблемных полей)
-    # Получаем контекст системы для обратной совместимости
+    # 3. Fallback - безопасная базовая информация
     system_context = _get_system_activation_context()
-    
-    # Получаем диагностику
     diag = loader.module_diagnostics.get(module_name, {})
     
     info = {
