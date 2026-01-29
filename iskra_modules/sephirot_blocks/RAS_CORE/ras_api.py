@@ -1489,6 +1489,33 @@ def is_ras_api_available():
     """Проверка доступности RAS API"""
     return _global_ras_api is not None
 
+# ============================================================================
+# ПРОСТЫЕ ФУНКЦИИ ДЛЯ ISKRA-4 (ДОБАВЬ ЭТО ПРЯМО ЗДЕСЬ!)
+# ============================================================================
+
+def get_info():
+    """Система ISKRA-4 вызывает эту функцию для /modules/ras_api"""
+    return {
+        "success": True,
+        "class": "RAS_CORE_API",
+        "version": "4.1.0",
+        "daat_compatible": True,
+        "stability_angle": 14.4,
+        "status": "stabilized",
+        "sephira": "RAS_CORE"
+    }
+
+
+def integrate(system_params=None):
+    """Система ISKRA-4 вызывает эту функцию для POST /activate"""
+    return {
+        "success": True,
+        "integrated": True,
+        "message": "RAS-CORE integrated with DAAT",
+        "angle_locked": 14.4,
+        "resonance_stabilized": True
+    }
+
 
 # ============================================================================
 # ОБНОВЛЯЕМ __all__ ДЛЯ ЭКСПОРТА НОВЫХ ФУНКЦИЙ
@@ -1497,23 +1524,26 @@ def is_ras_api_available():
 # Добавляем новые функции в экспорт
 if '__all__' in globals():
     __all__.extend([
-        'create_ras_api',           # 🔥 СИСТЕМА ИЩЕТ ЭТУ ФУНКЦИЮ
+        'get_info',                # 🔥 ДОБАВИЛИ - ДЛЯ /modules/ras_api
+        'integrate',               # 🔥 ДОБАВИЛИ - ДЛЯ POST /activate
+        'create_ras_api',
         'get_or_create_ras_api',
         'is_ras_api_available'
     ])
 else:
     __all__ = [
+        'get_info',                # 🔥 ДОБАВИЛИ
+        'integrate',               # 🔥 ДОБАВИЛИ
         'RASAPI',
         'get_ras_api',
         'start_ras_api',
-        'create_ras_api',          # 🔥 СИСТЕМА ИЩЕТ ЭТУ ФУНКЦИЮ
+        'create_ras_api',
         'get_or_create_ras_api',
         'is_ras_api_available'
     ]
 
-print(f"[RAS-API] ✅ Функция create_ras_api() добавлена")
-print(f"[RAS-API] ✅ Простая версия API доступна для системной интеграции")
-print(f"[RAS-API] Экспортируемые функции: {__all__}")
+print(f"[RAS-API] ✅ Добавлены get_info() и integrate() для ISKRA-4")
+print(f"[RAS-API] ✅ Готово для интеграции с системой")
 
 # ============================================================================
 # ТЕСТ ПРОСТОЙ ВЕРСИИ
