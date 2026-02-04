@@ -24,6 +24,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 import psutil
 from flask import Flask, jsonify, request, Response
+from iskra_modules.symbiosis_core.symbiosis_api import symbiosis_bp
 import uuid
 
 # ============================================================================
@@ -743,6 +744,10 @@ app_start_time = time.time()
 
 # Создание Flask приложения
 app = Flask(__name__)
+
+# Регистрация SYMBIOSIS-CORE API
+app.register_blueprint(symbiosis_bp, url_prefix='/modules/symbiosis_api')
+
 
 async def initialize_system():
     """Инициализация системы при запуске с АВТОАКТИВАЦИЕЙ"""
