@@ -12,49 +12,33 @@ import threading
 import pathlib
 import traceback
 from typing import Any, Dict, List, Optional, Tuple
-import requests
 
 # ============================ КЛАССЫ БЕЗОПАСНОСТИ ============================ #
 
 class EmergencyProtocol:
-    def __init__(self, flags_dir: pathlib.Path) -> None:
-        self.flags_dir = flags_dir
-        self.flags_dir.mkdir(parents=True, exist_ok=True)
+    def __init__(self) -> None:
         self.rollback_count = 0
         self.consecutive_errors = 0
         self.life_cvar = 0
-
-    def _write_flag(self, name: str, payload: Optional[Dict[str, Any]] = None) -> None:
-        path = self.flags_dir / f"{name}.flag"
-        record: Dict[str, Any] = {"ts": time.time()}
-        if payload:
-            record.update(payload)
-        with path.open("w", encoding="utf-8") as f:
-            json.dump(record, f, ensure_ascii=False, indent=2)
 
     def handle_event(self, event: str, context: Dict[str, Any]) -> List[str]:
         recs: List[str] = []
         
         if event == "resonance_low":
-            self._write_flag("resonance_low", context)
             recs.append("immediate_rollback")
             recs.append("pause_all_operations")
             self.rollback_count += 1
             
         elif event == "energy_low":
-            self._write_flag("energy_low", context)
             recs.append("suspend_operations_1h")
             
         elif event == "shadow_too_high":
-            self._write_flag("shadow_too_high", context)
             recs.append("isolate_module")
             
         elif event == "errors_high":
-            self._write_flag("errors_high", context)
             recs.append("safe_mode")
             
         else:
-            self._write_flag(event, context)
             recs.append(f"review_required:{event}")
             
         return recs
@@ -85,14 +69,12 @@ class CrisisProtocol:
                     "dump_full_state",
                     "isolate_core",
                     "activate_minimal_mode",
-                    "notify_operator",
                 ]
             },
             "daat_breach": {
                 "steps": [
                     "block_daat_access",
                     "rollback_to_safe_state",
-                    "audit_trail",
                 ]
             },
         }
@@ -189,11 +171,22 @@ class ShadowConsentManager:
 # ============================ ОСНОВНОЙ КЛАСС ============================ #
 
 class SymbiosisCore:
-    def __init__(self, iskra_api_url: str = "http://localhost:10000"):
+    def __init__(self):
         self.version = "5.4-iskra"
-        self.iskra_api_url = iskra_api_url
         
-        # Режимы работы
+        # ЛИМИТЫ В КОДЕ (ISKRA-4 СТИЛЬ)
+        self.limits = {
+            "max_resonance_delta": 0.05,
+            "max_energy_delta": 50,
+            "min_resonance": 0.9,
+            "min_energy": 700,
+            "shadow_consent_threshold": 4,
+            "emergency_resonance": 0.95,
+            "emergency_energy": 800,
+            "max_shadow_level": 8
+        }
+        
+        # Режимы работы (как в ISKRA-4)
         self.session_mode = "readonly"  # readonly, balanced, advanced, experimental
         self.consecutive_errors = 0
         self.last_backup = None
@@ -202,77 +195,47 @@ class SymbiosisCore:
         self.life_cvar = 0
         self.rollback_count = 0
         
-        # Жесткие ограничения ISKRA-4
-        self.limits = {
-            "max_resonance_delta": 0.05,
-            "max_energy_delta": 50,
-            "min_resonance": 0.9,
-            "min_energy": 700,
-            "shadow_consent_threshold": 4
-        }
+        # ИНТЕГРАЦИЯ С ISKRA-4 АРХИТЕКТУРОЙ
+        # Используем iskra_integration.py вместо прямых HTTP запросов
+        from .iskra_integration import ISKRAAdapter
+        self.iskra_adapter = ISKRAAdapter(use_bus=True)
         
         # История состояний
         self.state_history: List[Dict[str, Any]] = []
         self.recommendation_history: List[Dict[str, Any]] = []
         
-        # Инициализация компонентов безопасности
-        self.flags_dir = pathlib.Path("exchange/flags")
-        self.emergency = EmergencyProtocol(self.flags_dir)
+        # Инициализация компонентов безопасности (без файловых флагов)
+        self.emergency = EmergencyProtocol()
         self.crisis = CrisisProtocol()
         self.rollback = RollbackProtocol()
         self.shadow_consent = ShadowConsentManager()
         
         # Блокировка для потокобезопасности
         self.lock = threading.Lock()
+        
+        print(f"[SYMBIOSIS-CORE v{self.version}] Инициализирован")
+        print(f"  Режим: {self.session_mode}")
+        print(f"  Лимиты: резонанс ±{self.limits['max_resonance_delta']}, энергия ±{self.limits['max_energy_delta']}")
 
     # ======================= ИНТЕГРАЦИЯ С ISKRA-4 ======================= #
 
     def get_iskra_state(self) -> Dict[str, Any]:
-        """Получение состояния ISKRA-4 через API"""
-        try:
-            response = requests.get(
-                f"{self.iskra_api_url}/sephirot/state",
-                timeout=5
-            )
-            
-            if response.status_code == 200:
-                return response.json()
-            else:
-                return {"error": f"API returned {response.status_code}"}
-                
-        except Exception as e:
-            self.consecutive_errors += 1
-            return {
-                "error": str(e),
-                "consecutive_errors": self.consecutive_errors,
-                "default_state": {
-                    "average_resonance": 1.0,
-                    "total_energy": 1000.0,
-                    "activated": True
-                }
-            }
+        """Получение состояния ISKRA-4 через адаптер"""
+        return self.iskra_adapter.get_sephirot_state()
 
     def apply_to_iskra(self, recommendations: Dict[str, Any]) -> Dict[str, Any]:
-        """Применение рекомендаций к ISKRA-4"""
+        """Применение рекомендаций к ISKRA-4 через адаптер"""
         if self.session_mode == "readonly":
             return {"status": "readonly_mode", "applied": False}
             
         # Проверка shadow consent
         shadow_level = recommendations.get("shadow_level", 0)
-        if shadow_level >= 4:
+        if shadow_level >= self.limits["shadow_consent_threshold"]:
             consent_ok, _ = self.shadow_consent.check_consent(shadow_level, self.session_mode)
             if not consent_ok:
                 return {"status": "shadow_consent_required", "applied": False}
         
-        # Получаем текущее состояние
-        current_state = self.get_iskra_state()
-        if "error" in current_state:
-            return {"status": "state_fetch_error", "applied": False}
-            
-        # Вычисляем новые значения с ограничениями
-        current_resonance = current_state.get("average_resonance", 1.0)
-        current_energy = current_state.get("total_energy", 1000.0)
-        
+        # Получаем дельты с ограничениями
         resonance_delta = recommendations.get("resonance_delta", 0.0)
         energy_delta = recommendations.get("energy_delta", 0.0)
         
@@ -282,26 +245,14 @@ class SymbiosisCore:
         energy_delta = max(-self.limits["max_energy_delta"],
                          min(self.limits["max_energy_delta"], energy_delta))
         
-        new_resonance = current_resonance + resonance_delta
-        new_energy = current_energy + energy_delta
+        # Применяем через адаптер ISKRA-4
+        result = self.iskra_adapter.apply_symbiosis_delta(resonance_delta, energy_delta)
         
-        # Дополнительные проверки безопасности
-        new_resonance = max(self.limits["min_resonance"], min(1.1, new_resonance))
-        new_energy = max(self.limits["min_energy"], min(1100, new_energy))
+        # Добавляем информацию о режиме
+        result["session_mode"] = self.session_mode
+        result["limits_applied"] = True
         
-        # Здесь будет вызов ISKRA-4 API для применения изменений
-        # Пока возвращаем расчетные значения
-        return {
-            "status": "calculated",
-            "applied": self.session_mode != "readonly",
-            "current_resonance": current_resonance,
-            "current_energy": current_energy,
-            "new_resonance": new_resonance,
-            "new_energy": new_energy,
-            "resonance_delta": resonance_delta,
-            "energy_delta": energy_delta,
-            "mode": self.session_mode
-        }
+        return result
 
     # ======================= ВЫЧИСЛЕНИЕ СИМБИОЗА ======================= #
 
@@ -309,7 +260,7 @@ class SymbiosisCore:
         """Основной метод вычисления симбиоза для ISKRA-4"""
         with self.lock:
             try:
-                # 1. Получаем состояние ISKRA-4
+                # 1. Получаем состояние ISKRA-4 через адаптер
                 iskra_state = self.get_iskra_state()
                 
                 # 2. Извлекаем ключевые метрики
@@ -482,12 +433,12 @@ class SymbiosisCore:
         elif self.session_mode == "advanced":
             if resonance_delta != 0 or energy_delta != 0:
                 actions.append("apply_balanced_adjustments")
-                if shadow_analysis.get("level", 0) >= 4:
+                if shadow_analysis.get("level", 0) >= self.limits["shadow_consent_threshold"]:
                     actions.append("require_shadow_consent")
                     
         elif self.session_mode == "experimental":
             actions.append("apply_full_adjustments")
-            if shadow_analysis.get("level", 0) >= 4:
+            if shadow_analysis.get("level", 0) >= self.limits["shadow_consent_threshold"]:
                 actions.append("shadow_operations_allowed")
         
         # Проверка симбиоз-скора
@@ -506,25 +457,21 @@ class SymbiosisCore:
         }
 
     def _log_error(self, error: Exception) -> None:
-        """Логирование ошибок"""
-        error_dir = pathlib.Path("exchange/logs")
-        error_dir.mkdir(exist_ok=True)
-        
-        error_log = error_dir / "symbiosis_errors.log"
-        
-        record = {
+        """Логирование ошибок в память (ISKRA-4 стиль)"""
+        error_record = {
             "timestamp": time.time(),
             "error": str(error),
-            "traceback": traceback.format_exc(),
             "consecutive_errors": self.consecutive_errors,
             "session_mode": self.session_mode
         }
         
-        try:
-            with error_log.open("a", encoding="utf-8") as f:
-                f.write(json.dumps(record, ensure_ascii=False) + "\n")
-        except:
-            pass
+        # Сохраняем в историю ошибок
+        if not hasattr(self, 'error_history'):
+            self.error_history = []
+        
+        self.error_history.append(error_record)
+        if len(self.error_history) > 100:
+            self.error_history = self.error_history[-100:]
 
     # ======================= ИНТЕГРАЦИОННЫЕ МЕТОДЫ ======================= #
 
@@ -601,7 +548,8 @@ class SymbiosisCore:
             "last_backup": self.last_backup,
             "limits": self.limits,
             "history_size": len(self.state_history),
-            "iskra_api_url": self.iskra_api_url
+            "iskra_adapter_connected": self.iskra_adapter.bus_available,
+            "error_history_size": len(getattr(self, 'error_history', []))
         }
 
     def set_session_mode(self, mode: str) -> bool:
@@ -613,6 +561,26 @@ class SymbiosisCore:
             return True
             
         return False
+
+    def update_limits(self, new_limits: Dict[str, Any]) -> Dict[str, Any]:
+        """Обновление лимитов через API (ISKRA-4 стиль)"""
+        updated = []
+        
+        for key, value in new_limits.items():
+            if key in self.limits:
+                old_value = self.limits[key]
+                self.limits[key] = value
+                updated.append({
+                    "parameter": key,
+                    "old_value": old_value,
+                    "new_value": value
+                })
+        
+        return {
+            "status": "limits_updated",
+            "updated_parameters": updated,
+            "total_limits": self.limits
+        }
 
     def backup_state(self) -> Dict[str, Any]:
         """Создание резервной копии состояния"""
@@ -633,10 +601,10 @@ class SymbiosisCore:
 if __name__ == "__main__":
     # Тестирование модуля
     symbiosis = SymbiosisCore()
-    print(f"[SYMBIOSIS-CORE v{symbiosis.version}] Initialized")
-    print(f"Session mode: {symbiosis.session_mode}")
-    print(f"Limits: {symbiosis.limits}")
+    print(f"[SYMBIOSIS-CORE v{symbiosis.version}] Инициализирован")
+    print(f"  Режим: {symbiosis.session_mode}")
+    print(f"  Лимиты: резонанс ±{symbiosis.limits['max_resonance_delta']}, энергия ±{symbiosis.limits['max_energy_delta']}")
     
     # Тестовый запуск
     result = symbiosis.integrate_to_iskra()
-    print(f"Integration result: {result.get('status', 'unknown')}")
+    print(f"Результат интеграции: {result.get('status', 'unknown')}")
