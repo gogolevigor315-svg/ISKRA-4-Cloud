@@ -67,6 +67,35 @@ MIN_PYTHON_VERSION = (3, 11, 0)
 MODULES_DIR = "iskra_modules"
 
 # ============================================================================
+# DEBUG SYMBIOSIS PATH
+# ============================================================================
+import os, sys, traceback
+
+print("=== DEBUG SYMBIOSIS PATH ===")
+target = "iskra_modules/symbiosis_core"
+print("Exists:", os.path.exists(target))
+if os.path.exists(target):
+    print("Files:", os.listdir(target))
+    for f in os.listdir(target):
+        path = os.path.join(target, f)
+        print(f"  {f}: {os.path.getsize(path)} bytes")
+        # Проверим, можно ли прочитать файл
+        try:
+            with open(path, 'r', encoding='utf-8') as file:
+                first_line = file.readline()
+                print(f"    First line: {first_line[:50]}")
+        except Exception as e:
+            print(f"    Read error: {e}")
+else:
+    print("Current dir:", os.listdir("."))
+    if os.path.exists("iskra_modules"):
+        print("iskra_modules:", os.listdir("iskra_modules"))
+    else:
+        print("ERROR: iskra_modules directory not found!")
+
+print("=" * 60)
+
+# ============================================================================
 # ОСНОВНЫЕ КЛАССЫ DS24
 # ============================================================================
 
