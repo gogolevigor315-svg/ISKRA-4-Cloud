@@ -11,28 +11,7 @@ services:
     startCommand: |
       echo "=== CHECKING SYMBIOSIS FILES ===" &&
       ls -la iskra_modules/symbiosis_core/ &&
-      echo "=== STARTING ISKRA-4 CORE & WORKER ===" &&
-      # Запускаем ядро и воркер в одном процессе
-      python -c "
-      import subprocess
-      import threading
-      import time
-      
-      # Функция для запуска воркера
-      def run_worker():
-          subprocess.run(['python', '-m', 'ds24_core', '--mode=worker'], check=False)
-      
-      # Запускаем воркер в отдельном потоке
-      worker_thread = threading.Thread(target=run_worker, daemon=True)
-      worker_thread.start()
-      
-      # Даем время на инициализацию
-      time.sleep(2)
-      
-      # Запускаем основной сервер
-      print('✅ Worker started in background')
-      "
-      &&
+      echo "=== STARTING ISKRA-4 ===" &&
       gunicorn --worker-class eventlet -w 1 --threads 2 -b 0.0.0.0:$PORT iskra_full:app
     envVars:
       - key: PYTHON_VERSION
