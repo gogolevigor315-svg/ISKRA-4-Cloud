@@ -19,6 +19,43 @@ if current_dir not in sys.path:
 print(f"🔄 Render.com fix: текущая директория = {current_dir}")
 print(f"🔄 sys.path = {sys.path}")
 
+# ======== ОТЛАДОЧНЫЙ КОД ДЛЯ DIAGNOSTICS ========
+print("=" * 60)
+print("🔍 ДИАГНОСТИКА ФАЙЛОВОЙ СИСТЕМЫ НА RENDER:")
+print(f"📂 Текущая директория: {current_dir}")
+print(f"📂 Содержимое директории:")
+
+try:
+    for item in os.listdir(current_dir):
+        item_path = os.path.join(current_dir, item)
+        if os.path.isdir(item_path):
+            print(f"   📁 {item}/")
+        else:
+            print(f"   📄 {item}")
+except Exception as e:
+    print(f"   ❌ Ошибка чтения директории: {e}")
+
+print(f"📂 Проверяем наличие iskra_modules/...")
+iskra_modules_path = os.path.join(current_dir, "iskra_modules")
+if os.path.exists(iskra_modules_path):
+    print(f"   ✅ iskra_modules/ найден!")
+    try:
+        symbiosis_path = os.path.join(iskra_modules_path, "symbiosis_core")
+        if os.path.exists(symbiosis_path):
+            print(f"      ✅ symbiosis_core/ найден!")
+            print(f"      📄 Файлы в symbiosis_core/:")
+            for file in os.listdir(symbiosis_path):
+                print(f"         - {file}")
+        else:
+            print(f"      ❌ symbiosis_core/ НЕ найден!")
+    except Exception as e:
+        print(f"      ❌ Ошибка проверки symbiosis_core/: {e}")
+else:
+    print(f"   ❌ iskra_modules/ НЕ найден!")
+
+print("=" * 60)
+# ======== КОНЕЦ ОТЛАДОЧНОГО КОДА ========
+
 # ============================================================================
 # ОСНОВНЫЕ ИМПОРТЫ
 # ============================================================================
