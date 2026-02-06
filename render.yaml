@@ -4,8 +4,36 @@ services:
     env: python
     region: frankfurt
     plan: free
-    buildCommand: python -m venv .venv && .venv/bin/pip install -r requirements.txt
-    startCommand: echo "=== CHECKING FILES ===" && ls -la iskra_modules/symbiosis_core/ && gunicorn --worker-class eventlet -w 2 --threads 4 -b 0.0.0.0:$PORT iskra_full:app
+    buildCommand: |
+      python -m venv .venv &&
+      .venv/bin/pip install --upgrade pip &&
+      .venv/bin/pip install -r requirements.txt
+    startCommand: |
+      echo "=== CHECKING SYMBIOSIS FILES ===" &&
+      ls -la iskra_modules/symbiosis_core/ &&
+      echo "=== STARTING ISKRA-4 CORE & WORKER ===" &&
+      # Запускаем ядро и воркер в одном процессе
+      python -c "
+      import subprocess
+      import threading
+      import time
+      
+      # Функция для запуска воркера
+      def run_worker():
+          subprocess.run(['python', '-m', 'ds24_core', '--mode=worker'], check=False)
+      
+      # Запускаем воркер в отдельном потоке
+      worker_thread = threading.Thread(target=run_worker, daemon=True)
+      worker_thread.start()
+      
+      # Даем время на инициализацию
+      time.sleep(2)
+      
+      # Запускаем основной сервер
+      print('✅ Worker started in background')
+      "
+      &&
+      gunicorn --worker-class eventlet -w 1 --threads 2 -b 0.0.0.0:$PORT iskra_full:app
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.11
@@ -17,19 +45,5 @@ services:
         value: INFO
       - key: FLASK_ENV
         value: production
-    healthCheckPath: /api/health
+    healthCheckPath: /
     autoDeploy: true
-
-  - type: worker
-    name: ds24-kernel-worker
-    env: python
-    region: frankfurt
-    plan: free
-    buildCommand: python -m venv .venv && .venv/bin/pip install -r requirements.txt
-    startCommand: python -m ds24_core --mode=worker
-    envVars:
-      - key: DS24_MODE
-        value: worker
-      - key: DS24_SEED
-        sync: false
-        value: ISKRA_WORKER_SEED
