@@ -9,55 +9,71 @@ import os
 import sys
 
 # ============================================================================
-# FIX ДЛЯ RENDER.COM - ПУТИ ИМПОРТОВ
+# FIX ДЛЯ RENDER.COM - ПУТИ ИМПОРТОВ (УСИЛЕННЫЙ)
 # ============================================================================
-# Добавляем текущую директорию в sys.path для корректного импорта модулей
+# Добавляем ВСЕ возможные пути для корректного импорта модулей
 current_dir = os.path.dirname(os.path.abspath(__file__))
-if current_dir not in sys.path:
-    sys.path.insert(0, current_dir)
+
+# Критически важные пути
+paths_to_add = [
+    current_dir,  # Текущая директория
+    os.path.join(current_dir, "iskra_modules"),  # Прямой путь к модулям
+    os.path.join(current_dir, "iskra_modules", "symbiosis_core"),  # Прямой путь к симбиозу
+]
+
+# Добавляем уникальные пути
+for path in paths_to_add:
+    if path not in sys.path and os.path.exists(path):
+        sys.path.insert(0, path)
 
 print(f"🔄 Render.com fix: текущая директория = {current_dir}")
-print(f"🔄 sys.path = {sys.path}")
+print(f"🔄 sys.path добавлены: {[p for p in paths_to_add if os.path.exists(p)]}")
 
 # ======== ОТЛАДОЧНЫЙ КОД ДЛЯ DIAGNOSTICS ========
 print("=" * 60)
 print("🔍 ДИАГНОСТИКА ФАЙЛОВОЙ СИСТЕМЫ НА RENDER:")
 print(f"📂 Текущая директория: {current_dir}")
-print(f"📂 Содержимое директории:")
 
-try:
-    for item in os.listdir(current_dir):
-        item_path = os.path.join(current_dir, item)
-        if os.path.isdir(item_path):
-            print(f"   📁 {item}/")
-        else:
-            print(f"   📄 {item}")
-except Exception as e:
-    print(f"   ❌ Ошибка чтения директории: {e}")
-
-print(f"📂 Проверяем наличие iskra_modules/...")
+# Проверяем существование критических путей
 iskra_modules_path = os.path.join(current_dir, "iskra_modules")
-if os.path.exists(iskra_modules_path):
-    print(f"   ✅ iskra_modules/ найден!")
-    try:
-        symbiosis_path = os.path.join(iskra_modules_path, "symbiosis_core")
-        if os.path.exists(symbiosis_path):
-            print(f"      ✅ symbiosis_core/ найден!")
-            print(f"      📄 Файлы в symbiosis_core/:")
-            for file in os.listdir(symbiosis_path):
-                print(f"         - {file}")
-        else:
-            print(f"      ❌ symbiosis_core/ НЕ найден!")
-    except Exception as e:
-        print(f"      ❌ Ошибка проверки symbiosis_core/: {e}")
-else:
-    print(f"   ❌ iskra_modules/ НЕ найден!")
+symbiosis_path = os.path.join(iskra_modules_path, "symbiosis_core")
+
+print(f"📂 iskra_modules существует: {os.path.exists(iskra_modules_path)}")
+print(f"📂 symbiosis_core существует: {os.path.exists(symbiosis_path)}")
+
+if os.path.exists(symbiosis_path):
+    print(f"📄 Файлы в symbiosis_core/:")
+    for file in os.listdir(symbiosis_path):
+        print(f"   - {file}")
 
 print("=" * 60)
 # ======== КОНЕЦ ОТЛАДОЧНОГО КОДА ========
 
 # ============================================================================
-# ОСНОВНЫЕ ИМПОРТЫ
+# ПРЕДВАРИТЕЛЬНЫЙ ТЕСТ ИМПОРТА
+# ============================================================================
+print("🧪 ТЕСТИРУЕМ ИМПОРТ SYMBIOSIS...")
+try:
+    # Вариант 1: Прямой импорт через добавленные пути
+    from symbiosis_core.symbiosis_api import symbiosis_bp
+    print("✅ SYMBIOSIS импортирован через ПРЯМОЙ путь (symbiosis_core.symbiosis_api)")
+except ImportError as e:
+    print(f"❌ Прямой импорт не удался: {e}")
+    try:
+        # Вариант 2: Абсолютный импорт
+        from iskra_modules.symbiosis_core.symbiosis_api import symbiosis_bp
+        print("✅ SYMBIOSIS импортирован через АБСОЛЮТНЫЙ путь (iskra_modules.symbiosis_core.symbiosis_api)")
+    except ImportError as e2:
+        print(f"❌ Абсолютный импорт не удался: {e2}")
+        # Фатальная ошибка - выходим
+        print("💥 КРИТИЧЕСКАЯ ОШИБКА: Невозможно импортировать SYMBIOSIS")
+        print("Проверьте что файлы существуют:")
+        print(f"  - {symbiosis_path}/symbiosis_api.py")
+        print(f"  - {symbiosis_path}/__init__.py")
+        sys.exit(1)
+
+# ============================================================================
+# ОСНОВНЫЕ ИМПОРТЫ (после успешного импорта SYMBIOSIS)
 # ============================================================================
 import time
 import json
@@ -76,8 +92,9 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 import psutil
 from flask import Flask, jsonify, request, Response
-from iskra_modules.symbiosis_core.symbiosis_api import symbiosis_bp
 import uuid
+
+print("✅ ВСЕ импорты успешны, продолжаем инициализацию...")
 
 # ============================================================================
 # НАСТРОЙКА ЛОГГИРОВАНИЯ
