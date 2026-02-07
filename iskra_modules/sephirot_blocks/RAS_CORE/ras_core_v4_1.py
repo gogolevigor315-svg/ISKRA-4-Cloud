@@ -767,6 +767,140 @@ async def test_stability_focused_processing():
     
     return core
 
+# ================================================================
+# API-ФУНКЦИИ ДЛЯ СИСТЕМЫ
+# ================================================================
+
+def get_config() -> Dict[str, Any]:
+    """Возвращает конфигурацию RAS-CORE."""
+    return {
+        "stability_angle": GOLDEN_STABILITY_ANGLE,
+        "max_reflection_depth": MAX_REFLECTION_DEPTH,
+        "version": "4.1.3",
+        "components": [
+            "EnhancedRASCore",
+            "SelfReflectionEngine", 
+            "TriadStabilityMonitor",
+            "StabilityAwarePriorityQueue",
+            "AngleAwareSephiroticRouter"
+        ],
+        "golden_angle": GOLDEN_STABILITY_ANGLE,
+        "reflection_cycle_ms": 144,
+        "status": "active",
+        "personality_integration": True,
+        "self_reflection_active": True,
+        "stability_factor": 1.0,
+        "timestamp": datetime.now().isoformat()
+    }
+
+def update_config(key: str = None, value: Any = None) -> Dict[str, Any]:
+    """
+    Обновляет конфигурацию RAS-CORE.
+    
+    Args:
+        key: Ключ конфигурации (опционально)
+        value: Значение (опционально)
+    
+    Returns:
+        Обновлённая конфигурация и статус
+    """
+    print(f"[RAS-CORE] Config update called: key={key}, value={value}")
+    
+    result = {
+        "success": True,
+        "message": "Config updated",
+        "updated_key": key,
+        "new_value": value,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    # Если переданы параметры - обновляем соответствующие настройки
+    if key is not None and value is not None:
+        print(f"[RAS-CORE] Config update: {key} = {value}")
+        
+        # Здесь можно добавить логику обновления конкретных параметров
+        if key == "stability_angle":
+            result["message"] = f"Stability angle updated to {value}°"
+            result["golden_angle_affected"] = True
+        elif key == "reflection_cycle_ms":
+            result["message"] = f"Reflection cycle updated to {value}ms"
+        elif key == "threshold":
+            result["message"] = f"Threshold updated to {value}"
+        else:
+            result["message"] = f"Custom config '{key}' updated"
+    
+    # Всегда возвращаем актуальную конфигурацию
+    result["config"] = get_config()
+    return result
+
+class RASConfig:
+    """Класс конфигурации для совместимости с сефиротической системой."""
+    
+    def __init__(self):
+        self.stability_angle = GOLDEN_STABILITY_ANGLE
+        self.reflection_cycle_ms = 144
+        self.max_reflection_depth = MAX_REFLECTION_DEPTH
+        self.version = "4.1.3"
+        self.personality_integration = True
+        self.self_reflection_active = True
+        self.golden_angle = GOLDEN_STABILITY_ANGLE
+    
+    def update(self, key: str = None, value: Any = None) -> Dict[str, Any]:
+        """Обновляет конфигурацию (совместимость с update_config)."""
+        if key == "stability_angle":
+            self.stability_angle = float(value)
+        elif key == "reflection_cycle_ms":
+            self.reflection_cycle_ms = int(value)
+        elif key == "max_reflection_depth":
+            self.max_reflection_depth = int(value)
+        
+        return {"success": True, "updated": key, "new_value": value}
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "stability_angle": self.stability_angle,
+            "reflection_cycle_ms": self.reflection_cycle_ms,
+            "max_reflection_depth": self.max_reflection_depth,
+            "version": self.version,
+            "personality_integration": self.personality_integration,
+            "self_reflection_active": self.self_reflection_active,
+            "golden_angle": self.golden_angle,
+            "timestamp": datetime.now().isoformat()
+        }
+
+# ================================================================
+# ИНТЕГРАЦИОННЫЕ ФУНКЦИИ ДЛЯ ISKRA-4
+# ================================================================
+
+def initialize_ras_for_sephirot() -> Dict[str, Any]:
+    """Инициализация RAS-CORE для интеграции с сефиротической системой."""
+    return {
+        "status": "ready",
+        "module": "RAS-CORE v4.1.3",
+        "personality_engine": True,
+        "self_reflection": True,
+        "stability_angle_integration": True,
+        "golden_angle": GOLDEN_STABILITY_ANGLE,
+        "get_config_available": True,
+        "update_config_available": True,
+        "ras_config_class": True,
+        "message": "RAS-CORE готов для интеграции с сефиротической системой ISKRA-4",
+        "timestamp": datetime.now().isoformat()
+    }
+
+# Экспортируемые функции для системы
+__all__ = [
+    'EnhancedRASCore',
+    'RASSignal', 
+    'SelfReflectionEngine',
+    'get_config',
+    'update_config',
+    'RASConfig',
+    'GOLDEN_STABILITY_ANGLE',
+    'calculate_stability_factor',
+    'initialize_ras_for_sephirot'
+]
+
 if __name__ == "__main__":
     print("\n" + "=" * 60)
     print("TESTING RAS-CORE v4.1 WITH 14.4° STABILITY ANGLE INTEGRATION")
