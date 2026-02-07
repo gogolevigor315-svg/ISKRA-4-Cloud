@@ -104,26 +104,67 @@ MODULES_DIR = "iskra_modules"
 import os, sys, traceback
 
 print("=== DEBUG SYMBIOSIS PATH ===")
-target = "iskra_modules/symbiosis_core"
-print("Exists:", os.path.exists(target))
+# ИСПОЛЬЗУЕМ АБСОЛЮТНЫЙ ПУТЬ
+target = os.path.join(CURRENT_DIR, "iskra_modules", "symbiosis_core")
+print(f"Target path: {target}")
+print(f"Exists: {os.path.exists(target)}")
+
 if os.path.exists(target):
-    print("Files:", os.listdir(target))
-    for f in os.listdir(target):
-        path = os.path.join(target, f)
-        print(f"  {f}: {os.path.getsize(path)} bytes")
-        # Проверим, можно ли прочитать файл
+    # ПРОВЕРЯЕМ, ЧТО ЭТО ПАПКА, А НЕ ФАЙЛ
+    if os.path.isdir(target):
         try:
-            with open(path, 'r', encoding='utf-8') as file:
-                first_line = file.readline()
-                print(f"    First line: {first_line[:50]}")
+            files = os.listdir(target)
+            print(f"Files in symbiosis_core ({len(files)}): {files}")
+            
+            # Проверяем критически важные файлы
+            required_files = ["__init__.py", "symbiosis_api.py", "symbiosis_core.py"]
+            print("\n🔍 Проверка обязательных файлов:")
+            for required_file in required_files:
+                file_path = os.path.join(target, required_file)
+                exists = os.path.exists(file_path)
+                status = "✅" if exists else "❌"
+                print(f"  {status} {required_file}: {exists}")
+                
+                if exists:
+                    try:
+                        size = os.path.getsize(file_path)
+                        print(f"     Size: {size} bytes")
+                        
+                        # Пробуем прочитать первые 2 строки
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            lines = [f.readline().strip() for _ in range(2) if f.readline()]
+                        if lines:
+                            print(f"     Preview: {' | '.join(lines[:2])[:80]}...")
+                    except Exception as e:
+                        print(f"     Error reading: {e}")
+            
+            print("\n📁 Остальные файлы:")
+            for f in files:
+                if f not in required_files and f.endswith('.py'):
+                    file_path = os.path.join(target, f)
+                    size = os.path.getsize(file_path)
+                    print(f"  📄 {f}: {size} bytes")
+                    
         except Exception as e:
-            print(f"    Read error: {e}")
-else:
-    print("Current dir:", os.listdir("."))
-    if os.path.exists("iskra_modules"):
-        print("iskra_modules:", os.listdir("iskra_modules"))
+            print(f"❌ Ошибка при чтении папки: {e}")
+            traceback.print_exc()
     else:
-        print("ERROR: iskra_modules directory not found!")
+        # Если это не папка, а файл
+        print(f"⚠️  {target} - это файл, а не папка!")
+        print(f"   Размер: {os.path.getsize(target)} bytes")
+        print(f"   Это директория?: {os.path.isdir(target)}")
+        print(f"   Это файл?: {os.path.isfile(target)}")
+        
+else:
+    print("❌ Папка не найдена!")
+    print(f"Текущая директория: {CURRENT_DIR}")
+    print("Содержимое текущей директории:", os.listdir(CURRENT_DIR))
+    
+    if os.path.exists(os.path.join(CURRENT_DIR, "iskra_modules")):
+        modules_path = os.path.join(CURRENT_DIR, "iskra_modules")
+        print(f"\nСодержимое iskra_modules:", os.listdir(modules_path))
+    else:
+        print("\n❌ Папка iskra_modules не найдена!")
 
 print("=" * 60)
 
