@@ -68,6 +68,10 @@ import psutil
 from flask import Flask, jsonify, request, Response
 import uuid
 
+# 🔥 КРИТИЧЕСКИЕ ИМПОРТЫ ДЛЯ DS24ModuleLoader
+import importlib
+import importlib.util
+
 print("✅ Импорты успешны")
 
 # ============================================================================
