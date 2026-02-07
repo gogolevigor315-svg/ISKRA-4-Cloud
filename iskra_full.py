@@ -1,130 +1,54 @@
 #!/usr/bin/env python3
 # ============================================================================
-# ISKRA-4 CLOUD - ПОЛНЫЙ ПРОИЗВОДСТВЕННЫЙ КОД (ОБНОВЛЁННЫЙ)
+# ISKRA-4 CLOUD - ПОЛНЫЙ ПРОИЗВОДСТВЕННЫЙ КОД
 # Версия 4.0.1 | DS24 Architecture | Render Compatible
-# ПОЛНАЯ ИНТЕГРАЦИЯ С СЕФИРОТИЧЕСКОЙ СИСТЕМОЙ
 # ============================================================================
 
 import os
 import sys
 
 # ============================================================================
-# КРИТИЧЕСКИЙ FIX ДЛЯ RENDER - АБСОЛЮТНЫЕ ПУТИ И ПРОВЕРКА ДИРЕКТОРИЙ
+# ПРОСТОЙ ЗАПУСК НА RENDER
 # ============================================================================
-print("=" * 60)
-print("🚀 ISKRA-4 ЗАПУСК НА RENDER - ДИАГНОСТИКА")
-print("=" * 60)
+print("🚀 ISKRA-4 ЗАПУСК НА RENDER")
 
-# АБСОЛЮТНЫЕ ПУТИ (не относительные!)
-RENDER_BASE_DIR = "/opt/render/project/src"
-ACTUAL_CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+# Текущая директория
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+print(f"📂 Директория: {CURRENT_DIR}")
 
-print(f"📂 RENDER_BASE_DIR: {RENDER_BASE_DIR}")
-print(f"📂 ACTUAL_CURRENT_DIR: {ACTUAL_CURRENT_DIR}")
-print(f"📂 os.getcwd(): {os.getcwd()}")
+# Добавляем пути
+sys.path.insert(0, CURRENT_DIR)
+sys.path.insert(0, os.path.join(CURRENT_DIR, "iskra_modules"))
 
-# Если текущая директория не совпадает - меняем её
-if os.getcwd() != ACTUAL_CURRENT_DIR:
-    print(f"⚠️  Текущая директория отличается! Меняем с {os.getcwd()} на {ACTUAL_CURRENT_DIR}")
-    os.chdir(ACTUAL_CURRENT_DIR)
-
-# Критически важные пути (абсолютные!)
-PATHS_TO_ADD = [
-    ACTUAL_CURRENT_DIR,
-    os.path.join(ACTUAL_CURRENT_DIR, "iskra_modules"),
-    os.path.join(ACTUAL_CURRENT_DIR, "iskra_modules", "symbiosis_core"),
-    RENDER_BASE_DIR,
-    os.path.join(RENDER_BASE_DIR, "iskra_modules"),
-    os.path.join(RENDER_BASE_DIR, "iskra_modules", "symbiosis_core"),
-]
-
-# Добавляем ВСЕ пути
-for path in PATHS_TO_ADD:
-    if path not in sys.path:
-        sys.path.insert(0, path)
-        print(f"   ➕ Добавлен путь: {path}")
-
-print(f"📂 Проверка файлов:")
-print(f"   iskra_modules существует: {os.path.exists('iskra_modules')}")
-print(f"   symbiosis_core существует: {os.path.exists('iskra_modules/symbiosis_core')}")
-
-if os.path.exists("iskra_modules/symbiosis_core"):
-    print(f"   📄 Файлы в symbiosis_core/:")
-    for f in os.listdir("iskra_modules/symbiosis_core"):
-        print(f"      - {f}")
-
-print("=" * 60)
+print(f"📂 Проверка iskra_modules: {os.path.exists('iskra_modules')}")
+print(f"📂 Проверка symbiosis_core: {os.path.exists('iskra_modules/symbiosis_core')}")
 
 # ============================================================================
-# КРИТИЧЕСКИЙ ИМПОРТ SYMBIOSIS - МНОГОВАРИАНТНЫЙ ПОДХОД
+# ПРОСТОЙ ИМПОРТ SYMBIOSIS
 # ============================================================================
-print("🧪 КРИТИЧЕСКИЙ ТЕСТ ИМПОРТА SYMBIOSIS...")
+print("🧪 ИМПОРТ SYMBIOSIS...")
 
 symbiosis_bp = None
-import_method = None
 
-# Вариант 1: Прямой импорт (после добавления путей)
 try:
-    from symbiosis_core.symbiosis_api import symbiosis_bp
-    import_method = "ПРЯМОЙ (symbiosis_core.symbiosis_api)"
-    print(f"✅ Вариант 1 УСПЕХ: {import_method}")
+    from iskra_modules.symbiosis_core.symbiosis_api import symbiosis_bp
+    print("✅ SYMBIOSIS импортирован напрямую")
 except ImportError as e:
-    print(f"❌ Вариант 1 не удался: {e}")
+    print(f"❌ Ошибка импорта: {e}")
+    # Фолбэк - создаём пустой blueprint если не импортируется
+    from flask import Blueprint
+    symbiosis_bp = Blueprint('symbiosis_fallback', __name__)
+    
+    @symbiosis_bp.route('/status')
+    def status():
+        return {"status": "fallback", "message": "SYMBIOSIS не импортирован"}
+    
+    print("⚠️  Используем fallback SYMBIOSIS")
 
-# Вариант 2: Абсолютный импорт
-if not symbiosis_bp:
-    try:
-        from iskra_modules.symbiosis_core.symbiosis_api import symbiosis_bp
-        import_method = "АБСОЛЮТНЫЙ (iskra_modules.symbiosis_core.symbiosis_api)"
-        print(f"✅ Вариант 2 УСПЕХ: {import_method}")
-    except ImportError as e:
-        print(f"❌ Вариант 2 не удался: {e}")
-
-# Вариант 3: Ручной импорт через importlib
-if not symbiosis_bp:
-    try:
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(
-            "symbiosis_api",
-            os.path.join(ACTUAL_CURRENT_DIR, "iskra_modules", "symbiosis_core", "symbiosis_api.py")
-        )
-        symbiosis_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(symbiosis_module)
-        symbiosis_bp = symbiosis_module.symbiosis_bp
-        import_method = "РУЧНОЙ (importlib)"
-        print(f"✅ Вариант 3 УСПЕХ: {import_method}")
-    except Exception as e:
-        print(f"❌ Вариант 3 не удался: {e}")
-
-# Вариант 4: Исполнение файла напрямую
-if not symbiosis_bp:
-    try:
-        exec(open(os.path.join(ACTUAL_CURRENT_DIR, "iskra_modules", "symbiosis_core", "symbiosis_api.py")).read())
-        from symbiosis_api import symbiosis_bp
-        import_method = "EXEC напрямую"
-        print(f"✅ Вариант 4 УСПЕХ: {import_method}")
-    except Exception as e:
-        print(f"❌ Вариант 4 не удался: {e}")
-
-# ФАТАЛЬНАЯ ОШИБКА если ни один вариант не сработал
-if not symbiosis_bp:
-    print("=" * 60)
-    print("💥 КРИТИЧЕСКАЯ ОШИБКА: SYMBIOSIS НЕ ИМПОРТИРУЕТСЯ!")
-    print("Файлы на сервере:")
-    for root, dirs, files in os.walk("."):
-        level = root.replace(".", '').count(os.sep)
-        indent = ' ' * 2 * level
-        print(f"{indent}{os.path.basename(root)}/")
-        subindent = ' ' * 2 * (level + 1)
-        for file in files[:5]:  # первые 5 файлов
-            print(f"{subindent}{file}")
-    sys.exit(1)
-
-print(f"🎉 SYMBIOSIS УСПЕШНО ИМПОРТИРОВАН через метод: {import_method}")
 print("=" * 60)
 
 # ============================================================================
-# ОСНОВНЫЕ ИМПОРТЫ (после успешного импорта SYMBIOSIS)
+# ОСНОВНЫЕ ИМПОРТЫ
 # ============================================================================
 import time
 import json
@@ -144,7 +68,7 @@ import psutil
 from flask import Flask, jsonify, request, Response
 import uuid
 
-print("✅ ВСЕ импорты успешны, продолжаем инициализацию ISKRA-4...")
+print("✅ Импорты успешны")
 
 # ============================================================================
 # НАСТРОЙКА ЛОГГИРОВАНИЯ
