@@ -21,7 +21,7 @@ sys.path.insert(0, CURRENT_DIR)
 sys.path.insert(0, os.path.join(CURRENT_DIR, "iskra_modules"))
 
 print(f"📂 Проверка iskra_modules: {os.path.exists('iskra_modules')}")
-print(f"📂 Проверка symbiosis_core: {os.path.exists('iskra_modules/symbiosis_core')}")
+print(f"📂 Проверка symbiosis_module_v54: {os.path.exists('iskra_modules/symbiosis_module_v54')}")
 
 # ============================================================================
 # ПРОСТОЙ ИМПОРТ SYMBIOSIS
@@ -31,7 +31,7 @@ print("🧪 ИМПОРТ SYMBIOSIS...")
 symbiosis_bp = None
 
 try:
-    from iskra_modules.symbiosis_core.symbiosis_api import symbiosis_bp
+    from iskra_modules.symbiosis_module_v54.symbiosis_api import symbiosis_bp
     print("✅ SYMBIOSIS импортирован напрямую")
 except ImportError as e:
     print(f"❌ Ошибка импорта: {e}")
@@ -105,7 +105,7 @@ import os, sys, traceback
 
 print("=== DEBUG SYMBIOSIS PATH ===")
 # ИСПОЛЬЗУЕМ АБСОЛЮТНЫЙ ПУТЬ
-target = os.path.join(CURRENT_DIR, "iskra_modules", "symbiosis_core")
+target = os.path.join(CURRENT_DIR, "iskra_modules", "symbiosis_module_v54")
 print(f"Target path: {target}")
 print(f"Exists: {os.path.exists(target)}")
 
@@ -114,7 +114,7 @@ if os.path.exists(target):
     if os.path.isdir(target):
         try:
             files = os.listdir(target)
-            print(f"Files in symbiosis_core ({len(files)}): {files}")
+            print(f"Files in symbiosis_module_v54 ({len(files)}): {files}")
             
             # Проверяем критически важные файлы
             required_files = ["__init__.py", "symbiosis_api.py", "symbiosis_core.py"]
