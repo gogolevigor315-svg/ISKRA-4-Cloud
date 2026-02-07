@@ -1,4 +1,3 @@
-cat > iskra_modules/symbiosis_core/emergency_protocol.py << 'EOF'
 """
 EmergencyProtocol для SYMBIOSIS-CORE
 Аварийные процедуры и защита от сбоев
@@ -95,4 +94,3 @@ class EmergencyProtocol:
             "session_error": 2
         }
         return error_levels.get(error_type.lower(), 3)
-EOF
