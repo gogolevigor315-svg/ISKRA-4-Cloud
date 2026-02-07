@@ -1,7 +1,7 @@
 # SYMBIOSIS-CORE v5.4 - ИНИЦИАЛИЗАЦИЯ ПАКЕТА
 from .symbiosis_api import symbiosis_bp
 from .symbiosis_core import SymbiosisCore
-from .iskra_integration import ISKRAIntegration
+from .iskra_integration import ISKRAIntegrator  # ← ИЗМЕНЕНО
 from .session_manager import SessionManager
 from .aladdin_shadow import AladdinShadow
 from .emergency_protocol import EmergencyProtocol
@@ -9,7 +9,7 @@ from .emergency_protocol import EmergencyProtocol
 __all__ = [
     'symbiosis_bp',
     'SymbiosisCore',
-    'ISKRAIntegration',
+    'ISKRAIntegrator',  # ← ИЗМЕНЕНО
     'SessionManager',
     'AladdinShadow',
     'EmergencyProtocol'
