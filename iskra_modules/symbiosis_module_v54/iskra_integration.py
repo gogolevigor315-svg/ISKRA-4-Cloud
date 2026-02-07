@@ -10,7 +10,7 @@ import os
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, project_root)
 
-class ISKRAIntegrator:
+class ISKRAIntegration:  # ← ИЗМЕНЕНО: ISKRAIntegrator → ISKRAIntegration
     def __init__(self):
         self.sephirot_bus = None
         self.api_base_url = "http://localhost:10000"
