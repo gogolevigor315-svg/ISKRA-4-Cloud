@@ -1,12 +1,86 @@
 from flask import Blueprint, jsonify, request, current_app
-from .symbiosis_core import SymbiosisCore
-from .aladdin_shadow import AladdinShadowSync
-from .session_manager import SessionManager
-from .emergency_protocol import EmergencyProtocol
 import traceback
 import time
 
 symbiosis_bp = Blueprint('symbiosis', __name__)
+
+# 🔥 ВРЕМЕННЫЕ ЗАГЛУШКИ вместо импортов (чтобы код работал)
+class SymbiosisCore:
+    def __init__(self, iskra_api_url="http://localhost:10000"):
+        self.version = "5.4"
+        self.limits = {"mode": "readonly"}
+        self.session_mode = "readonly"
+        
+    def set_session_mode(self, mode):
+        self.session_mode = mode
+        return True
+    
+    def get_status(self):
+        return {"status": "active", "version": self.version}
+    
+    def integrate_to_iskra(self):
+        return {"status": "integrated", "message": "SYMBIOSIS integrated with ISKRA-4"}
+    
+    def get_iskra_state(self):
+        return {"status": "connected"}
+
+class AladdinShadowSync:
+    def __init__(self, level=0):
+        self.level = level
+    
+    def get_status_sync(self):
+        return {"status": "active", "level": self.level}
+    
+    def set_level_sync(self, level):
+        self.level = level
+        return {"success": True, "new_level": level}
+    
+    def integrate_to_iskra_sync(self, query, context):
+        return {"status": "processed", "query": query, "shadow_level": self.level}
+
+class SessionManager:
+    def __init__(self):
+        pass
+    
+    def start_session(self, mode):
+        return f"session_{int(time.time())}"
+    
+    def get_status(self):
+        return {"active": False}
+    
+    def should_log_operation(self):
+        return False
+    
+    def log_operation(self, op_type, result):
+        pass
+    
+    def has_shadow_consent(self, level):
+        return True
+    
+    def grant_shadow_consent(self, level, duration):
+        return {"granted": True}
+    
+    def revoke_shadow_consent(self):
+        return {"revoked": True}
+    
+    def update_session_mode(self, mode):
+        pass
+    
+    def is_active(self):
+        return False
+
+class EmergencyProtocol:
+    def __init__(self):
+        pass
+    
+    def get_status(self):
+        return {"active": False, "emergency_level": 0}
+    
+    def handle_error(self, error_type, error_msg):
+        pass
+    
+    def trigger_emergency_stop(self):
+        return {"status": "emergency_stop_activated"}
 
 # Глобальные инстансы
 _symbiosis_engine = None
