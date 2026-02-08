@@ -625,17 +625,23 @@ class SephiroticEngine:
             )
             
             # Устанавливаем все связи
-            connections = await self.ras_integration.establish_all_connections()
+            if asyncio.iscoroutinefunction(self.ras_integration.establish_all_connections):
+                connections = await self.ras_integration.establish_all_connections()
+            else:
+                connections = self.ras_integration.establish_all_connections()
             
             # Проверяем полноту петли
-            loop_check = await self.ras_integration.check_personality_loop()
+            if asyncio.iscoroutinefunction(self.ras_integration.check_personality_loop):
+                loop_check = await self.ras_integration.check_personality_loop()
+            else:
+                loop_check = self.ras_integration.check_personality_loop()
             
-            self.logger.info(f"✅ Интеграция создана (петля: {loop_check['loop_complete']})")
+            self.logger.info(f"✅ Интеграция создана (петля: {loop_check.get('loop_complete', False)})")
             return {
-                "success": loop_check["loop_complete"],
+                "success": loop_check.get("loop_complete", False),
                 "connections": connections,
                 "loop_check": loop_check,
-                "personality_loop_ready": loop_check["loop_complete"]
+                "personality_loop_ready": loop_check.get("loop_complete", False)
             }
             
         except Exception as e:
@@ -741,26 +747,28 @@ class SephiroticEngine:
         try:
             self.logger.info("🚀 Начинаю инициализацию системы личности ISKRA-4...")
             self.start_time = datetime.utcnow()
-            
-            # 1. Шина
-            if existing_bus and isinstance(existing_bus, SephiroticBus):
-                self.bus = existing_bus
-                self.logger.info("Использую существующую шину")
-            else:
-                self.bus = await create_sephirotic_bus("ISKRA-4-Personality-Bus")
-                self.logger.info("Создана новая шина для личности")
-            
-            # 2. Дерево сефирот
-            try:
-                self.tree = SephiroticTree(self.bus)
-                await self.tree.initialize()
-                self.logger.info("Дерево сефирот создано (с поддержкой личности)")
-            except Exception as e:
-                self.logger.warning(f"Не удалось создать дерево: {e}")
-                self.tree = type('MockTree', (), {
-                    'nodes': {},
-                    'get_tree_state': lambda: {"status": "mock_tree_personality"}
-                })()
+        
+        # 1. Шина
+        if asyncio.iscoroutinefunction(create_sephirotic_bus):
+            self.bus = await create_sephirotic_bus("ISKRA-4-Personality-Bus")
+        else:
+            self.bus = create_sephirotic_bus("ISKRA-4-Personality-Bus")
+        
+        # 2. Дерево сефирот
+        try:
+            self.tree = SephiroticTree(self.bus)
+            if hasattr(self.tree, 'initialize'):
+                if asyncio.iscoroutinefunction(self.tree.initialize):
+                    await self.tree.initialize()
+                else:
+                    self.tree.initialize()
+            self.logger.info("Дерево сефирот создано (с поддержкой личности)")
+        except Exception as e:
+            self.logger.warning(f"Не удалось создать дерево: {e}")
+            self.tree = type('MockTree', (), {
+                'nodes': {},
+                'get_tree_state': lambda: {"status": "mock_tree_personality"}
+            })()
             
             self.initialized = True
             self.stats["initializations"] += 1
