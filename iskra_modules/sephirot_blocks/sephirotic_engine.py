@@ -770,33 +770,33 @@ class SephiroticEngine:
                 'get_tree_state': lambda: {"status": "mock_tree_personality"}
             })()
             
-            self.initialized = True
-            self.stats["initializations"] += 1
+        self.initialized = True
+        self.stats["initializations"] += 1
             
-            return {
-                "success": True,
-                "message": "Система личности инициализирована",
-                "engine": self.name,
-                "version": "5.0.0",
-                "personality_support": True,
-                "ras_core_available": self.ras_available,
-                "golden_stability_angle": GOLDEN_STABILITY_ANGLE,
-                "reflection_cycle_ms": REFLECTION_CYCLE_MS,
-                "timestamp": datetime.utcnow().isoformat()
-            }
+        return {
+            "success": True,
+            "message": "Система личности инициализирована",
+            "engine": self.name,
+            "version": "5.0.0",
+            "personality_support": True,
+            "ras_core_available": self.ras_available,
+            "golden_stability_angle": GOLDEN_STABILITY_ANGLE,
+            "reflection_cycle_ms": REFLECTION_CYCLE_MS,
+            "timestamp": datetime.utcnow().isoformat()
+        }
             
-        except Exception as e:
-            error_msg = f"Ошибка инициализации системы личности: {str(e)}"
-            self.logger.error(error_msg)
-            self.stats["errors"] += 1
-            self.stats["last_error"] = error_msg
+except Exception as e:
+        error_msg = f"Ошибка инициализации системы личности: {str(e)}"
+        self.logger.error(error_msg)
+        self.stats["errors"] += 1
+        self.stats["last_error"] = error_msg
             
-            return {
-                "success": False,
-                "error": error_msg,
-                "personality_support": False,
-                "timestamp": datetime.utcnow().isoformat()
-            }
+        return {
+            "success": False,
+            "error": error_msg,
+            "personality_support": False,
+            "timestamp": datetime.utcnow().isoformat()
+        }
     
     async def activate(self) -> Dict[str, Any]:
         """Полная активация системы личности"""
