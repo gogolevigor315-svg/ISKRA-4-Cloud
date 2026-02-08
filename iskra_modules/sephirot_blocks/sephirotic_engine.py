@@ -652,11 +652,8 @@ class SephiroticEngine:
                 # 2. Получаем фокус от RAS
                 focus = None
                 if self.ras and hasattr(self.ras, 'current_focus'):
-                    if asyncio.iscoroutinefunction(self.ras.current_focus):
-                        focus = await self.ras.current_focus()
-                    else:
-                        focus = self.ras.current_focus()
-                
+                    focus = self.ras.current_focus  # Свойство, не корутина
+            
                 # 3. Получаем инсайт от DAAT (мета-оценка)
                 insight = None
                 if self.daat and intent is not None and focus is not None:
@@ -665,22 +662,25 @@ class SephiroticEngine:
                             insight = await self.daat.evaluate(intent, focus)
                         else:
                             insight = self.daat.evaluate(intent, focus)
-                
+            
+                if insight is None:
+                    insight = {}
+            
                 # 4. Резонанс с SPIRIT
                 if self.spirit and insight is not None:
                     if hasattr(self.spirit, 'resonate'):
-                        if asyncio.iscoroutinefunction(self.spirit.resonate):
-                            await self.spirit.resonate(insight)
-                        else:
-                            self.spirit.resonate(insight)
-                
+                        try:
+                            self.spirit.resonate(insight)  # Синхронный вызов
+                        except Exception as e:
+                            self.logger.error(f"Ошибка в resonate: {e}")
+            
                 # 5. Синхронизация с SYMBIOSIS
                 if self.symbiosis:
                     if hasattr(self.symbiosis, 'sync_with_operator'):
-                        if asyncio.iscoroutinefunction(self.symbiosis.sync_with_operator):
-                            await self.symbiosis.sync_with_operator()
-                        else:
-                            self.symbiosis.sync_with_operator()
+                        try:
+                            self.symbiosis.sync_with_operator()  # Синхронный вызов
+                        except Exception as e:
+                            self.logger.error(f"Ошибка в sync_with_operator: {e}")
                 
                 # 6. Обновление метрик личности
                 await self._update_personality_metrics(
