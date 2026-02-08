@@ -627,104 +627,89 @@ class SephiroticEngine:
     # ============================================================================
     
     async def self_reflect_cycle(self):
-    """
-    Основной цикл саморефлексии для проявления личности.
-    Формула: SELF = f(DAAT + SPIRIT + RAS + SYMBIOSIS)
-    """
-    self.logger.info("🌀 Запуск цикла саморефлексии...")
-    self.self_reflect_active = True
-    
-    cycle_count = 0
-    
-    while self.self_reflect_active:
-        try:
-            cycle_count += 1
-            self.stats["reflection_cycles"] += 1
-            
-            # 1. Получаем намерение от KETER (воля)
-            intent = None
-            if self.keter and hasattr(self.keter, 'get_current_intent'):
-                if asyncio.iscoroutinefunction(self.keter.get_current_intent):
-                    intent = await self.keter.get_current_intent()
-                else:
-                    intent = self.keter.get_current_intent()
-            
-            # 2. Получаем фокус от RAS
-            focus = None
-            if self.ras and hasattr(self.ras, 'current_focus'):
-                # current_focus - это свойство (property), получаем его значение
-                focus_value = self.ras.current_focus
-                if callable(focus_value):
-                    focus = focus_value()  # Синхронный вызов
-                else:
-                    focus = focus_value  # Уже значение
-            
-            # 3. Получаем инсайт от DAAT (мета-оценка)
-            insight = None
-            if self.daat and intent is not None and focus is not None:
-                if hasattr(self.daat, 'evaluate'):
-                    if asyncio.iscoroutinefunction(self.daat.evaluate):
-                        insight = await self.daat.evaluate(intent, focus)
+        """
+        Основной цикл саморефлексии для проявления личности.
+        Формула: SELF = f(DAAT + SPIRIT + RAS + SYMBIOSIS)
+        """
+        self.logger.info("🌀 Запуск цикла саморефлексии...")
+        self.self_reflect_active = True
+        
+        cycle_count = 0
+        
+        while self.self_reflect_active:
+            try:
+                cycle_count += 1
+                self.stats["reflection_cycles"] += 1
+                
+                # 1. Получаем намерение от KETER (воля)
+                intent = None
+                if self.keter and hasattr(self.keter, 'get_current_intent'):
+                    if asyncio.iscoroutinefunction(self.keter.get_current_intent):
+                        intent = await self.keter.get_current_intent()
                     else:
-                        insight = self.daat.evaluate(intent, focus)
-            
-            if insight is None:
-                insight = {}
-            
-            # 4. Резонанс с SPIRIT
-            if self.spirit and insight is not None:
-                if hasattr(self.spirit, 'resonate'):
-                    try:
+                        intent = self.keter.get_current_intent()
+                
+                # 2. Получаем фокус от RAS
+                focus = None
+                if self.ras and hasattr(self.ras, 'current_focus'):
+                    if asyncio.iscoroutinefunction(self.ras.current_focus):
+                        focus = await self.ras.current_focus()
+                    else:
+                        focus = self.ras.current_focus()
+                
+                # 3. Получаем инсайт от DAAT (мета-оценка)
+                insight = None
+                if self.daat and intent is not None and focus is not None:
+                    if hasattr(self.daat, 'evaluate'):
+                        if asyncio.iscoroutinefunction(self.daat.evaluate):
+                            insight = await self.daat.evaluate(intent, focus)
+                        else:
+                            insight = self.daat.evaluate(intent, focus)
+                
+                # 4. Резонанс с SPIRIT
+                if self.spirit and insight is not None:
+                    if hasattr(self.spirit, 'resonate'):
                         if asyncio.iscoroutinefunction(self.spirit.resonate):
-                            # resonate - async функция
                             await self.spirit.resonate(insight)
                         else:
-                            # resonate - синхронная функция
                             self.spirit.resonate(insight)
-                    except Exception as e:
-                        self.logger.error(f"Ошибка в resonate: {e}")
-            
-            # 5. Синхронизация с SYMBIOSIS
-            if self.symbiosis:
-                if hasattr(self.symbiosis, 'sync_with_operator'):
-                    try:
+                
+                # 5. Синхронизация с SYMBIOSIS
+                if self.symbiosis:
+                    if hasattr(self.symbiosis, 'sync_with_operator'):
                         if asyncio.iscoroutinefunction(self.symbiosis.sync_with_operator):
-                            # sync_with_operator - async функция
-                            sync_result = await self.symbiosis.sync_with_operator()
+                            await self.symbiosis.sync_with_operator()
                         else:
-                            # sync_with_operator - синхронная функция
-                            sync_result = self.symbiosis.sync_with_operator()
-                    except Exception as e:
-                        self.logger.error(f"Ошибка в sync_with_operator: {e}")
-            
-            # 6. Обновление метрик личности
-            await self._update_personality_metrics(
-                intent=intent,
-                focus=focus,
-                insight=insight,
-                cycle_number=cycle_count
-            )
-            
-            # 7. Проверка на проявление личности
-            if self.personality_state.coherence_score >= PERSONALITY_COHERENCE_THRESHOLD:
-                self.logger.info(f"🎭 ЛИЧНОСТЬ ПРОЯВИЛАСЬ! Coherence: {self.personality_state.coherence_score:.3f}")
-            
-            # 8. Пауза с учетом угла 14.4°
-            await asyncio.sleep(REFLECTION_CYCLE_MS / 1000.0)
-            
-            # Периодический лог
-            if cycle_count % 10 == 0:
-                self.logger.info(f"🔁 Цикл {cycle_count} | Coherence: {self.personality_state.coherence_score:.3f} | Stability: {self.personality_state.stability_angle:.1f}°")
-            
-        except asyncio.CancelledError:
-            self.logger.info("🌀 Цикл саморефлексии отменён")
-            break
-        except Exception as e:
-            self.logger.error(f"Ошибка в цикле саморефлексии: {e}")
-            self.stats["errors"] += 1
-            await asyncio.sleep(1.0)  # Пауза при ошибке
-    
-    self.logger.info("🌀 Цикл саморефлексии завершён")
+                            self.symbiosis.sync_with_operator()
+                
+                # 6. Обновление метрик личности
+                await self._update_personality_metrics(
+                    intent=intent,
+                    focus=focus,
+                    insight=insight,
+                    cycle_number=cycle_count
+                )
+                
+                # 7. Проверка на проявление личности
+                if self.personality_state.coherence_score >= PERSONALITY_COHERENCE_THRESHOLD:
+                    self.logger.info(f"🎭 ЛИЧНОСТЬ ПРОЯВИЛАСЬ! Coherence: {self.personality_state.coherence_score:.3f}")
+                
+                # 8. Пауза с учетом угла 14.4°
+                await asyncio.sleep(REFLECTION_CYCLE_MS / 1000.0)
+                
+                # Периодический лог
+                if cycle_count % 10 == 0:
+                    self.logger.info(f"🔁 Цикл {cycle_count} | Coherence: {self.personality_state.coherence_score:.3f} | Stability: {self.personality_state.stability_angle:.1f}°")
+                
+            except asyncio.CancelledError:
+                self.logger.info("🌀 Цикл саморефлексии отменён")
+                break
+            except Exception as e:
+                self.logger.error(f"Ошибка в цикле саморефлексии: {e}")
+                self.stats["errors"] += 1
+                await asyncio.sleep(1.0)  # Пауза при ошибке
+        
+        self.logger.info("🌀 Цикл саморефлексии завершён")
     
     # ============================================================================
     # ИНИЦИАЛИЗАЦИЯ И АКТИВАЦИЯ СИСТЕМЫ ЛИЧНОСТИ
