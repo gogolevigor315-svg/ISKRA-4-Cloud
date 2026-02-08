@@ -1753,7 +1753,6 @@ def initialize_sephirotic_in_iskra(config=None):
         "message": "Sephirotic system initialized in ISKRA-4 Cloud (Personality Enabled)"
     }
 
-
 # Добавляем в __all__ для экспорта
 if '__all__' in globals():
     __all__.append('initialize_sephirotic_in_iskra')
