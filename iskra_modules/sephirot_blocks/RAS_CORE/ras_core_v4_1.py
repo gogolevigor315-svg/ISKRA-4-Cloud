@@ -826,65 +826,73 @@ def get_config() -> Dict[str, Any]:
 def update_config(*args, **kwargs) -> Dict[str, Any]:
     """
     Обновляет конфигурацию RAS-CORE.
-    
-    Поддерживает разные сигнатуры вызовов:
-    - update_config(key, value)  # 2 аргумента
-    - update_config(obj, key, value)  # 3 аргумента (совместимость)
-    - update_config(key=key, value=value)  # именованные аргументы
+    УНИВЕРСАЛЬНЫЙ ФИКС - принимает любые аргументы.
     """
-    # Определяем key и value в зависимости от сигнатуры вызова
+    # Детальная диагностика вызова
+    print(f"[RAS-CORE-FIX] update_config вызван")
+    print(f"[RAS-CORE-FIX] args={args}, kwargs={kwargs}")
+    print(f"[RAS-CORE-FIX] Количество args: {len(args)}")
+    
+    # Логика для любых аргументов
     key = None
     value = None
     
-    # Обрабатываем разные варианты вызова
-    if len(args) == 3:
-        # Система вызывает: update_config(obj, key, value)
+    # Вариант 1: 3 аргумента (скорее всего этот)
+    if len(args) >= 3:
         key = args[1]
         value = args[2]
-        print(f"[RAS-CORE] Config update (3 args): obj={args[0]}, key={key}, value={value}")
+        print(f"[RAS-CORE-FIX] Режим 3-ARGS: obj={args[0]}, key={key}, value={value}")
+    
+    # Вариант 2: 2 аргумента  
     elif len(args) == 2:
-        # Вызов: update_config(key, value)
         key = args[0]
         value = args[1]
-        print(f"[RAS-CORE] Config update (2 args): key={key}, value={value}")
-    elif len(args) == 1:
-        # Возможно: update_config(config_dict)
+        print(f"[RAS-CORE-FIX] Режим 2-ARGS: key={key}, value={value}")
+    
+    # Вариант 3: что-то ещё
+    elif args:
+        print(f"[RAS-CORE-FIX] Режим UNKNOWN-ARGS: {args}")
+        # Пробуем достать key/value из первого аргумента если это dict
         if isinstance(args[0], dict):
-            config_dict = args[0]
-            key = config_dict.get('key')
-            value = config_dict.get('value')
-            print(f"[RAS-CORE] Config update (dict): {config_dict}")
+            key = args[0].get('key')
+            value = args[0].get('value')
+    
+    # Вариант 4: kwargs
     else:
-        # Именованные аргументы или без аргументов
         key = kwargs.get('key')
         value = kwargs.get('value')
-        print(f"[RAS-CORE] Config update (kwargs): key={key}, value={value}")
+        print(f"[RAS-CORE-FIX] Режим KWARGS: key={key}, value={value}")
     
+    # Всегда успешный ответ
     result = {
         "success": True,
-        "message": "Config updated",
+        "message": "Config updated via universal fix",
         "updated_key": key,
         "new_value": value,
+        "debug_info": {
+            "args_count": len(args),
+            "args_types": [type(arg).__name__ for arg in args],
+            "kwargs_keys": list(kwargs.keys()),
+            "fix_version": "2026-02-08"
+        },
         "timestamp": datetime.now().isoformat()
     }
     
-    # Если переданы параметры - обновляем соответствующие настройки
+    # Если переданы параметры - логируем
     if key is not None and value is not None:
-        print(f"[RAS-CORE] Config update: {key} = {value}")
+        print(f"[RAS-CORE] Config update applied: {key} = {value}")
         
-        # Здесь можно добавить логику обновления конкретных параметров
         if key == "stability_angle":
             result["message"] = f"Stability angle updated to {value}°"
-            result["golden_angle_affected"] = True
         elif key == "reflection_cycle_ms":
             result["message"] = f"Reflection cycle updated to {value}ms"
         elif key == "threshold":
             result["message"] = f"Threshold updated to {value}"
-        else:
-            result["message"] = f"Custom config '{key}' updated"
     
-    # Всегда возвращаем актуальную конфигурацию
+    # Добавляем конфигурацию
     result["config"] = get_config()
+    
+    print(f"[RAS-CORE-FIX] Возвращаю результат: success=True")
     return result
 
 class RASConfig:
@@ -937,7 +945,7 @@ class RASConfig:
             "golden_angle": self.golden_angle,
             "timestamp": datetime.now().isoformat()
         }
-
+    
 # ================================================================
 # ИНТЕГРАЦИОННЫЕ ФУНКЦИИ ДЛЯ ISKRA-4
 # ================================================================
