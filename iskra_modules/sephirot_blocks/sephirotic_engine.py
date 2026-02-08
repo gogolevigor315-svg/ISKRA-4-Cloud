@@ -117,18 +117,45 @@ except ImportError as e:
     print(f"⚠️  SPIRIT недоступен: {e}")
     SpiritCore = type('SpiritCore', (), {})
 
-# Импорт SYMBIOSIS
+# Импорт SYMBIOSIS - ИСПРАВЛЕННАЯ ВЕРСИЯ
 try:
-    from sephirot_blocks.SYMBIOSIS import (
-        activate_symbiosis,
-        get_symbiosis,
-        SymbiosisCore
-    )
+    # SYMBIOSIS находится в отдельной папке symbiosis_module_v54
+    from iskra_modules.symbiosis_module_v54.symbiosis_core import SymbiosisCore
+    
+    # Создаём совместимые функции для движка
+    def activate_symbiosis():
+        """Активация SYMBIOSIS для интеграции с движком."""
+        # Базовая инициализация
+        return SymbiosisCore(iskra_api_url="http://localhost:10000")
+    
+    def get_symbiosis():
+        """Получение экземпляра SYMBIOSIS."""
+        # Создаём новый экземпляр при каждом вызове
+        return activate_symbiosis()
+    
     SYMBIOSIS_AVAILABLE = True
+    print(f"✅ SYMBIOSIS-CORE v5.4 доступен (отдельный модуль symbiosis_module_v54)")
+    
 except ImportError as e:
     SYMBIOSIS_AVAILABLE = False
-    print(f"⚠️  SYMBIOSIS недоступен: {e}")
-    SymbiosisCore = type('SymbiosisCore', (), {})
+    print(f"⚠️  SYMBIOSIS недоступен как отдельный модуль: {e}")
+    
+    # Заглушки для совместимости
+    class SymbiosisCoreStub:
+        def __init__(self, *args, **kwargs):
+            self.version = "5.4-stub"
+            self.session_mode = "readonly"
+            self.iskra_api_url = kwargs.get('iskra_api_url', '')
+        
+        def sync_with_operator(self):
+            return {"status": "stub", "message": "SYMBIOSIS в режиме заглушки"}
+        
+        def get_status(self):
+            return {"status": "stub", "version": self.version}
+    
+    SymbiosisCore = SymbiosisCoreStub
+    activate_symbiosis = lambda: SymbiosisCoreStub()
+    get_symbiosis = lambda: SymbiosisCoreStub()
 
 # Импорт CHOKMAH и BINAH для триады
 try:
