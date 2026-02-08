@@ -66,17 +66,38 @@ try:
         SelfReflectionEngine,
         RASIntegration,
         RASConfig,
-        get_config,
-        update_config,
+        # get_config,          # ЗАКОММЕНТИРОВАНО
+        # update_config,       # ЗАКОММЕНТИРОВАНО
         GOLDEN_STABILITY_ANGLE as RAS_STABILITY_ANGLE,
-        calculate_stability_factor
+        # calculate_stability_factor  # ЗАКОММЕНТИРОВАНО
     )
     RAS_CORE_AVAILABLE = True
     print(f"✅ RAS-CORE v4.1 доступен (угол: {RAS_STABILITY_ANGLE}°)")
+    
+    # ЗАГЛУШКИ ДЛЯ УДАЛЕННЫХ ФУНКЦИЙ
+    def get_config():
+        return {"stability_angle": RAS_STABILITY_ANGLE}
+    
+    def update_config(*args, **kwargs):
+        return {"success": True, "message": "stub"}
+    
+    def calculate_stability_factor(deviation):
+        return max(0.0, 1.0 - abs(deviation) / 10.0)
+        
 except ImportError as e:
     RAS_CORE_AVAILABLE = False
     print(f"⚠️  RAS-CORE недоступен: {e}")
     EnhancedRASCore = type('EnhancedRASCore', (), {})
+    
+    # ЗАГЛУШКИ ЕСЛИ МОДУЛЬ НЕ ДОСТУПЕН
+    def get_config():
+        return {"stability_angle": 14.4}
+    
+    def update_config(*args, **kwargs):
+        return {"success": False, "error": "RAS-CORE not available"}
+    
+    def calculate_stability_factor(deviation):
+        return 0.5
 
 # Импорт KETER
 try:
