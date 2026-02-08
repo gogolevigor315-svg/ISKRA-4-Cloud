@@ -823,18 +823,42 @@ def get_config() -> Dict[str, Any]:
         "timestamp": datetime.now().isoformat()
     }
 
-def update_config(key: str = None, value: Any = None) -> Dict[str, Any]:
+def update_config(*args, **kwargs) -> Dict[str, Any]:
     """
     Обновляет конфигурацию RAS-CORE.
     
-    Args:
-        key: Ключ конфигурации (опционально)
-        value: Значение (опционально)
-    
-    Returns:
-        Обновлённая конфигурация и статус
+    Поддерживает разные сигнатуры вызовов:
+    - update_config(key, value)  # 2 аргумента
+    - update_config(obj, key, value)  # 3 аргумента (совместимость)
+    - update_config(key=key, value=value)  # именованные аргументы
     """
-    print(f"[RAS-CORE] Config update called: key={key}, value={value}")
+    # Определяем key и value в зависимости от сигнатуры вызова
+    key = None
+    value = None
+    
+    # Обрабатываем разные варианты вызова
+    if len(args) == 3:
+        # Система вызывает: update_config(obj, key, value)
+        key = args[1]
+        value = args[2]
+        print(f"[RAS-CORE] Config update (3 args): obj={args[0]}, key={key}, value={value}")
+    elif len(args) == 2:
+        # Вызов: update_config(key, value)
+        key = args[0]
+        value = args[1]
+        print(f"[RAS-CORE] Config update (2 args): key={key}, value={value}")
+    elif len(args) == 1:
+        # Возможно: update_config(config_dict)
+        if isinstance(args[0], dict):
+            config_dict = args[0]
+            key = config_dict.get('key')
+            value = config_dict.get('value')
+            print(f"[RAS-CORE] Config update (dict): {config_dict}")
+    else:
+        # Именованные аргументы или без аргументов
+        key = kwargs.get('key')
+        value = kwargs.get('value')
+        print(f"[RAS-CORE] Config update (kwargs): key={key}, value={value}")
     
     result = {
         "success": True,
@@ -875,8 +899,19 @@ class RASConfig:
         self.self_reflection_active = True
         self.golden_angle = GOLDEN_STABILITY_ANGLE
     
-    def update(self, key: str = None, value: Any = None) -> Dict[str, Any]:
+    def update(self, *args, **kwargs) -> Dict[str, Any]:
         """Обновляет конфигурацию (совместимость с update_config)."""
+        # Обрабатываем разные сигнатуры как update_config
+        if len(args) == 2:
+            key = args[0]
+            value = args[1]
+        elif len(args) == 3:
+            key = args[1]
+            value = args[2]
+        else:
+            key = kwargs.get('key')
+            value = kwargs.get('value')
+        
         if key == "stability_angle":
             self.stability_angle = float(value)
         elif key == "reflection_cycle_ms":
@@ -884,7 +919,12 @@ class RASConfig:
         elif key == "max_reflection_depth":
             self.max_reflection_depth = int(value)
         
-        return {"success": True, "updated": key, "new_value": value}
+        return {
+            "success": True, 
+            "updated": key, 
+            "new_value": value,
+            "config": self.to_dict()
+        }
     
     def to_dict(self) -> Dict[str, Any]:
         return {
