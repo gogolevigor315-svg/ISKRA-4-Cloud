@@ -31,9 +31,10 @@ PERSONALITY_COHERENCE_THRESHOLD = 0.7
 # ИМПОРТ СЕФИРОТИЧЕСКИХ МОДУЛЕЙ
 # ============================================================================
 
-# Импорт типов из sephirot_base
+# Импорт типов из sephirot_base - ИСПРАВЛЕННЫЙ ИМПОРТ
 try:
-    from sephirot_base import (
+    # Абсолютный путь вместо относительного
+    from iskra_modules.sephirot_blocks.sephirot_base import (
         Sephirot, 
         SephiroticNode, 
         SephiroticTree, 
@@ -47,9 +48,9 @@ except ImportError as e:
     SephiroticTree = type('SephiroticTree', (), {})
     SignalType = type('SignalType', (), {'HEARTBEAT': 'HEARTBEAT', 'DATA': 'DATA'})
 
-# Импорт шины
+# Импорт шины - ИСПРАВЛЕННЫЙ ИМПОРТ
 try:
-    from sephirot_bus import SephiroticBus, create_sephirotic_bus
+    from iskra_modules.sephirot_blocks.sephirot_bus import SephiroticBus, create_sephirotic_bus
 except ImportError as e:
     print(f"⚠️  Не удалось импортировать sephirot_bus: {e}")
     SephiroticBus = type('SephiroticBus', (), {})
@@ -101,7 +102,7 @@ except ImportError as e:
 
 # Импорт KETER
 try:
-    from sephirot_blocks.KETER import (
+    from iskra_modules.sephirot_blocks.KETER import (
         activate_keter,
         get_keter
     )
@@ -112,9 +113,9 @@ except ImportError as e:
     KetherCore = type('KetherCore', (), {})
     WillpowerCore = type('WillpowerCore', (), {})
 
-# Импорт DAAT
+# Импорт DAAT - ИСПРАВЛЕННЫЙ ИМПОРТ
 try:
-    from sephirot_blocks.DAAT import (
+    from iskra_modules.sephirot_blocks.DAAT import (
         activate_daat,
         get_daat,
         DaatCore
@@ -125,9 +126,9 @@ except ImportError as e:
     print(f"⚠️  DAAT недоступен: {e}")
     DaatCore = type('DaatCore', (), {})
 
-# Импорт SPIRIT
+# Импорт SPIRIT - ИСПРАВЛЕННЫЙ ИМПОРТ
 try:
-    from sephirot_blocks.SPIRIT import (
+    from iskra_modules.sephirot_blocks.SPIRIT import (
         activate_spirit,
         get_spirit,
         SpiritCore
@@ -178,9 +179,9 @@ except ImportError as e:
     activate_symbiosis = lambda: SymbiosisCoreStub()
     get_symbiosis = lambda: SymbiosisCoreStub()
 
-# Импорт CHOKMAH и BINAH для триады
+# Импорт CHOKMAH и BINAH для триады - ИСПРАВЛЕННЫЕ ИМПОРТЫ
 try:
-    from sephirot_blocks.CHOKMAH import (
+    from iskra_modules.sephirot_blocks.CHOKMAH import (
         activate_chokmah,
         get_active_chokmah,
         WisdomCore
@@ -192,7 +193,7 @@ except ImportError as e:
     WisdomCore = type('WisdomCore', (), {})
 
 try:
-    from sephirot_blocks.BINAH import (
+    from iskra_modules.sephirot_blocks.BINAH import (
         activate_binah,
         get_binah,
         BinahCore
@@ -393,6 +394,7 @@ class SephiroticEngine:
         try:
             self.logger.info("🧠 Активация DAAT (мета-осознание)...")
             
+            # БЕЗ await! activate_daat() - синхронная функция
             daat_result = activate_daat()
             
             # Обработка результата
@@ -437,6 +439,7 @@ class SephiroticEngine:
         try:
             self.logger.info("👑 Активация KETER (воля/дух)...")
             
+            # БЕЗ await! activate_keter() - синхронная функция
             keter_result = activate_keter()
             
             if hasattr(keter_result, 'initialize'):
@@ -483,6 +486,7 @@ class SephiroticEngine:
         try:
             self.logger.info("🎵 Активация SPIRIT (тональность бытия)...")
             
+            # БЕЗ await! activate_spirit() - синхронная функция
             spirit_result = activate_spirit()
             
             if hasattr(spirit_result, 'resonate'):
@@ -516,6 +520,7 @@ class SephiroticEngine:
         try:
             self.logger.info("🤝 Активация SYMBIOSIS (контекст взаимодействия)...")
             
+            # БЕЗ await! activate_symbiosis() - синхронная функция
             symbiosis_result = activate_symbiosis()
             
             if hasattr(symbiosis_result, 'sync_with_operator'):
@@ -549,6 +554,7 @@ class SephiroticEngine:
         if self.chokmah_available:
             try:
                 self.logger.info("💡 Активация CHOKMAH (интуиция)...")
+                # БЕЗ await! activate_chokmah() - синхронная функция
                 chokmah_result = activate_chokmah()
                 
                 if isinstance(chokmah_result, tuple) and len(chokmah_result) >= 2:
@@ -570,6 +576,7 @@ class SephiroticEngine:
         if self.binah_available:
             try:
                 self.logger.info("📚 Активация BINAH (понимание)...")
+                # БЕЗ await! activate_binah() - синхронная функция
                 binah_result = activate_binah()
                 
                 if hasattr(binah_result, 'analyze'):
@@ -625,16 +632,24 @@ class SephiroticEngine:
             )
             
             # Устанавливаем все связи
-            if asyncio.iscoroutinefunction(self.ras_integration.establish_all_connections):
-                connections = await self.ras_integration.establish_all_connections()
+            if hasattr(self.ras_integration, 'establish_all_connections'):
+                # БЕЗ await если метод синхронный
+                if asyncio.iscoroutinefunction(self.ras_integration.establish_all_connections):
+                    connections = await self.ras_integration.establish_all_connections()
+                else:
+                    connections = self.ras_integration.establish_all_connections()
             else:
-                connections = self.ras_integration.establish_all_connections()
+                connections = {"error": "method_not_found"}
             
             # Проверяем полноту петли
-            if asyncio.iscoroutinefunction(self.ras_integration.check_personality_loop):
-                loop_check = await self.ras_integration.check_personality_loop()
+            if hasattr(self.ras_integration, 'check_personality_loop'):
+                # БЕЗ await если метод синхронный
+                if asyncio.iscoroutinefunction(self.ras_integration.check_personality_loop):
+                    loop_check = await self.ras_integration.check_personality_loop()
+                else:
+                    loop_check = self.ras_integration.check_personality_loop()
             else:
-                loop_check = self.ras_integration.check_personality_loop()
+                loop_check = {"loop_complete": False, "error": "method_not_found"}
             
             self.logger.info(f"✅ Интеграция создана (петля: {loop_check.get('loop_complete', False)})")
             return {
@@ -658,9 +673,13 @@ class SephiroticEngine:
         Основной цикл саморефлексии для проявления личности.
         Формула: SELF = f(DAAT + SPIRIT + RAS + SYMBIOSIS)
         """
-        self.logger.info("🌀 Запуск цикла саморефлексии...")
-        self.self_reflect_active = True
+        self.logger.info("🌀 === ЗАПУСК ЦИКЛА САМОРЕФЛЕКСИИ ===")
+        self.logger.info(f"🧠 DAAT: {'✅' if self.daat else '❌'}")
+        self.logger.info(f"💫 SPIRIT: {'✅' if self.spirit else '❌'}")
+        self.logger.info(f"🎯 RAS: {'✅' if self.ras else '❌'}")
+        self.logger.info(f"🤝 SYMBIOSIS: {'✅' if self.symbiosis else '❌'}")
         
+        self.self_reflect_active = True
         cycle_count = 0
         
         while self.self_reflect_active:
@@ -680,35 +699,42 @@ class SephiroticEngine:
                 focus = None
                 if self.ras and hasattr(self.ras, 'current_focus'):
                     focus = self.ras.current_focus  # Свойство, не корутина
-            
-                # 3. Получаем инсайт от DAAT (мета-оценка)
+
+                # 3. Получаем инсайт от DAAT (мета-оценка) - КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ!
                 insight = None
                 if self.daat and intent is not None and focus is not None:
                     if hasattr(self.daat, 'evaluate'):
-                        if asyncio.iscoroutinefunction(self.daat.evaluate):
-                            insight = await self.daat.evaluate(intent, focus)
-                        else:
-                            insight = self.daat.evaluate(intent, focus)
-            
+                        # ВАЖНО: evaluate() возвращает dict, НЕ КОРУТИНУ!
+                        # Убираем await - это был источник ошибки "object dict can't be used in 'await' expression"
+                        try:
+                            # Сначала проверяем, корутина ли это
+                            if asyncio.iscoroutinefunction(self.daat.evaluate):
+                                insight = await self.daat.evaluate(intent, focus)
+                            else:
+                                insight = self.daat.evaluate(intent, focus)  # БЕЗ await!
+                        except Exception as e:
+                            self.logger.error(f"Ошибка в DAAT.evaluate: {e}")
+                            insight = {"error": str(e)}
+
                 if insight is None:
                     insight = {}
-            
-                # 4. Резонанс с SPIRIT
+
+                # 4. Резонанс с SPIRIT - БЕЗ await!
                 if self.spirit and insight is not None:
                     if hasattr(self.spirit, 'resonate'):
                         try:
                             self.spirit.resonate(insight)  # Синхронный вызов
                         except Exception as e:
                             self.logger.error(f"Ошибка в resonate: {e}")
-            
-                # 5. Синхронизация с SYMBIOSIS
+
+                # 5. Синхронизация с SYMBIOSIS - БЕЗ await!
                 if self.symbiosis:
                     if hasattr(self.symbiosis, 'sync_with_operator'):
                         try:
                             self.symbiosis.sync_with_operator()  # Синхронный вызов
                         except Exception as e:
                             self.logger.error(f"Ошибка в sync_with_operator: {e}")
-                
+
                 # 6. Обновление метрик личности
                 await self._update_personality_metrics(
                     intent=intent,
@@ -716,14 +742,14 @@ class SephiroticEngine:
                     insight=insight,
                     cycle_number=cycle_count
                 )
-                
+
                 # 7. Проверка на проявление личности
                 if self.personality_state.coherence_score >= PERSONALITY_COHERENCE_THRESHOLD:
                     self.logger.info(f"🎭 ЛИЧНОСТЬ ПРОЯВИЛАСЬ! Coherence: {self.personality_state.coherence_score:.3f}")
-                
+
                 # 8. Пауза с учетом угла 14.4°
                 await asyncio.sleep(REFLECTION_CYCLE_MS / 1000.0)
-                
+
                 # Периодический лог
                 if cycle_count % 10 == 0:
                     self.logger.info(f"🔁 Цикл {cycle_count} | Coherence: {self.personality_state.coherence_score:.3f} | Stability: {self.personality_state.stability_angle:.1f}°")
@@ -731,12 +757,71 @@ class SephiroticEngine:
             except asyncio.CancelledError:
                 self.logger.info("🌀 Цикл саморефлексии отменён")
                 break
-            except Exception as e:
+                        except Exception as e:
                 self.logger.error(f"Ошибка в цикле саморефлексии: {e}")
                 self.stats["errors"] += 1
                 await asyncio.sleep(1.0)  # Пауза при ошибке
         
         self.logger.info("🌀 Цикл саморефлексии завершён")
+    
+    async def _update_personality_metrics(self, intent=None, focus=None, insight=None, cycle_number=0):
+        """Обновление метрик личности на основе данных от компонентов"""
+        try:
+            # Увеличиваем счетчик рефлексий
+            self.personality_state.reflection_count += 1
+            self.personality_state.last_reflection = datetime.utcnow()
+            
+            # Извлекаем данные из insight
+            insight_depth = insight.get('depth', 0.5) if isinstance(insight, dict) else 0.5
+            intent_strength = intent.get('strength', 0.5) if isinstance(intent, dict) else 0.5
+            focus_stability = focus.get('stability', 0.5) if isinstance(focus, dict) else 0.5
+            
+            # Обновляем метрики
+            self.personality_state.insight_depth = insight_depth
+            self.personality_state.intent_strength = intent_strength
+            self.personality_state.focus_stability = focus_stability
+            
+            # Расчет резонанса
+            resonance_quality = 0.0
+            if self.spirit and hasattr(self.spirit, 'get_current_resonance'):
+                try:
+                    if asyncio.iscoroutinefunction(self.spirit.get_current_resonance):
+                        resonance = await self.spirit.get_current_resonance()
+                    else:
+                        resonance = self.spirit.get_current_resonance()
+                    resonance_quality = resonance.get('quality', 0.5) if isinstance(resonance, dict) else 0.5
+                except:
+                    resonance_quality = 0.5
+            
+            self.personality_state.resonance_quality = resonance_quality
+            
+            # Расчет когерентности
+            old_coherence = self.personality_state.coherence_score
+            new_coherence = self.personality_state.calculate_coherence()
+            self.personality_state.coherence_score = new_coherence
+            
+            # Расчет уровня проявления
+            self.personality_state.manifestation_level = min(1.0, new_coherence * 1.2)
+            
+            # Обновляем статистику
+            self.stats["personality_calculations"] += 1
+            
+            # Сохраняем в историю
+            if cycle_number % 5 == 0:  # Каждые 5 циклов
+                history_entry = self.personality_state.to_dict()
+                history_entry["cycle"] = cycle_number
+                self.personality_history.append(history_entry)
+                
+                # Ограничиваем размер истории
+                if len(self.personality_history) > 1000:
+                    self.personality_history = self.personality_history[-500:]
+            
+            # Логирование значимых изменений
+            if abs(new_coherence - old_coherence) > 0.05:
+                self.logger.debug(f"📊 Coherence: {old_coherence:.3f} → {new_coherence:.3f} (Δ{new_coherence - old_coherence:+.3f})")
+            
+        except Exception as e:
+            self.logger.error(f"Ошибка в _update_personality_metrics: {e}")
     
     # ============================================================================
     # ИНИЦИАЛИЗАЦИЯ И АКТИВАЦИЯ СИСТЕМЫ ЛИЧНОСТИ
@@ -749,20 +834,26 @@ class SephiroticEngine:
             self.start_time = datetime.utcnow()
             
             # 1. Шина
-            if asyncio.iscoroutinefunction(create_sephirotic_bus):
-                self.bus = await create_sephirotic_bus("ISKRA-4-Personality-Bus")
+            if existing_bus:
+                self.bus = existing_bus
             else:
-                self.bus = create_sephirotic_bus("ISKRA-4-Personality-Bus")
+                # БЕЗ await если create_sephirotic_bus синхронная
+                if asyncio.iscoroutinefunction(create_sephirotic_bus):
+                    self.bus = await create_sephirotic_bus("ISKRA-4-Personality-Bus")
+                else:
+                    self.bus = create_sephirotic_bus("ISKRA-4-Personality-Bus")
             
             # 2. Дерево сефирот
             try:
-                self.tree = SephiroticTree(self.bus)
-                if hasattr(self.tree, 'initialize'):
-                    if asyncio.iscoroutinefunction(self.tree.initialize):
-                        await self.tree.initialize()
-                    else:
-                        self.tree.initialize()
-                self.logger.info("Дерево сефирот создано (с поддержкой личности)")
+                if hasattr(SephiroticTree, '__init__'):
+                    self.tree = SephiroticTree(self.bus)
+                    if hasattr(self.tree, 'initialize'):
+                        # БЕЗ await если initialize синхронный
+                        if asyncio.iscoroutinefunction(self.tree.initialize):
+                            await self.tree.initialize()
+                        else:
+                            self.tree.initialize()
+                    self.logger.info("🌳 Дерево сефирот создано (с поддержкой личности)")
             except Exception as e:
                 self.logger.warning(f"Не удалось создать дерево: {e}")
                 self.tree = type('MockTree', (), {
@@ -868,7 +959,11 @@ class SephiroticEngine:
                         'stability_angle': GOLDEN_STABILITY_ANGLE
                     }
                 })()
-                broadcast_result = await self.bus.broadcast(test_signal)
+                # БЕЗ await если broadcast синхронный
+                if asyncio.iscoroutinefunction(self.bus.broadcast):
+                    broadcast_result = await self.bus.broadcast(test_signal)
+                else:
+                    broadcast_result = self.bus.broadcast(test_signal)
                 activation_results.append({"type": "broadcast", **broadcast_result})
             
             # Анализ результатов активации
@@ -1089,6 +1184,7 @@ class SephiroticEngine:
         # Добавляем последние инсайты если DAAT доступен
         if self.daat and hasattr(self.daat, 'get_recent_insights'):
             try:
+                # БЕЗ await если get_recent_insights синхронный
                 if asyncio.iscoroutinefunction(self.daat.get_recent_insights):
                     insights = await self.daat.get_recent_insights(3)
                 else:
@@ -1100,6 +1196,7 @@ class SephiroticEngine:
         # Добавляем метрики RAS если доступны
         if self.ras and hasattr(self.ras, 'get_metrics'):
             try:
+                # БЕЗ await если get_metrics синхронный
                 if asyncio.iscoroutinefunction(self.ras.get_metrics):
                     ras_metrics = await self.ras.get_metrics()
                 else:
@@ -1225,6 +1322,7 @@ class SephiroticEngine:
             
             # Применяем к RAS-CORE если доступен
             if self.ras and hasattr(self.ras, 'set_stability_angle'):
+                # БЕЗ await если set_stability_angle синхронный
                 if asyncio.iscoroutinefunction(self.ras.set_stability_angle):
                     await self.ras.set_stability_angle(new_angle)
                 else:
@@ -1392,6 +1490,7 @@ class SephiroticEngine:
                 }
             
             try:
+                # БЕЗ await если get_recent_insights синхронный
                 if asyncio.iscoroutinefunction(self.daat.get_recent_insights):
                     insights = await self.daat.get_recent_insights(5)
                 else:
@@ -1450,7 +1549,7 @@ async def activate_iskra_personality(bus: Optional[SephiroticBus] = None) -> Dic
     
     personality_result = await activate_iskra_personality()
     if personality_result["success"]:
-        engine = personality_result["engine"]
+                engine = personality_result["engine"]
         # Личность активирована, можно мониторить coherence_score
     """
     try:
@@ -1761,3 +1860,4 @@ else:
 
 
 print("✅ sephirotic_engine: API compatibility function added")
+        
