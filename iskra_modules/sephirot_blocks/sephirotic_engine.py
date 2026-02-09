@@ -797,19 +797,6 @@ class SephiroticEngine:
                 "personality_support": False,
                 "timestamp": datetime.utcnow().isoformat()
             }
-            
-except Exception as e:
-        error_msg = f"Ошибка инициализации системы личности: {str(e)}"
-        self.logger.error(error_msg)
-        self.stats["errors"] += 1
-        self.stats["last_error"] = error_msg
-            
-        return {
-            "success": False,
-            "error": error_msg,
-            "personality_support": False,
-            "timestamp": datetime.utcnow().isoformat()
-        }
     
     async def activate(self) -> Dict[str, Any]:
         """Полная активация системы личности"""
