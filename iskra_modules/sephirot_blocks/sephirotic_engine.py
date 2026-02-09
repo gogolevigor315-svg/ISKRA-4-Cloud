@@ -1852,12 +1852,10 @@ def initialize_sephirotic_in_iskra(config=None):
         "message": "Sephirotic system initialized in ISKRA-4 Cloud (Personality Enabled)"
     }
 
-# Добавляем в __all__ для экспорта
+# ✅ ПРАВИЛЬНОЕ ДОБАВЛЕНИЕ В __all__
 if '__all__' in globals():
-    __all__.append('initialize_sephirotic_in_iskra')
+    __all__.extend(['initialize_sephirotic_in_iskra', 'SephiroticEngine', 'activate_iskra_personality', 'create_personality_engine'])
 else:
-    __all__ = ['initialize_sephirotic_in_iskra', 'SephiroticEngine', 'activate_iskra_personality']
-
+    __all__ = ['initialize_sephirotic_in_iskra', 'SephiroticEngine', 'activate_iskra_personality', 'create_personality_engine']
 
 print("✅ sephirotic_engine: API compatibility function added")
-        
