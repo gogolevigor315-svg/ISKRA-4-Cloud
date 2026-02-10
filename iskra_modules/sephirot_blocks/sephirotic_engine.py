@@ -407,10 +407,7 @@ class SephiroticEngine:
             
             # Пробуждение сознания
             if hasattr(self.daat, 'awaken'):
-                if asyncio.iscoroutinefunction(self.daat.awaken):
-                    awakening_result = await self.daat.awaken()
-                else:
-                    awakening_result = self.daat.awaken()
+                awakening_result = self.daat.awaken()
             else:
                 awakening_result = {"resonance_index": 0.0, "state": "awake"}
             
