@@ -757,7 +757,7 @@ class SephiroticEngine:
             except asyncio.CancelledError:
                 self.logger.info("🌀 Цикл саморефлексии отменён")
                 break
-                        except Exception as e:
+            except Exception as e:
                 self.logger.error(f"Ошибка в цикле саморефлексии: {e}")
                 self.stats["errors"] += 1
                 await asyncio.sleep(1.0)  # Пауза при ошибке
