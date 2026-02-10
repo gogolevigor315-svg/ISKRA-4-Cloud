@@ -113,53 +113,26 @@ except ImportError as e:
     KetherCore = type('KetherCore', (), {})
     WillpowerCore = type('WillpowerCore', (), {})
 
-# Импорт DAAT - ИСПРАВЛЕННЫЙ ИМПОРТ
+# Импорт DAAT
 try:
-    # DAAT находится в пакете DAAT, а не в sephirot_blocks
     from iskra_modules.DAAT.daat_core import DaatCore
-    
-    # Создаём совместимые функции для движка
-    def activate_daat():
-        """Активация DAAT для интеграции с движком."""
-        return DaatCore()
-    
-    def get_daat():
-        """Получение экземпляра DAAT."""
-        return DaatCore()
-    
     DAAT_AVAILABLE = True
-    print("✅ DAAT загружен из DAAT пакета")
+    print("✅ DAAT загружен из DAAT/daat_core.py")
 except ImportError as e:
     DAAT_AVAILABLE = False
     print(f"⚠️  DAAT недоступен: {e}")
     DaatCore = type('DaatCore', (), {})
-    activate_daat = lambda: None
-    get_daat = lambda: None
 
-# Импорт SPIRIT - ИСПРАВЛЕННЫЙ ИМПОРТ
+# Импорт SPIRIT  
 try:
     from iskra_modules.KETER.spirit_core_v3_4 import SpiritCore
-    from iskra_modules.KETER import spirit_core_v3_4 as SPIRIT
-    
-    # Создаём совместимые функции для движка
-    def activate_spirit():
-        """Активация SPIRIT для интеграции с движком."""
-        return SpiritCore()
-    
-    def get_spirit():
-        """Получение экземпляра SPIRIT."""
-        return SpiritCore()
-    
     SPIRIT_AVAILABLE = True
-    print("✅ SPIRIT загружен из KETER пакета")
-    
+    print("✅ SPIRIT загружен из KETER/spirit_core_v3_4.py")
 except ImportError as e:
     SPIRIT_AVAILABLE = False
     print(f"⚠️  SPIRIT недоступен: {e}")
     SpiritCore = type('SpiritCore', (), {})
-    activate_spirit = lambda: None
-    get_spirit = lambda: None
-
+    
 # Импорт SYMBIOSIS - ИСПРАВЛЕННАЯ ВЕРСИЯ
 try:
     # SYMBIOSIS находится в отдельной папке symbiosis_module_v54
