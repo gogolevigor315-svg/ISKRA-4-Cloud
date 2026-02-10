@@ -116,22 +116,26 @@ except ImportError as e:
 # Импорт DAAT
 try:
     from iskra_modules.DAAT.daat_core import DaatCore
+    DAAT = DaatCore  # Алиас для совместимости
     DAAT_AVAILABLE = True
     print("✅ DAAT загружен из DAAT/daat_core.py")
 except ImportError as e:
     DAAT_AVAILABLE = False
     print(f"⚠️  DAAT недоступен: {e}")
     DaatCore = type('DaatCore', (), {})
+    DAAT = DaatCore
 
 # Импорт SPIRIT  
 try:
     from iskra_modules.KETER.spirit_core_v3_4 import SpiritCore
+    SPIRIT = SpiritCore  # Алиас для совместимости
     SPIRIT_AVAILABLE = True
     print("✅ SPIRIT загружен из KETER/spirit_core_v3_4.py")
 except ImportError as e:
     SPIRIT_AVAILABLE = False
     print(f"⚠️  SPIRIT недоступен: {e}")
     SpiritCore = type('SpiritCore', (), {})
+    SPIRIT = SpiritCore
     
 # Импорт SYMBIOSIS - ИСПРАВЛЕННАЯ ВЕРСИЯ
 try:
