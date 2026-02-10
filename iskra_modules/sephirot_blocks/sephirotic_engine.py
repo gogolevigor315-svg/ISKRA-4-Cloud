@@ -115,29 +115,50 @@ except ImportError as e:
 
 # Импорт DAAT - ИСПРАВЛЕННЫЙ ИМПОРТ
 try:
-    from iskra_modules.sephirot_blocks.DAAT import (
-        activate_daat,
-        get_daat,
-        DaatCore
-    )
+    # DAAT находится в пакете DAAT, а не в sephirot_blocks
+    from iskra_modules.DAAT.daat_core import DaatCore
+    
+    # Создаём совместимые функции для движка
+    def activate_daat():
+        """Активация DAAT для интеграции с движком."""
+        return DaatCore()
+    
+    def get_daat():
+        """Получение экземпляра DAAT."""
+        return DaatCore()
+    
     DAAT_AVAILABLE = True
+    print("✅ DAAT загружен из DAAT пакета")
 except ImportError as e:
     DAAT_AVAILABLE = False
     print(f"⚠️  DAAT недоступен: {e}")
     DaatCore = type('DaatCore', (), {})
+    activate_daat = lambda: None
+    get_daat = lambda: None
 
 # Импорт SPIRIT - ИСПРАВЛЕННЫЙ ИМПОРТ
 try:
-    from iskra_modules.sephirot_blocks.SPIRIT import (
-        activate_spirit,
-        get_spirit,
-        SpiritCore
-    )
+    from iskra_modules.KETER.spirit_core_v3_4 import SpiritCore
+    from iskra_modules.KETER import spirit_core_v3_4 as SPIRIT
+    
+    # Создаём совместимые функции для движка
+    def activate_spirit():
+        """Активация SPIRIT для интеграции с движком."""
+        return SpiritCore()
+    
+    def get_spirit():
+        """Получение экземпляра SPIRIT."""
+        return SpiritCore()
+    
     SPIRIT_AVAILABLE = True
+    print("✅ SPIRIT загружен из KETER пакета")
+    
 except ImportError as e:
     SPIRIT_AVAILABLE = False
     print(f"⚠️  SPIRIT недоступен: {e}")
     SpiritCore = type('SpiritCore', (), {})
+    activate_spirit = lambda: None
+    get_spirit = lambda: None
 
 # Импорт SYMBIOSIS - ИСПРАВЛЕННАЯ ВЕРСИЯ
 try:
