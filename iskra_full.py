@@ -132,8 +132,29 @@ print("🧠 ИНИЦИАЛИЗАЦИЯ DIALOG CORE...")
 # Регистрация Dialog Core эндпоинтов
 if HAS_DIALOG_CORE:
     try:
+        # 🔧 ДОБАВЛЯЕМ ДИАГНОСТИКУ ПЕРЕД ВЫЗОВОМ:
+        print(f"   📊 HAS_DIALOG_CORE: {HAS_DIALOG_CORE}")
+        print(f"   📊 app type: {type(app)}")
+        print(f"   📊 app routes before: {len(app.url_map._rules)}")
+        
         # Регистрируем все эндпоинты Dialog Core
-        setup_chat_endpoint(app)
+        result = setup_chat_endpoint(app)  # 🔧 Сохраняем результат
+        
+        print(f"   📊 setup_chat_endpoint returned: {result}")
+        print(f"   📊 app routes after: {len(app.url_map._rules)}")
+        
+        # 🔧 Проверяем что эндпоинты действительно добавлены
+        try:
+            from flask import url_for
+            print(f"   📊 Testing endpoint registration...")
+            # Попытка получить URL для chat эндпоинта
+            with app.test_request_context():
+                # Это вызовет ошибку если эндпоинт не зарегистрирован
+                test_url = url_for('chat_endpoint', _external=False)
+                print(f"   ✅ Endpoint registered at: {test_url}")
+        except Exception as url_error:
+            print(f"   ❌ Endpoint registration check failed: {url_error}")
+        
         print("✅ Dialog Core v4.1 эндпоинты зарегистрированы")
         print("   📡 Доступные эндпоинты Dialog Core:")
         print("   ├── GET/POST /chat          - Основной диалог")
@@ -143,14 +164,32 @@ if HAS_DIALOG_CORE:
         print("   ├── GET /chat/autonomy/*    - Управление автономией")
         print("   ├── GET /chat/start         - Запуск автономной речи")
         print("   └── GET /chat/stop          - Остановка автономной речи")
+        
     except Exception as e:
         print(f"❌ Ошибка инициализации Dialog Core: {e}")
         print(traceback.format_exc())
         HAS_DIALOG_CORE = False
         print("⚠️  Dialog Core переведен в fallback режим")
+        
+        # 🔧 ДОБАВЛЯЕМ FALLBACK ЭНДПОИНТ ПРЯМО ЗДЕСЬ:
+        from flask import jsonify
+        from datetime import datetime
+        
+        @app.route('/chat', methods=['GET'])
+        def dialog_fallback():
+            return jsonify({
+                "system": "ISKRA-4 Dialog Core (Fallback Mode)",
+                "status": "degraded",
+                "error": f"Dialog Core initialization failed: {str(e)}",
+                "available_endpoints": ["GET /chat"],
+                "timestamp": datetime.utcnow().isoformat()
+            })
+        
+        print("✅ Fallback endpoint registered at GET /chat")
+        
 else:
     print("⚠️  Dialog Core недоступен - эндпоинты не зарегистрированы")
-
+    
 # ============================================================================
 # ОСНОВНЫЕ ЭНДПОИНТЫ СИСТЕМЫ
 # ============================================================================
