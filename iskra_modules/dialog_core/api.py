@@ -22,13 +22,31 @@ from typing import Dict, Any, Optional
 
 from flask import request, jsonify, Response
 
+# 🔧 ИСПРАВЛЕННЫЙ ИМПОРТ - абсолютные пути с fallback
 try:
-    from .chat_consciousness import ChatConsciousnessV41, AutonomousSpeechDaemonV41
-    from .config import Config
+    # Попытка абсолютного импорта (для использования из iskra_full.py)
+    from iskra_modules.dialog_core.chat_consciousness import ChatConsciousnessV41, AutonomousSpeechDaemonV41
+    from iskra_modules.dialog_core.config import Config
     HAS_DEPENDENCIES = True
-except ImportError as e:
-    logging.error(f"❌ Failed to import Dialog Core dependencies: {e}")
-    HAS_DEPENDENCIES = False
+    IMPORT_METHOD = "absolute"
+except ImportError:
+    try:
+        # Fallback: относительный импорт (если запускается внутри dialog_core/)
+        from .chat_consciousness import ChatConsciousnessV41, AutonomousSpeechDaemonV41
+        from .config import Config
+        HAS_DEPENDENCIES = True
+        IMPORT_METHOD = "relative"
+    except ImportError as e:
+        logging.error(f"❌ Failed to import Dialog Core dependencies: {e}")
+        HAS_DEPENDENCIES = False
+        IMPORT_METHOD = "failed"
+        ChatConsciousnessV41 = None
+        AutonomousSpeechDaemonV41 = None
+        Config = None
+
+# Логируем метод импорта
+if HAS_DEPENDENCIES:
+    logging.info(f"✅ Dialog Core API imports successful via {IMPORT_METHOD} method")
 
 # ========== GLOBAL INSTANCES ==========
 
