@@ -11,51 +11,6 @@ Dialog Core Module v4.1 - Production Ready
 - Config: Конфигурационный класс
 """
 
-# ========== ИМПОРТ ОСНОВНЫХ КОМПОНЕНТОВ ==========
-
-try:
-    # Основные классы из главного модуля
-    from .chat_consciousness import (
-        ChatConsciousnessV41,
-        AutonomousSpeechDaemonV41,
-        SpeechEvent,
-        SpeechDecision,
-        SpeechPriority,
-        SpeechIntent,
-        RealEventBusIntegration,
-        HealthMonitor,
-        AsyncHTTPClient
-    )
-    HAS_CHAT_CONSCIOUSNESS = True
-except ImportError as e:
-    print(f"⚠️ ChatConsciousness import failed: {e}")
-    HAS_CHAT_CONSCIOUSNESS = False
-    # Создаем заглушки для предотвращения падений
-    ChatConsciousnessV41 = None
-    AutonomousSpeechDaemonV41 = None
-    SpeechEvent = None
-    SpeechDecision = None
-    SpeechPriority = None
-    SpeechIntent = None
-
-try:
-    # HTTP слой (Flask эндпоинты)
-    from .api import setup_chat_endpoint
-    HAS_API = True
-except ImportError as e:
-    print(f"⚠️ API import failed: {e}")
-    HAS_API = False
-    setup_chat_endpoint = None
-
-try:
-    # Конфигурация
-    from .config import Config
-    HAS_CONFIG = True
-except ImportError as e:
-    print(f"⚠️ Config import failed: {e}")
-    HAS_CONFIG = False
-    Config = None
-
 # ========== МЕТАДАННЫЕ МОДУЛЯ ==========
 
 __version__ = "4.1.0"
@@ -64,6 +19,94 @@ __description__ = "Полноценное речевое ядро ISKRA-4 с а�
                   "интеграцией всех модулей и production-ready архитектурой"
 __build_date__ = "2026-02-11"
 __compatibility__ = "ISKRA-4 Cloud v2.0+"
+
+# ========== ЗАЩИЩЕННЫЕ ИМПОРТЫ С FALLBACK ==========
+
+HAS_CHAT_CONSCIOUSNESS = False
+HAS_API = False
+HAS_CONFIG = False
+
+# Временные заглушки до импорта
+ChatConsciousnessV41 = None
+AutonomousSpeechDaemonV41 = None
+SpeechEvent = None
+SpeechDecision = None
+SpeechPriority = None
+SpeechIntent = None
+RealEventBusIntegration = None
+HealthMonitor = None
+AsyncHTTPClient = None
+setup_chat_endpoint = None
+Config = None
+
+try:
+    # Основные классы из главного модуля
+    from .chat_consciousness import (
+        ChatConsciousnessV41 as CCV41,
+        AutonomousSpeechDaemonV41 as ASDV41,
+        SpeechEvent as SE,
+        SpeechDecision as SD,
+        SpeechPriority as SP,
+        SpeechIntent as SI,
+        RealEventBusIntegration as REBI,
+        HealthMonitor as HM,
+        AsyncHTTPClient as AHC
+    )
+    HAS_CHAT_CONSCIOUSNESS = True
+    ChatConsciousnessV41 = CCV41
+    AutonomousSpeechDaemonV41 = ASDV41
+    SpeechEvent = SE
+    SpeechDecision = SD
+    SpeechPriority = SP
+    SpeechIntent = SI
+    RealEventBusIntegration = REBI
+    HealthMonitor = HM
+    AsyncHTTPClient = AHC
+    print("✅ ChatConsciousness импортирован")
+except ImportError as e:
+    print(f"⚠️ ChatConsciousness import failed: {e}")
+
+try:
+    # HTTP слой (Flask эндпоинты)
+    from .api import setup_chat_endpoint as sce
+    HAS_API = True
+    setup_chat_endpoint = sce
+    print("✅ API импортирован")
+except ImportError as e:
+    print(f"⚠️ API import failed: {e}")
+
+try:
+    # Конфигурация
+    from .config import Config as Cfg
+    HAS_CONFIG = True
+    Config = Cfg
+    print("✅ Config импортирован")
+except ImportError as e:
+    print(f"⚠️ Config import failed: {e}")
+
+# ========== FALLBACK ДЛЯ setup_chat_endpoint ==========
+
+if not HAS_API and setup_chat_endpoint is None:
+    print("⚠️ Creating fallback setup_chat_endpoint")
+    
+    def setup_chat_endpoint_fallback(app):
+        """Fallback функция если Dialog Core не загружен"""
+        from flask import jsonify
+        from datetime import datetime
+        
+        @app.route('/chat', methods=['GET'])
+        def chat_fallback():
+            return jsonify({
+                "system": "ISKRA-4 Dialog Core (fallback mode)",
+                "status": "unavailable",
+                "message": "Dialog Core module not loaded",
+                "reason": "Module dependencies missing or import error",
+                "timestamp": datetime.utcnow().isoformat()
+            }), 503
+        
+        return app
+    
+    setup_chat_endpoint = setup_chat_endpoint_fallback
 
 # ========== ПРОВЕРКА ЦЕЛОСТНОСТИ МОДУЛЯ ==========
 
@@ -79,7 +122,7 @@ def check_integrity():
             "api": HAS_API,
             "config": HAS_CONFIG
         },
-        "status": "operational" if all([HAS_CHAT_CONSCIOUSNESS, HAS_API, HAS_CONFIG]) else "degraded",
+        "status": "operational" if HAS_CHAT_CONSCIOUSNESS and HAS_CONFIG else "degraded",
         "message": None
     }
     
