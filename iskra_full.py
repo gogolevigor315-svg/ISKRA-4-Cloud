@@ -258,19 +258,6 @@ def index():
     }
     return jsonify(system_info)
 
-@app.route('/health')
-def health():
-    """Проверка здоровья системы"""
-    return jsonify({
-        "status": "healthy",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "uptime": time.time() - start_time,
-        "modules": {
-            "symbiosis": "loaded" if symbiosis_bp is not None else "missing",
-            "dialog_core": "loaded" if HAS_DIALOG_CORE else "missing"
-        }
-    })
-
 # ============================================================================
 # НАСТРОЙКА ЛОГГИРОВАНИЯ
 # ============================================================================
