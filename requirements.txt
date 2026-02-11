@@ -38,7 +38,6 @@ websockets==12.0
 # === DIALOG CORE V4.1 ЗАВИСИМОСТИ ===
 aiohttp==3.9.1  # Асинхронные HTTP запросы для Dialog Core
 python-dotenv==1.0.0  # Конфигурация через .env
-asyncio==3.4.3  # Явное указание asyncio
 
 # === УТИЛИТЫ ===
 click==8.1.4
