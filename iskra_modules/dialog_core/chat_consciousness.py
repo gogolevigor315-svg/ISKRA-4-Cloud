@@ -1,9 +1,11 @@
 """
-CHAT CONSCIOUSNESS MODULE v4.1 - PRODUCTION READY WITH CONFIG & MONITORING
-Финальная версия речевого ядра ISKRA-4 с конфигурацией, асинхронностью и мониторингом
+CHAT CONSCIOUSNESS MODULE v4.1 - PRODUCTION READY
+Адаптированная версия для структуры dialog_core/
+
+Основной файл со ВСЕЙ логикой диалогового ядра ISKRA-4
+Архитектура: EventBus → Sephirotic Engine → Speech Policy → Multi-Channel
 """
 
-import os
 import re
 import time
 import json
@@ -18,85 +20,113 @@ from enum import Enum
 from dataclasses import dataclass
 from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor
-from flask import request, jsonify
-from dotenv import load_dotenv
 
-# Загрузка конфигурации
-load_dotenv()
-
-# Реальные импорты системы
-from iskra_modules.polyglossia_adapter import PolyglossiaAdapter
-from iskra_modules.sephirotic_engine import SephiroticEngine
-from iskra_modules.symbiosis_module_v54.symbiosis_core import SymbiosisCore
-from iskra_modules.symbiosis_module_v54.session_manager import SessionManager
-from iskra_modules.sephirot_bus import SephirotBus
-from iskra_modules.heartbeat_core import HeartbeatCore
-from iskra_modules.DAAT.daat_core import DaatCore
-from iskra_modules.RAS_CORE.ras_core_v4_1 import RasCore
-
-
-# ==================== КОНФИГУРАЦИЯ ====================
-class Config:
-    """Централизованная конфигурация"""
-    
-    # Базовые настройки
-    SYSTEM_BASE_URL = os.getenv("ISKRA_BASE_URL", "https://iskra-4-cloud.onrender.com")
-    TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-    TELEGRAM_CHAT_IDS = json.loads(os.getenv("TELEGRAM_CHAT_IDS", '{"operator": "OPERATOR_CHAT_ID"}'))
-    
-    # Временные настройки
-    EVENT_POLL_INTERVAL = float(os.getenv("EVENT_POLL_INTERVAL", "5.0"))
-    STATE_CACHE_TTL = int(os.getenv("STATE_CACHE_TTL", "30"))
-    COOLDOWN_OVERRIDES = json.loads(os.getenv("COOLDOWN_OVERRIDES", '{}'))
-    
-    # Лимиты
-    MESSAGE_LIMITS = {
-        "operator": {
-            "hourly": int(os.getenv("OPERATOR_HOURLY_LIMIT", "100")),
-            "daily": int(os.getenv("OPERATOR_DAILY_LIMIT", "500"))
-        },
-        "user": {
-            "hourly": int(os.getenv("USER_HOURLY_LIMIT", "20")),
-            "daily": int(os.getenv("USER_DAILY_LIMIT", "100"))
+# Импорт конфигурации из нового config.py
+try:
+    from .config import Config
+    CONFIG_LOADED = True
+except ImportError:
+    CONFIG_LOADED = False
+    class Config:
+        SYSTEM_BASE_URL = "https://iskra-4-cloud.onrender.com"
+        TELEGRAM_BOT_TOKEN = ""
+        TELEGRAM_CHAT_IDS = {"operator": "OPERATOR_CHAT_ID"}
+        EVENT_POLL_INTERVAL = 5.0
+        STATE_CACHE_TTL = 30
+        MESSAGE_LIMITS = {
+            "operator": {"hourly": 100, "daily": 500},
+            "user": {"hourly": 20, "daily": 100}
         }
-    }
-    
-    # Каналы доставки
-    ENABLED_CHANNELS = os.getenv("ENABLED_CHANNELS", "console,internal_log").split(",")
-    
-    # Настройки резонанса
-    MIN_RESONANCE_FOR_SPEECH = float(os.getenv("MIN_RESONANCE_FOR_SPEECH", "0.3"))
-    RESONANCE_CRITICAL_THRESHOLD = float(os.getenv("RESONANCE_CRITICAL_THRESHOLD", "0.2"))
-    
-    # Политика автономии
-    DEFAULT_AUTONOMY_LEVEL = os.getenv("DEFAULT_AUTONOMY_LEVEL", "medium")
-    
-    @classmethod
-    def validate(cls):
-        """Валидация конфигурации"""
-        if not cls.SYSTEM_BASE_URL.startswith("http"):
-            raise ValueError("SYSTEM_BASE_URL должен быть валидным URL")
+        ENABLED_CHANNELS = ["console", "internal_log"]
+        MIN_RESONANCE_FOR_SPEECH = 0.3
+        RESONANCE_CRITICAL_THRESHOLD = 0.2
+        DEFAULT_AUTONOMY_LEVEL = "medium"
+        AUTONOMY_LEVELS = {
+            "disabled": 0.0,
+            "low": 0.3,
+            "medium": 0.6,
+            "high": 0.9,
+            "full": 1.0
+        }
         
-        if "telegram" in cls.ENABLED_CHANNELS and not cls.TELEGRAM_BOT_TOKEN:
-            logging.warning("Telegram канал включен, но токен не установлен")
-        
-        logging.info(f"✅ Конфигурация загружена: автономия={cls.DEFAULT_AUTONOMY_LEVEL}, "
-                    f"каналы={cls.ENABLED_CHANNELS}")
+        @classmethod
+        def validate(cls):
+            logging.warning("⚠️ Используется fallback Config")
 
+# ========== РЕАЛЬНЫЕ ИМПОРТЫ СИСТЕМЫ ISKRA-4 ==========
 
-# Инициализация логгера
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s | %(name)s | %(levelname)s | %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('chat_consciousness.log')
-    ]
-)
+try:
+    from iskra_modules.polyglossia_adapter import PolyglossiaAdapter
+    HAS_POLYGLOSSIA = True
+except ImportError as e:
+    logging.warning(f"PolyglossiaAdapter не найден: {e}")
+    HAS_POLYGLOSSIA = False
+    PolyglossiaAdapter = None
+
+try:
+    from iskra_modules.sephirotic_engine import SephiroticEngine
+    HAS_SEPHIROTIC = True
+except ImportError as e:
+    logging.warning(f"SephiroticEngine не найден: {e}")
+    HAS_SEPHIROTIC = False
+    SephiroticEngine = None
+
+try:
+    from iskra_modules.symbiosis_module_v54.symbiosis_core import SymbiosisCore
+    HAS_SYMBIOSIS = True
+except ImportError as e:
+    logging.warning(f"SymbiosisCore не найден: {e}")
+    HAS_SYMBIOSIS = False
+    SymbiosisCore = None
+
+try:
+    from iskra_modules.symbiosis_module_v54.session_manager import SessionManager
+    HAS_SESSION_MANAGER = True
+except ImportError as e:
+    logging.warning(f"SessionManager не найден: {e}")
+    HAS_SESSION_MANAGER = False
+    SessionManager = None
+
+try:
+    from iskra_modules.sephirot_bus import SephirotBus
+    HAS_SEPHIROT_BUS = True
+except ImportError as e:
+    logging.warning(f"SephirotBus не найден: {e}")
+    HAS_SEPHIROT_BUS = False
+    SephirotBus = None
+
+try:
+    from iskra_modules.heartbeat_core import HeartbeatCore
+    HAS_HEARTBEAT = True
+except ImportError as e:
+    logging.warning(f"HeartbeatCore не найден: {e}")
+    HAS_HEARTBEAT = False
+    HeartbeatCore = None
+
+try:
+    from iskra_modules.DAAT.daat_core import DaatCore
+    HAS_DAAT = True
+except ImportError as e:
+    logging.warning(f"DaatCore не найден: {e}")
+    HAS_DAAT = False
+    DaatCore = None
+
+try:
+    from iskra_modules.RAS_CORE.ras_core_v4_1 import RasCore
+    HAS_RAS = True
+except ImportError as e:
+    logging.warning(f"RasCore не найден: {e}")
+    HAS_RAS = False
+    RasCore = None
+
+# ========== НАСТРОЙКА ЛОГГИНГА ==========
+
 logger = logging.getLogger("ChatConsciousness")
 
+# ========== МОДЕЛИ ДАННЫХ ==========
 
 class SpeechIntent(Enum):
+    """Типы речевых интентов"""
     REACTIVE_RESPONSE = "reactive_response"
     AUTONOMOUS_ALERT = "autonomous_alert"
     SYSTEM_UPDATE = "system_update"
@@ -106,6 +136,7 @@ class SpeechIntent(Enum):
 
 
 class SpeechPriority(Enum):
+    """Приоритеты речи"""
     CRITICAL = 100
     HIGH = 75
     MEDIUM = 50
@@ -115,6 +146,7 @@ class SpeechPriority(Enum):
 
 @dataclass
 class SpeechEvent:
+    """Событие для инициации речи"""
     event_id: str
     event_type: str
     source_module: str
@@ -127,6 +159,7 @@ class SpeechEvent:
 
 @dataclass
 class SpeechDecision:
+    """Решение о речи"""
     should_speak: bool
     priority: SpeechPriority
     channel: str
@@ -135,6 +168,8 @@ class SpeechDecision:
     reason: str = ""
     autonomy_level_required: float = 0.0
 
+
+# ========== АСИНХРОННЫЙ HTTP КЛИЕНТ ==========
 
 class AsyncHTTPClient:
     """Асинхронный HTTP клиент с retry логикой"""
@@ -202,6 +237,8 @@ class AsyncHTTPClient:
                     return None
         return None
 
+
+# ========== ИНТЕГРАЦИЯ С ШИНОЙ СОБЫТИЙ ==========
 
 class RealEventBusIntegration:
     """Интеграция с системной шиной событий с асинхронностью"""
@@ -340,6 +377,8 @@ class RealEventBusIntegration:
             return None
 
 
+# ========== МОНИТОРИНГ ЗДОРОВЬЯ ==========
+
 class HealthMonitor:
     """Мониторинг здоровья речевого ядра"""
     
@@ -468,35 +507,90 @@ class HealthMonitor:
         }
 
 
+# ========== ОСНОВНОЙ КЛАСС ЧАТ-СОЗНАНИЯ ==========
+
 class ChatConsciousnessV41:
     """Финальная версия речевого ядра ISKRA-4 с мониторингом"""
     
     def __init__(self):
         # Валидация конфигурации
-        Config.validate()
+        try:
+            Config.validate()
+            logger.info("✅ Конфигурация Dialog Core загружена и проверена")
+        except Exception as e:
+            logger.error(f"❌ Ошибка валидации конфигурации: {e}")
+            raise
         
-        # Инициализация модулей
-        self.linguistic = PolyglossiaAdapter(resonance_factor=0.85)
-        self.sephirotic = SephiroticEngine()
-        self.symbiosis = SymbiosisCore()
-        self.sessions = SessionManager()
-        self.event_bus = SephirotBus()
-        self.heartbeat = HeartbeatCore()
-        self.ras_core = RasCore()
+        # Инициализация модулей с проверкой доступности
+        self.modules_loaded = {}
+        
+        # Лингвистический движок
+        if HAS_POLYGLOSSIA:
+            self.linguistic = PolyglossiaAdapter(resonance_factor=0.85)
+            self.modules_loaded['polyglossia'] = True
+            logger.info("✅ PolyglossiaAdapter загружен")
+        else:
+            self.linguistic = None
+            self.modules_loaded['polyglossia'] = False
+            logger.warning("⚠️ PolyglossiaAdapter не загружен")
+        
+        # Сефиротический движок
+        if HAS_SEPHIROTIC:
+            self.sephirotic = SephiroticEngine()
+            self.modules_loaded['sephirotic'] = True
+            logger.info("✅ SephiroticEngine загружен")
+        else:
+            self.sephirotic = None
+            self.modules_loaded['sephirotic'] = False
+            logger.warning("⚠️ SephiroticEngine не загружен")
+        
+        # Symbiosis Core
+        if HAS_SYMBIOSIS:
+            self.symbiosis = SymbiosisCore()
+            self.modules_loaded['symbiosis'] = True
+            logger.info("✅ SymbiosisCore загружен")
+        else:
+            self.symbiosis = None
+            self.modules_loaded['symbiosis'] = False
+            logger.warning("⚠️ SymbiosisCore не загружен")
+        
+        # Session Manager
+        if HAS_SESSION_MANAGER:
+            self.sessions = SessionManager()
+            self.modules_loaded['sessions'] = True
+            logger.info("✅ SessionManager загружен")
+        else:
+            self.sessions = None
+            self.modules_loaded['sessions'] = False
+            logger.warning("⚠️ SessionManager не загружен")
+        
+        # Шина событий
+        if HAS_SEPHIROT_BUS:
+            self.event_bus = SephirotBus()
+            self.modules_loaded['event_bus'] = True
+            logger.info("✅ SephirotBus загружен")
+        else:
+            self.event_bus = None
+            self.modules_loaded['event_bus'] = False
+            logger.warning("⚠️ SephirotBus не загружен")
+        
+        # Другие модули
+        self.heartbeat = HeartbeatCore() if HAS_HEARTBEAT else None
+        self.ras_core = RasCore() if HAS_RAS else None
         
         # Интеграционные движки
-        self.event_integration = RealEventBusIntegration(self.event_bus)
+        self.event_integration = RealEventBusIntegration(self.event_bus) if self.event_bus else None
         self.health_monitor = HealthMonitor()
         
         # Состояние
         self.current_autonomy = Config.DEFAULT_AUTONOMY_LEVEL
-        self.autonomy_levels = {
+        self.autonomy_levels = getattr(Config, 'AUTONOMY_LEVELS', {
             "disabled": 0.0,
             "low": 0.3,
             "medium": 0.6,
             "high": 0.9,
             "full": 1.0
-        }
+        })
         
         # Демон автономной речи
         self.autonomous_daemon = None
@@ -517,11 +611,14 @@ class ChatConsciousnessV41:
         logger.info(f"   Автономия: {self.current_autonomy}")
         logger.info(f"   Каналы: {Config.ENABLED_CHANNELS}")
         logger.info(f"   База: {Config.SYSTEM_BASE_URL}")
+        logger.info(f"   Загружено модулей: {sum(self.modules_loaded.values())}/{len(self.modules_loaded)}")
     
     def start(self):
         """Запуск системы"""
         # Запуск демона автономной речи
-        self.autonomous_daemon = AutonomousSpeechDaemonV41(self)
+        if self.autonomous_daemon is None:
+            self.autonomous_daemon = AutonomousSpeechDaemonV41(self)
+        
         self.autonomous_daemon.start()
         
         # Запуск фонового мониторинга здоровья
@@ -560,7 +657,7 @@ class ChatConsciousnessV41:
                 logger.error(f"Ошибка мониторинга здоровья: {e}")
                 await asyncio.sleep(30)
     
-    def process_message(self, user_message: str, session_id: str = None) -> Dict:
+    def process_message(self, user_message: str, session_id: str = None, user_id: str = "anonymous") -> Dict:
         """Обработка реактивного сообщения"""
         start_time = time.time()
         
@@ -610,6 +707,14 @@ class ChatConsciousnessV41:
     
     def _analyze_with_polyglossia(self, text: str) -> Dict:
         """Лингвистический анализ"""
+        if self.linguistic is None:
+            return {
+                "normalized_text": text.strip().lower(),
+                "language": "ru",
+                "sentiment": "neutral",
+                "original_length": len(text)
+            }
+        
         try:
             lang_result = self.linguistic.process_command("detect", {"text": text})
             emotion_result = self.linguistic.process_command("emotional_analysis", {"text": text})
@@ -630,6 +735,9 @@ class ChatConsciousnessV41:
     
     def _query_sephirotic_sync(self, query: Dict) -> Dict:
         """Синхронный запрос к сефиротическому движку"""
+        if self.sephirotic is None:
+            return {"insight": "Движок временно недоступен", "status": "unavailable"}
+        
         try:
             if hasattr(self.sephirotic, 'process_query'):
                 return self.sephirotic.process_query(query)
@@ -695,6 +803,9 @@ class ChatConsciousnessV41:
     
     def _extract_sentiment(self, emotion_result: Dict) -> str:
         """Извлечение тональности"""
+        if not emotion_result:
+            return "neutral"
+        
         result_str = str(emotion_result).lower()
         
         if "joy" in result_str:
@@ -714,7 +825,8 @@ class ChatConsciousnessV41:
             "version": "4.1",
             "status": "operational",
             "autonomy_level": self.current_autonomy,
-            "daemon_running": self.autonomous_daemon.running if self.autonomous_daemon else False,
+            "daemon_running": self.autonomous_daemon.is_running() if self.autonomous_daemon else False,
+            "modules_loaded": self.modules_loaded,
             "metrics": metrics,
             "config": {
                 "enabled_channels": Config.ENABLED_CHANNELS,
@@ -725,6 +837,8 @@ class ChatConsciousnessV41:
         }
 
 
+# ========== ДЕМОН АВТОНОМНОЙ РЕЧИ ==========
+
 class AutonomousSpeechDaemonV41:
     """Демон автономной речи v4.1"""
     
@@ -733,6 +847,7 @@ class AutonomousSpeechDaemonV41:
         self.running = False
         self.thread = None
         self.poll_interval = Config.EVENT_POLL_INTERVAL
+        self.start_time = None
         
         logger.info(f"✅ AutonomousSpeechDaemon v4.1 инициализирован")
     
@@ -742,6 +857,7 @@ class AutonomousSpeechDaemonV41:
             return
         
         self.running = True
+        self.start_time = datetime.utcnow()
         self.thread = threading.Thread(target=self._run_loop, daemon=True)
         self.thread.start()
         
@@ -755,6 +871,10 @@ class AutonomousSpeechDaemonV41:
         
         logger.info("⏹️ AutonomousSpeechDaemon остановлен")
     
+    def is_running(self) -> bool:
+        """Проверка работы демона"""
+        return self.running
+    
     def _run_loop(self):
         """Основной цикл демона"""
         loop = asyncio.new_event_loop()
@@ -763,9 +883,11 @@ class AutonomousSpeechDaemonV41:
         while self.running:
             try:
                 # Асинхронный опрос событий
-                events = loop.run_until_complete(
-                    self.chat_core.event_integration.poll_events_async()
-                )
+                events = []
+                if self.chat_core.event_integration:
+                    events = loop.run_until_complete(
+                        self.chat_core.event_integration.poll_events_async()
+                    )
                 
                 # Обработка событий
                 for event in events:
@@ -807,110 +929,7 @@ class AutonomousSpeechDaemonV41:
             # self._process_event(event)
 
 
-# ==================== HTTP СЛОЙ ====================
-
-chat_core = ChatConsciousnessV41()
-
-
-def setup_chat_endpoint(app):
-    """Настройка эндпоинтов"""
-    
-    @app.route('/chat', methods=['GET', 'POST'])
-    def chat_endpoint():
-        if request.method == 'GET':
-            return jsonify({
-                "system": "ISKRA-4 Chat Consciousness v4.1",
-                "status": "operational",
-                "version": "4.1",
-                "health": chat_core.get_health_status(),
-                "endpoints": {
-                    "chat": "POST /chat - Отправить сообщение",
-                    "health": "GET /chat/health - Статус здоровья",
-                    "metrics": "GET /chat/metrics - Метрики",
-                    "config": "GET /chat/config - Конфигурация",
-                    "autonomy": "GET /chat/autonomy/<level> - Изменить автономию"
-                },
-                "documentation": "https://iskra-4.cloud/docs/chat"
-            })
-        
-        # POST обработка
-        data = request.get_json()
-        if not data or 'message' not in data:
-            return jsonify({"error": "Требуется поле 'message'"}), 400
-        
-        result = chat_core.process_message(
-            data['message'],
-            data.get('session_id')
-        )
-        
-        return jsonify(result)
-    
-    @app.route('/chat/health', methods=['GET'])
-    def health_check():
-        """Проверка здоровья"""
-        return jsonify(chat_core.get_health_status())
-    
-    @app.route('/chat/metrics', methods=['GET'])
-    def get_metrics():
-        """Получение метрик"""
-        return jsonify(chat_core.health_monitor.get_metrics())
-    
-    @app.route('/chat/config', methods=['GET'])
-    def get_config():
-        """Получение конфигурации"""
-        return jsonify({
-            "autonomy_level": chat_core.current_autonomy,
-            "enabled_channels": Config.ENABLED_CHANNELS,
-            "system_base_url": Config.SYSTEM_BASE_URL,
-            "poll_interval": Config.EVENT_POLL_INTERVAL,
-            "message_limits": Config.MESSAGE_LIMITS,
-            "min_resonance": Config.MIN_RESONANCE_FOR_SPEECH
-        })
-    
-    @app.route('/chat/autonomy/<level>', methods=['GET'])
-    def set_autonomy(level: str):
-        """Установка уровня автономии"""
-        if level in chat_core.autonomy_levels:
-            old_level = chat_core.current_autonomy
-            chat_core.current_autonomy = level
-            
-            logger.info(f"🔧 Автономия изменена: {old_level} → {level}")
-            
-            return jsonify({
-                "success": True,
-                "old_level": old_level,
-                "new_level": level,
-                "autonomy_value": chat_core.autonomy_levels[level]
-            })
-        
-        return jsonify({
-            "success": False,
-            "error": f"Неизвестный уровень: {level}",
-            "valid_levels": list(chat_core.autonomy_levels.keys())
-        }), 400
-    
-    @app.route('/chat/start', methods=['GET'])
-    def start_system():
-        """Запуск системы"""
-        chat_core.start()
-        return jsonify({
-            "success": True,
-            "message": "ChatConsciousness запущен",
-            "timestamp": datetime.utcnow().isoformat()
-        })
-    
-        @app.route('/chat/stop', methods=['GET'])
-    def stop_system():
-        """Остановка системы"""
-        chat_core.stop()
-        return jsonify({
-            "success": True,
-            "message": "ChatConsciousness остановлен",
-            "timestamp": datetime.utcnow().isoformat()
-        })
-
-
-# ==================== ТЕСТЫ ====================
+# ========== ТЕСТОВЫЙ КЛАСС ==========
 
 class TestChatConsciousness:
     """Юнит-тесты речевого ядра"""
@@ -964,20 +983,21 @@ class TestChatConsciousness:
         print("\n🧪 Тест интеграций:")
         
         integrations = [
-            ("Polyglossia", True),
-            ("SephiroticEngine", True),
-            ("SymbiosisCore", True),
-            ("SessionManager", True),
-            ("EventBus", True)
+            ("Polyglossia", HAS_POLYGLOSSIA),
+            ("SephiroticEngine", HAS_SEPHIROTIC),
+            ("SymbiosisCore", HAS_SYMBIOSIS),
+            ("SessionManager", HAS_SESSION_MANAGER),
+            ("EventBus", HAS_SEPHIROT_BUS)
         ]
         
-        for name, required in integrations:
-            print(f"   {name}: {'✓' if required else '⚠'}")
+        for name, available in integrations:
+            status = "✓" if available else "⚠"
+            print(f"   {name}: {status}")
         
         print("✅ Тест интеграций завершен")
 
 
-# ==================== ЗАПУСК ====================
+# ========== ЗАПУСК ТЕСТОВ ==========
 
 if __name__ == "__main__":
     print("=" * 70)
@@ -1047,3 +1067,19 @@ if __name__ == "__main__":
     print("   7. Автономная речь по событиям системы")
     print("   8. Подробные метрики и логирование")
     print("\n🚀 Уровень: 10/10 - PRODUCTION READY")
+
+
+# ========== ЭКСПОРТ ОСНОВНЫХ КЛАССОВ ==========
+
+__all__ = [
+    "ChatConsciousnessV41",
+    "AutonomousSpeechDaemonV41",
+    "RealEventBusIntegration",
+    "HealthMonitor",
+    "AsyncHTTPClient",
+    "SpeechEvent",
+    "SpeechDecision",
+    "SpeechPriority",
+    "SpeechIntent",
+    "TestChatConsciousness"
+]
