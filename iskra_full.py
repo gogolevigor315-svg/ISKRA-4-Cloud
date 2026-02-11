@@ -45,6 +45,36 @@ except ImportError as e:
     
     print("⚠️  Используем fallback SYMBIOSIS")
 
+# ============================================================================
+# ИМПОРТ DIALOG CORE v4.1
+# ============================================================================
+print("🧠 ИМПОРТ DIALOG CORE v4.1...")
+
+try:
+    from iskra_modules.dialog_core import setup_chat_endpoint
+    HAS_DIALOG_CORE = True
+    print("✅ Dialog Core v4.1 модуль найден")
+except ImportError as e:
+    print(f"❌ Dialog Core не загружен: {e}")
+    HAS_DIALOG_CORE = False
+    
+    # Создаем fallback функцию
+    def setup_chat_endpoint(app):
+        """Fallback функция если Dialog Core не загружен"""
+        from flask import jsonify
+        from datetime import datetime
+        
+        @app.route('/chat', methods=['GET'])
+        def chat_fallback():
+            return jsonify({
+                "error": "Dialog Core не загружен",
+                "message": "Модуль dialog_core не установлен или содержит ошибки",
+                "status": 503,
+                "timestamp": datetime.utcnow().isoformat()
+            }), 503
+        return app
+
+print(f"📊 Dialog Core статус: {'✅ Доступен' if HAS_DIALOG_CORE else '❌ Недоступен'}")
 print("=" * 60)
 
 # ============================================================================
@@ -73,6 +103,96 @@ import importlib
 import importlib.util
 
 print("✅ Импорты успешны")
+
+# ============================================================================
+# СОЗДАНИЕ FLASK ПРИЛОЖЕНИЯ
+# ============================================================================
+print("🚀 СОЗДАНИЕ FLASK APP...")
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'iskra-4-default-secret-key-2026')
+app.config['JSON_SORT_KEYS'] = False
+app.config['JSONIFY_PRETTYPRINT_REGULAR'] = True
+
+# Включение CORS если нужно
+try:
+    from flask_cors import CORS
+    CORS(app)
+    print("✅ CORS включен")
+except ImportError:
+    print("⚠️  Flask-CORS не установлен, CORS отключен")
+
+print("✅ Flask app создан")
+
+# ============================================================================
+# ИНИЦИАЛИЗАЦИЯ DIALOG CORE v4.1
+# ============================================================================
+print("🧠 ИНИЦИАЛИЗАЦИЯ DIALOG CORE...")
+
+# Регистрация Dialog Core эндпоинтов
+if HAS_DIALOG_CORE:
+    try:
+        # Регистрируем все эндпоинты Dialog Core
+        setup_chat_endpoint(app)
+        print("✅ Dialog Core v4.1 эндпоинты зарегистрированы")
+        print("   📡 Доступные эндпоинты Dialog Core:")
+        print("   ├── GET/POST /chat          - Основной диалог")
+        print("   ├── GET /chat/health        - Проверка здоровья")
+        print("   ├── GET /chat/metrics       - Метрики производительности")
+        print("   ├── GET /chat/config        - Конфигурация")
+        print("   ├── GET /chat/autonomy/*    - Управление автономией")
+        print("   ├── GET /chat/start         - Запуск автономной речи")
+        print("   └── GET /chat/stop          - Остановка автономной речи")
+    except Exception as e:
+        print(f"❌ Ошибка инициализации Dialog Core: {e}")
+        print(traceback.format_exc())
+        HAS_DIALOG_CORE = False
+        print("⚠️  Dialog Core переведен в fallback режим")
+else:
+    print("⚠️  Dialog Core недоступен - эндпоинты не зарегистрированы")
+
+# ============================================================================
+# ОСНОВНЫЕ ЭНДПОИНТЫ СИСТЕМЫ
+# ============================================================================
+print("🌐 РЕГИСТРАЦИЯ ОСНОВНЫХ ЭНДПОИНТОВ...")
+
+@app.route('/')
+def index():
+    """Главная страница"""
+    system_info = {
+        "system": "ISKRA-4 Cloud",
+        "version": "4.0.1",
+        "status": "operational",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "modules": {
+            "symbiosis": symbiosis_bp is not None,
+            "dialog_core": HAS_DIALOG_CORE,
+            "dialog_core_version": "4.1.0" if HAS_DIALOG_CORE else "unavailable"
+        },
+        "endpoints": {
+            "/": "Эта страница",
+            "/health": "Проверка здоровья системы",
+            "/modules": "Список модулей",
+            "/activate": "Активация системы",
+            "/sephirot/state": "Состояние сефирот",
+            "/system/health": "Детальное здоровье",
+            "/chat": "Диалоговое ядро" if HAS_DIALOG_CORE else "Dialog Core (недоступно)"
+        }
+    }
+    return jsonify(system_info)
+
+@app.route('/health')
+def health():
+    """Проверка здоровья системы"""
+    return jsonify({
+        "status": "healthy",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "uptime": time.time() - start_time,
+        "modules": {
+            "symbiosis": "loaded" if symbiosis_bp is not None else "missing",
+            "dialog_core": "loaded" if HAS_DIALOG_CORE else "missing"
+        }
+    })
 
 # ============================================================================
 # НАСТРОЙКА ЛОГГИРОВАНИЯ
@@ -2131,6 +2251,59 @@ def system_health():
         "activation_ready": activation_healthy,
         "timestamp": datetime.now(timezone.utc).isoformat()
     })
+
+# ============================================================================
+# DIALOG CORE v4.1 - FALLBACK CHAT ENDPOINTS (если модуль не загружен)
+# ============================================================================
+if not HAS_DIALOG_CORE:
+    @app.route('/chat', methods=['GET'])
+    def chat_fallback_global():
+        """Fallback endpoint когда Dialog Core не загружен"""
+        return jsonify({
+            "system": "ISKRA-4 Dialog Core",
+            "status": "unavailable",
+            "message": "Dialog Core модуль не загружен",
+            "reason": "Модуль iskra_modules/dialog_core/ не найден или содержит ошибки",
+            "available_endpoints": {
+                "/chat": "GET/POST - Диалоговое ядро (недоступно)",
+                "/chat/health": "GET - Здоровье (недоступно)",
+                "/chat/metrics": "GET - Метрики (недоступно)",
+                "/chat/config": "GET - Конфигурация (недоступно)",
+                "/chat/autonomy/<level>": "GET - Автономия (недоступно)",
+                "/chat/start": "GET - Запуск (недоступно)",
+                "/chat/stop": "GET - Остановка (недоступно)"
+            },
+            "instructions": [
+                "1. Убедитесь что папка iskra_modules/dialog_core/ существует",
+                "2. Проверьте наличие файлов: config.py, chat_consciousness.py, api.py, __init__.py",
+                "3. Проверьте импорты модулей в chat_consciousness.py",
+                "4. Текущий статус Dialog Core: module_not_loaded"
+            ],
+            "system_info": {
+                "iskra_modules_exists": os.path.exists("iskra_modules"),
+                "dialog_core_exists": os.path.exists("iskra_modules/dialog_core") if os.path.exists("iskra_modules") else False,
+                "python_path": sys.path[:3],
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            },
+            "fallback": True
+        }), 503
+    
+    @app.route('/chat', methods=['POST'])
+    def chat_fallback_post():
+        """Fallback для POST запросов к /chat"""
+        data = request.get_json(silent=True) or {}
+        message = data.get('message', '')
+        
+        return jsonify({
+            "error": "Dialog Core недоступен",
+            "message": "Не могу обработать сообщение. Dialog Core не загружен.",
+            "received_message": message[:100] + "..." if len(message) > 100 else message,
+            "suggestion": "Используйте GET /chat для информации об устранении проблемы",
+            "fallback": True,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }), 503
+    
+    print("⚠️  Dialog Core fallback эндпоинты зарегистрированы")
 
 # ============================================================================
 # ЗАПУСК СЕРВЕРА (ОБНОВЛЁННЫЙ С АВТОАКТИВАЦИЕЙ)
