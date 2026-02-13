@@ -80,6 +80,12 @@ class SephiroticBus:
     """
     
     def __init__(self, name: str = "SephiroticBus"):
+        # ===== КОСТЫЛЬ ДЛЯ СИНГЛТОНА =====
+        global _bus_instance
+        if '_bus_instance' in globals() and _bus_instance is not None:
+            self.__dict__ = _bus_instance.__dict__
+            return
+        
         self.name = name
         self.nodes: Dict[str, SephiroticNode] = {}           # Зарегистрированные узлы
         self.subscriptions: Dict[SignalType, List[Callable]] = defaultdict(list)
@@ -145,6 +151,10 @@ class SephiroticBus:
             self.total_paths = 22
             self.logger.info(f"✅ Древо расширено до {self.total_paths} каналов")
             self.logger.info(f"✅ DAAT интегрирована. Резонанс: {getattr(daat, 'resonance_index', 0):.3f}")
+            
+            # ===== СОХРАНЯЕМ ЭКЗЕМПЛЯР =====
+            global _bus_instance
+            _bus_instance = self
             
         except ImportError as e:
             self.logger.warning(f"⚠️ DAAT модуль не найден: {e}")
