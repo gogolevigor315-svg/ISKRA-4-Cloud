@@ -668,7 +668,7 @@ class IntegrityVerifier:
         return diagnostics
 
 # ============================================================================
-# ЗАГРРУЗЧИК МОДУЛЕЙ (ОБНОВЛЁННЫЙ С АВТОАКТИВАЦИЕЙ)
+# ЗАГРУЗЧИК МОДУЛЕЙ (ОБНОВЛЁННЫЙ С АВТОАКТИВАЦИЕЙ)
 # ============================================================================
 
 class DS24ModuleLoader:
@@ -885,12 +885,9 @@ print("✅ ISKRA-4 Modules package loaded")
         total_start = time.perf_counter()
         
         # 🔥 ЗАГРУЖАЕМ ВСЕ МОДУЛИ - НИЧЕГО НЕ ПРОПУСКАЕМ
-        # Загрузка в алфавитном порядке для детерминизма
         for module_path in sorted(module_files):
             module_name = os.path.splitext(os.path.basename(module_path))[0]
-            
             logger.info(f"📦 Загружаю: {module_name}")
-            
             result = self.load_single_module(module_name, module_path)
             results.append(result)
 
@@ -916,120 +913,67 @@ print("✅ ISKRA-4 Modules package loaded")
             bus.total_paths = 22
             logger.info(f"✅ Древо расширено до {bus.total_paths} каналов")
         
-        # Добавить в routing_table
-        if 'DAAT' not in bus.routing_table:
-            bus.routing_table['DAAT'] = {
-                'in': ['BINAH', 'CHOKMAH'],
-                'out': ['TIFERET'],
-                'signal_types': ['SEPHIROTIC', 'RESONANCE'],
-                'stability_factor': 0.95
-            }
-            logger.info("✅ DAAT добавлена в таблицу маршрутизации")
-        
-        logger.info(f"✅ DAAT интегрирована. Резонанс: {getattr(daat, 'resonance_index', 0):.3f}")
-        
-    except Exception as e:
-        logger.warning(f"⚠️ Ошибка интеграции DAAT: {e}")
-        
-        # 🔥 ПОПЫТКА ИНИЦИАЛИЗАЦИИ СЕФИРОТИЧЕСКОЙ СИСТЕМЫ С АВТОАКТИВАЦИЕЙ
-        try:
-            # ЭКСТРЕННЫЙ ФИКС: Создаём функцию заранее на случай если модуль не найден
-            def emergency_sephirotic_stub(config=None):
-                import time
-                return {
-                    "success": False,
-                    "error": "sephirotic_engine module not available",
-                    "engine": None,
-                    "message": "Emergency stub - using local sephirotic tree",
-                    "timestamp": time.time()
+            if 'DAAT' not in bus.routing_table:
+                bus.routing_table['DAAT'] = {
+                    'in': ['BINAH', 'CHOKMAH'],
+                    'out': ['TIFERET'],
+                    'signal_types': ['SEPHIROTIC', 'RESONANCE'],
+                    'stability_factor': 0.95
                 }
-            
-            # Пытаемся импортировать, но не падаем если не получается
-            try:
-                from sephirotic_engine import initialize_sephirotic_in_iskra
-                logger.info("✅ Модуль sephirotic_engine найден, импортирую...")
-                sephirot_result = await initialize_sephirotic_in_iskra()
-            except ImportError as import_err:
-                logger.warning(f"⚠️ sephirotic_engine не найден: {import_err}")
-                sephirot_result = emergency_sephirotic_stub()
-            except Exception as func_err:
-                logger.error(f"⚠️ Ошибка в sephirotic_engine: {func_err}")
-                sephirot_result = emergency_sephirotic_stub()
+                logger.info("✅ DAAT добавлена в таблицу маршрутизации")
+        
+            logger.info(f"✅ DAAT интегрирована. Резонанс: {getattr(daat, 'resonance_index', 0):.3f}")
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка интеграции DAAT: {e}")
+
+        # ===== ИНИЦИАЛИЗАЦИЯ СЕФИРОТИЧЕСКОЙ СИСТЕМЫ =====
+        try:
+            from sephirotic_engine import initialize_sephirotic_in_iskra
+            logger.info("✅ Модуль sephirotic_engine найден, импортирую...")
+            sephirot_result = await initialize_sephirotic_in_iskra()
             
             if sephirot_result.get("success") and sephirot_result.get("engine"):
                 self.sephirotic_engine = sephirot_result["engine"]
-                logger.info("✅ Внешняя сефиротическая система инициализирована")
                 self.sephirotic_tree = self.sephirotic_engine.tree
-                
-                # 🔥 АВТОАКТИВАЦИЯ ВНЕШНЕГО ДВИЖКА
-                if self.auto_activate:
-                    self.stats["auto_activation_attempted"] += 1
-                    try:
-                        logger.info("⚡ Активация внешнего сефиротического движка...")
-                        activation_result = await self.sephirotic_engine.activate()
-                        self.stats["auto_activation_successful"] += 1
-                        logger.info(f"✅ Внешний движок автоактивирован: {activation_result.get('status', 'unknown')}")
-                        if activation_result.get('success'):
-                            logger.info(f"   Coherence: {activation_result.get('personality_coherence', 0):.3f}")
-                    except Exception as e:
-                        self.stats["auto_activation_failed"] += 1
-                        logger.error(f"⚠️ Ошибка активации внешнего движка: {e}")
-            else:
-                logger.warning(f"⚠️ Внешняя сефиротическая система недоступна: {sephirot_result.get('error', 'unknown')}")
-                # Создаём локальное дерево как fallback
+                logger.info("✅ Внешняя сефиротическая система инициализирована")
+        except ImportError:
+            logger.warning("⚠️ sephirotic_engine не найден, создаю локальное дерево")
+            try:
+                from sephirot_base import SephiroticTree
                 self.sephirotic_tree = SephiroticTree()
                 logger.info("🌳 Локальное сефиротическое дерево создано")
+            except Exception as e2:
+                logger.error(f"❌ Не удалось создать локальное дерево: {e2}")
+        except Exception as e:
+            logger.error(f"❌ Ошибка инициализации: {e}")
+            try:
+                from sephirot_base import SephiroticTree
+                self.sephirotic_tree = SephiroticTree()
+                logger.info("🌳 Локальное сефиротическое дерево создано (fallback)")
+            except Exception as e2:
+                logger.error(f"❌ Критическая ошибка: {e2}")
+        
+        # ===== АВТОАКТИВАЦИЯ ДЕРЕВА =====
+        if self.auto_activate and self.sephirotic_tree:
+            self.stats["auto_activation_attempted"] += 1
+            try:
+                logger.info("⚡ Активация сефиротического дерева...")
                 
-                # 🔥 АВТОАКТИВАЦИЯ ЛОКАЛЬНОГО ДЕРЕВА
-                if self.auto_activate:
-                    self.stats["auto_activation_attempted"] += 1
-                    try:
-                        logger.info("⚡ Активация локального сефиротического дерева...")
+                if hasattr(self.sephirotic_tree, 'activate'):
+                    if asyncio.iscoroutinefunction(self.sephirotic_tree.activate):
+                        activation_result = await self.sephirotic_tree.activate()
+                    else:
                         activation_result = self.sephirotic_tree.activate()
-                        self.stats["auto_activation_successful"] += 1
-                        logger.info(f"✅ Локальное дерево автоактивировано")
+                    
+                    self.stats["auto_activation_successful"] += 1
+                    logger.info(f"✅ Сефиротическое дерево автоактивировано")
+                    
+                    if isinstance(activation_result, dict):
                         logger.info(f"   Резонанс: {activation_result.get('total_resonance', 0):.1f}")
                         logger.info(f"   Энергия: {activation_result.get('total_energy', 0):.1f}")
-                    except Exception as e:
-                        self.stats["auto_activation_failed"] += 1
-                        logger.error(f"⚠️ Ошибка автоактивации локального дерева: {e}")
-                
-        except ImportError as e:
-            logger.warning(f"⚠️ Модуль sephirotic_engine не найден (внешний блок): {e}")
-            # Создаём локальное дерево
-            self.sephirotic_tree = SephiroticTree()
-            logger.info("🌳 Локальное сефиротическое дерево создано")
-            
-            # 🔥 АВТОАКТИВАЦИЯ ЛОКАЛЬНОГО ДЕРЕВА (IMPORT ERROR)
-            if self.auto_activate:
-                self.stats["auto_activation_attempted"] += 1
-                try:
-                    logger.info("⚡ Активация локального дерева (import error)...")
-                    activation_result = self.sephirotic_tree.activate()
-                    self.stats["auto_activation_successful"] += 1
-                    logger.info(f"✅ Локальное дерево автоактивировано")
-                    logger.info(f"   Резонанс: {activation_result.get('total_resonance', 0):.1f}")
-                except Exception as e2:
-                    self.stats["auto_activation_failed"] += 1
-                    logger.error(f"⚠️ Ошибка автоактивации: {e2}")
-                    
-        except Exception as e:
-            logger.error(f"💥 Ошибка инициализации сефиротической системы: {e}")
-            self.sephirotic_tree = SephiroticTree()
-            logger.info("🌳 Локальное сефиротическое дерево создано (fallback)")
-            
-            # 🔥 АВТОАКТИВАЦИЯ ЛОКАЛЬНОГО ДЕРЕВА (ОБЩАЯ ОШИБКА)
-            if self.auto_activate:
-                self.stats["auto_activation_attempted"] += 1
-                try:
-                    logger.info("⚡ Активация локального дерева (fallback)...")
-                    activation_result = self.sephirotic_tree.activate()
-                    self.stats["auto_activation_successful"] += 1
-                    logger.info(f"✅ Локальное дерево автоактивировано (fallback)")
-                    logger.info(f"   Резонанс: {activation_result.get('total_resonance', 0):.1f}")
-                except Exception as e2:
-                    self.stats["auto_activation_failed"] += 1
-                    logger.error(f"⚠️ Ошибка автоактивации fallback: {e2}")
+            except Exception as e:
+                self.stats["auto_activation_failed"] += 1
+                logger.error(f"⚠️ Ошибка автоактивации дерева: {e}")
         
         total_time = (time.perf_counter() - total_start) * 1000
         self.stats["total_load_time_ms"] = total_time
@@ -1045,7 +989,16 @@ print("✅ ISKRA-4 Modules package loaded")
         logger.info(f"❌ Ошибок: {failed}")
         logger.info(f"🌳 Сефирот-система: {'Да' if self.sephirotic_tree else 'Нет'}")
         logger.info(f"⚡ Автоактивация: {self.stats['auto_activation_successful']}/{self.stats['auto_activation_attempted']} успешно")
-        logger.info(f"📊 Резонанс: {self.sephirotic_tree.get_tree_state()['average_resonance'] if self.sephirotic_tree else 0.0:.3f}")
+        
+        if self.sephirotic_tree:
+            try:
+                tree_state = self.sephirotic_tree.get_tree_state()
+                logger.info(f"📊 Резонанс: {tree_state.get('average_resonance', 0):.3f}")
+            except:
+                logger.info("📊 Резонанс: 0.0")
+        else:
+            logger.info("📊 Резонанс: 0.0")
+            
         logger.info(f"⏱️  Общее время: {total_time:.1f} мс")
         logger.info(f"{'='*60}")
         
