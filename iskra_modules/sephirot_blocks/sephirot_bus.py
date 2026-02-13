@@ -80,8 +80,8 @@ class SephiroticBus:
     """
     
     def __init__(self, name: str = "SephiroticBus"):
+        global _bus_instance  # ← ДОБАВЬ ЭТУ СТРОКУ В САМОЕ НАЧАЛО!
         # ===== КОСТЫЛЬ ДЛЯ СИНГЛТОНА =====
-        global _bus_instance
         if '_bus_instance' in globals() and _bus_instance is not None:
             self.__dict__ = _bus_instance.__dict__
             return
