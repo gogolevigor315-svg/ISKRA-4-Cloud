@@ -124,6 +124,43 @@ except ImportError:
 
 print("✅ Flask app создан")
 
+# ===== ИНФЕРНАЛЬНЫЙ ПРОТОКОЛ: ПРИНУДИТЕЛЬНАЯ ИНТЕГРАЦИЯ ДААТ =====
+try:
+    from iskra_modules.sephirot_blocks.DAAT.daat_core import get_daat
+    from iskra_modules.sephirot_bus import SephiroticBus
+    
+    print("🔥 Принудительная интеграция DAAT...")
+    daat = get_daat()
+    bus = SephiroticBus()
+    
+    if 'DAAT' not in bus.nodes:
+        class DaatNodeAdapter:
+            def __init__(self, daat_instance):
+                self.daat = daat_instance
+                self.name = "DAAT"
+            def get_state(self):
+                return {'resonance': getattr(self.daat, 'resonance_index', 0)}
+        bus.nodes['DAAT'] = DaatNodeAdapter(daat)
+        print("✅ DAAT узел добавлен в шину")
+    
+    bus.total_paths = 22
+    print(f"✅ Древо расширено до {bus.total_paths} каналов")
+    
+    # Дополнительно: добавить в routing_table
+    if 'DAAT' not in bus.routing_table:
+        bus.routing_table['DAAT'] = {
+            'in': ['BINAH', 'CHOKMAH'],
+            'out': ['TIFERET'],
+            'signal_types': ['SEPHIROTIC', 'RESONANCE'],
+            'stability_factor': 0.95
+        }
+        print("✅ DAAT добавлена в таблицу маршрутизации")
+    
+    print(f"✅ DAAT интегрирована. Резонанс: {getattr(daat, 'resonance_index', 0):.3f}")
+    
+except Exception as e:
+    print(f"⚠️ Ошибка интеграции DAAT: {e}")
+
 # ============================================================================
 # ДОБАВЬТЕ ЭТОТ КОД:
 # ============================================================================
