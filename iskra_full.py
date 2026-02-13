@@ -1013,7 +1013,7 @@ print("✅ ISKRA-4 Modules package loaded")
             "results": results,
             "sephirot_loaded": self.sephirotic_tree is not None,
             "external_sephirot": self.sephirotic_engine is not None,
-            "sephirot_activated": self.sephirotic_tree.activated if self.sephirotic_tree else False,
+            "sephirot_activated": False,
             "average_resonance": self.sephirotic_tree.get_tree_state()['average_resonance'] if self.sephirotic_tree else 0.0,
             "auto_activation_stats": {
                 "attempted": self.stats["auto_activation_attempted"],
