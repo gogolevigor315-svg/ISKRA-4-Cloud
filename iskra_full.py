@@ -893,6 +893,43 @@ print("✅ ISKRA-4 Modules package loaded")
             
             result = self.load_single_module(module_name, module_path)
             results.append(result)
+
+        # ===== ИНТЕГРАЦИЯ ДААТ ПОСЛЕ ЗАГРУЗКИ ВСЕХ МОДУЛЕЙ =====
+        try:
+            from iskra_modules.sephirot_blocks.DAAT.daat_core import get_daat
+            from iskra_modules.sephirot_bus import SephiroticBus
+        
+            logger.info("🔥 Интеграция DAAT после загрузки модулей...")
+            daat = get_daat()
+            bus = SephiroticBus()
+        
+            if 'DAAT' not in bus.nodes:
+                class DaatNodeAdapter:
+                    def __init__(self, daat_instance):
+                        self.daat = daat_instance
+                        self.name = "DAAT"
+                    def get_state(self):
+                        return {'resonance': getattr(self.daat, 'resonance_index', 0)}
+                bus.nodes['DAAT'] = DaatNodeAdapter(daat)
+                logger.info("✅ DAAT узел добавлен в шину")
+        
+            bus.total_paths = 22
+            logger.info(f"✅ Древо расширено до {bus.total_paths} каналов")
+        
+        # Добавить в routing_table
+        if 'DAAT' not in bus.routing_table:
+            bus.routing_table['DAAT'] = {
+                'in': ['BINAH', 'CHOKMAH'],
+                'out': ['TIFERET'],
+                'signal_types': ['SEPHIROTIC', 'RESONANCE'],
+                'stability_factor': 0.95
+            }
+            logger.info("✅ DAAT добавлена в таблицу маршрутизации")
+        
+        logger.info(f"✅ DAAT интегрирована. Резонанс: {getattr(daat, 'resonance_index', 0):.3f}")
+        
+    except Exception as e:
+        logger.warning(f"⚠️ Ошибка интеграции DAAT: {e}")
         
         # 🔥 ПОПЫТКА ИНИЦИАЛИЗАЦИИ СЕФИРОТИЧЕСКОЙ СИСТЕМЫ С АВТОАКТИВАЦИЕЙ
         try:
