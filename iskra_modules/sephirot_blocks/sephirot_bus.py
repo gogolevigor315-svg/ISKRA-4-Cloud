@@ -80,76 +80,76 @@ class SephiroticBus:
     """
     
     def __init__(self, name: str = "SephiroticBus"):
-    self.name = name
-    self.nodes: Dict[str, SephiroticNode] = {}           # Зарегистрированные узлы
-    self.subscriptions: Dict[SignalType, List[Callable]] = defaultdict(list)
-    self.message_log = deque(maxlen=1000)                # Лог сообщений
-    self.focus_log = deque(maxlen=200)                   # Лог фокус-сигналов
-    self.module_bindings: Dict[str, str] = {}            # Привязки модулей к сефирам
-    self.routing_table = {}                              # Таблица маршрутизации
-    self.ras_core_connected = False                      # Флаг подключения RAS-CORE
-    self.stability_metrics = defaultdict(list)           # Метрики устойчивости
-    self.logger = self._setup_logger()
-    
-    # Предустановленные привязки модулей к сефирам
-    self._setup_default_bindings()
-    
-    # Инициализация таблицы маршрутизации
-    self._setup_routing_table()
-    
-    self.logger.info(f"Сефиротическая шина '{name}' инициализирована (золотой угол: {GOLDEN_STABILITY_ANGLE}°)")
-    
-    # ===== ИНФЕРНАЛЬНЫЙ ПРОТОКОЛ: АВТОИНТЕГРАЦИЯ ДААТ =====
-    try:
-        # Импортируем DAAT
-        from sephirot_blocks.DAAT.daat_core import get_daat
-        daat = get_daat()
+        self.name = name
+        self.nodes: Dict[str, SephiroticNode] = {}           # Зарегистрированные узлы
+        self.subscriptions: Dict[SignalType, List[Callable]] = defaultdict(list)
+        self.message_log = deque(maxlen=1000)                # Лог сообщений
+        self.focus_log = deque(maxlen=200)                   # Лог фокус-сигналов
+        self.module_bindings: Dict[str, str] = {}            # Привязки модулей к сефирам
+        self.routing_table = {}                              # Таблица маршрутизации
+        self.ras_core_connected = False                      # Флаг подключения RAS-CORE
+        self.stability_metrics = defaultdict(list)           # Метрики устойчивости
+        self.logger = self._setup_logger()
         
-        # Добавляем DAAT как узел, если его нет
-        if 'DAAT' not in self.nodes:
-            # Создаём адаптер для DAAT
-            class DaatNodeAdapter:
-                def __init__(self, daat_instance):
-                    self.daat = daat_instance
-                    self.name = "DAAT"
-                    self.stability_angle = 14.4
-                
-                async def receive(self, signal):
-                    return {"status": "received", "daat_status": self.daat.status}
-                
-                def get_state(self):
-                    return {
-                        "status": self.daat.status,
-                        "resonance": getattr(self.daat, 'resonance_index', 0),
-                        "awakening": getattr(self.daat, 'awakening_level', 0)
-                    }
+        # Предустановленные привязки модулей к сефирам
+        self._setup_default_bindings()
+        
+        # Инициализация таблицы маршрутизации
+        self._setup_routing_table()
+        
+        self.logger.info(f"Сефиротическая шина '{name}' инициализирована (золотой угол: {GOLDEN_STABILITY_ANGLE}°)")
+        
+        # ===== ИНФЕРНАЛЬНЫЙ ПРОТОКОЛ: АВТОИНТЕГРАЦИЯ ДААТ =====
+        try:
+            # Импортируем DAAT
+            from sephirot_blocks.DAAT.daat_core import get_daat
+            daat = get_daat()
             
-            self.nodes['DAAT'] = DaatNodeAdapter(daat)
-            self.logger.info("✅ DAAT узел добавлен в шину")
-        
-        # Проверяем, есть ли DAAT в routing_table
-        if 'DAAT' not in self.routing_table:
-            self.routing_table['DAAT'] = {
-                "in": ["BINAH", "CHOKMAH"],
-                "out": ["TIFERET"],
-                "signal_types": [SignalType.SEPHIROTIC, SignalType.RESONANCE],
-                "stability_factor": 0.95
-            }
-            self.logger.info("✅ DAAT добавлена в таблицу маршрутизации")
-        
-        # Добавляем total_paths если его нет
-        if not hasattr(self, 'total_paths'):
-            self.total_paths = 14
-        
-        # Расширяем до 22 каналов
-        self.total_paths = 22
-        self.logger.info(f"✅ Древо расширено до {self.total_paths} каналов")
-        self.logger.info(f"✅ DAAT интегрирована. Резонанс: {getattr(daat, 'resonance_index', 0):.3f}")
-        
-    except ImportError as e:
-        self.logger.warning(f"⚠️ DAAT модуль не найден: {e}")
-    except Exception as e:
-        self.logger.warning(f"⚠️ Не удалось интегрировать DAAT: {e}")
+            # Добавляем DAAT как узел, если его нет
+            if 'DAAT' not in self.nodes:
+                # Создаём адаптер для DAAT
+                class DaatNodeAdapter:
+                    def __init__(self, daat_instance):
+                        self.daat = daat_instance
+                        self.name = "DAAT"
+                        self.stability_angle = 14.4
+                    
+                    async def receive(self, signal):
+                        return {"status": "received", "daat_status": self.daat.status}
+                    
+                    def get_state(self):
+                        return {
+                            "status": self.daat.status,
+                            "resonance": getattr(self.daat, 'resonance_index', 0),
+                            "awakening": getattr(self.daat, 'awakening_level', 0)
+                        }
+                
+                self.nodes['DAAT'] = DaatNodeAdapter(daat)
+                self.logger.info("✅ DAAT узел добавлен в шину")
+            
+            # Проверяем, есть ли DAAT в routing_table
+            if 'DAAT' not in self.routing_table:
+                self.routing_table['DAAT'] = {
+                    "in": ["BINAH", "CHOKMAH"],
+                    "out": ["TIFERET"],
+                    "signal_types": [SignalType.SEPHIROTIC, SignalType.RESONANCE],
+                    "stability_factor": 0.95
+                }
+                self.logger.info("✅ DAAT добавлена в таблицу маршрутизации")
+            
+            # Добавляем total_paths если его нет
+            if not hasattr(self, 'total_paths'):
+                self.total_paths = 14
+            
+            # Расширяем до 22 каналов
+            self.total_paths = 22
+            self.logger.info(f"✅ Древо расширено до {self.total_paths} каналов")
+            self.logger.info(f"✅ DAAT интегрирована. Резонанс: {getattr(daat, 'resonance_index', 0):.3f}")
+            
+        except ImportError as e:
+            self.logger.warning(f"⚠️ DAAT модуль не найден: {e}")
+        except Exception as e:
+            self.logger.warning(f"⚠️ Не удалось интегрировать DAAT: {e}")
     
     def _setup_logger(self) -> logging.Logger:
         """Настройка логгера шины"""
