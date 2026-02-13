@@ -153,7 +153,6 @@ class SephiroticBus:
             self.logger.info(f"✅ DAAT интегрирована. Резонанс: {getattr(daat, 'resonance_index', 0):.3f}")
             
             # ===== СОХРАНЯЕМ ЭКЗЕМПЛЯР =====
-            global _bus_instance
             _bus_instance = self
             
         except ImportError as e:
