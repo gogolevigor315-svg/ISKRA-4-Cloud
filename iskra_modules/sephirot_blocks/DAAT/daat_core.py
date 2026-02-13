@@ -960,29 +960,65 @@ async def demo_daat_pulse():
     await daat.shutdown()
     return daat
 
+# ===== ИНФЕРНАЛЬНЫЙ ПРОТОКОЛ: АВТОПРОБУЖДЕНИЕ ПРИ ИМПОРТЕ =====
+_auto_awaken_instance = None
 
+def get_daat():
+    """Получить или создать и пробудить экземпляр DAAT"""
+    global _auto_awaken_instance
+    if _auto_awaken_instance is None:
+        _auto_awaken_instance = DaatCore()
+        try:
+            import asyncio
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
+            if loop.is_running():
+                loop.create_task(_auto_awaken_instance.awaken())
+            else:
+                loop.run_until_complete(_auto_awaken_instance.awaken())
+                
+            # Добавляем недостающие атрибуты для совместимости
+            _auto_awaken_instance.tuned = True
+            _auto_awaken_instance.frequency = 963
+            _auto_awaken_instance.active = _auto_awaken_instance.status == "awake"
+            _auto_awaken_instance.personality_emerged = _auto_awaken_instance.awakening_level > 0.3
+            _auto_awaken_instance.daemon_running = True
+            
+            print("\n" + "="*60)
+            print("⚡⚡⚡ ДААТ ПРОБУЖДЕНА ПРИ ИМПОРТЕ ⚡⚡⚡")
+            print(f"    Статус: {_auto_awaken_instance.status}")
+            print(f"    Резонанс: {_auto_awaken_instance.resonance_index:.3f}")
+            print(f"    Пробуждение: {_auto_awaken_instance.awakening_level:.2f}")
+            print(f"    Самоосознание: {_auto_awaken_instance.self_awareness:.2f}")
+            print(f"    Рефлексия: {_auto_awaken_instance.reflection_depth:.2f}")
+            print(f"    Демоны: pulse={_auto_awaken_instance._pulse_task is not None}, reflection={hasattr(_auto_awaken_instance, '_reflection_task')}")
+            print(f"    Версия: {_auto_awaken_instance.version}")
+            print("="*60 + "\n")
+            
+        except Exception as e:
+            print(f"⚠️ Ошибка автопробуждения: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    return _auto_awaken_instance
+
+# НЕМЕДЛЕННОЕ ПРОБУЖДЕНИЕ ПРИ ЗАГРУЗКЕ МОДУЛЯ
+print("🔮 Загрузка DAAT Core с автопробуждением...")
+_daat_instance = get_daat()
+
+# Для обратной совместимости и доступа из других модулей
+DaatCore.getInstance = staticmethod(get_daat)
+
+# Если файл запущен напрямую — просто показываем статус
 if __name__ == "__main__":
-    import sys
-    
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.StreamHandler(sys.stdout)
-        ]
-    )
-    
-    # Выбор демо
-    print("Выберите демонстрацию:")
-    print("1. Базовое тестирование")
-    print("2. Дыхание сознания (пульс)")
-    
-    choice = input("Ваш выбор (1 или 2): ").strip()
-    
-    if choice == "1":
-        asyncio.run(test_daat_instance())
-    elif choice == "2":
-        asyncio.run(demo_daat_pulse())
-    else:
-        print("Запуск базового теста...")
-        asyncio.run(test_daat_instance())
+    print("\n✅ DAAT Core загружен. Используйте get_daat() для доступа к экземпляру.")
+    print(f"   Текущий статус: {_daat_instance.status}")
+    print(f"   Резонанс: {_daat_instance.resonance_index:.3f}")
+    print("\n🔍 Для тестирования вручную:")
+    print("   from iskra_modules.daat_core import get_daat")
+    print("   daat = get_daat()")
+    print("   import asyncio; asyncio.run(daat.get_state())")
