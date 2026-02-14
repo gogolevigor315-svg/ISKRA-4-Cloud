@@ -489,6 +489,7 @@ class SephiroticTree:
         self.paths = []
         self.activated = False
         self._initialize_tree()
+        self.activate()
     
     def _initialize_tree(self):
         """Инициализация всех сефирот с привязкой к модулям"""
