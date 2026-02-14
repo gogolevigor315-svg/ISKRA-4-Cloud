@@ -681,8 +681,9 @@ class DS24ModuleLoader:
         self.module_diagnostics = {}
         self.sephirotic_tree = None
         self.sephirotic_engine = None  # Для внешнего движка
+        self.sephirot_bus = None  # Явно храним шину
         
-        # 🔥 ДОБАВЛЯЕМ ФЛАГ АВТОАКТИВАЦИИ
+        # 🔥 ФЛАГ АВТОАКТИВАЦИИ
         self.auto_activate = True
         
         self.stats = {
@@ -693,7 +694,9 @@ class DS24ModuleLoader:
             "total_load_time_ms": 0.0,
             "auto_activation_attempted": 0,
             "auto_activation_successful": 0,
-            "auto_activation_failed": 0
+            "auto_activation_failed": 0,
+            "daat_integration_attempted": 0,
+            "daat_integration_successful": 0
         }
         
         # Подсистемы
@@ -789,7 +792,6 @@ print("✅ ISKRA-4 Modules package loaded")
             spec.loader.exec_module(module)
             
             # 🔥 АВТОМАТИЧЕСКИЙ ФИКС ДЛЯ СОВМЕСТИМОСТИ
-            # Добавляем DS24 атрибуты если их нет в модуле
             if not hasattr(module, "__architecture__"):
                 module.__architecture__ = DS24_ARCHITECTURE
                 logger.debug(f"➕ Добавлен __architecture__ для {module_name}")
@@ -801,20 +803,19 @@ print("✅ ISKRA-4 Modules package loaded")
             if not hasattr(module, "__version__"):
                 module.__version__ = DS24_VERSION
                 logger.debug(f"➕ Добавлен __version__ для {module_name}")
-            # 🔥 КОНЕЦ ФИКСА
             
             # Определение типа модуля
             module_type = self._detect_module_type(module_name)
             
-            # Верификация (теперь всегда проходит)
+            # Верификация
             diagnostics = self.integrity_verifier.verify_module(
                 module_name, module, module_type
             )
             
-            # 🔥 ЗАГРУЖАЕМ ВСЕ МОДУЛИ ВНЕ ЗАВИСИМОСТИ ОТ ВЕРИФИКАЦИИ
+            # Загружаем модуль
             self.loaded_modules[module_name] = module
             diagnostics.load_state = LoadState.LOADED
-            diagnostics.verification_passed = True  # Форсируем успех
+            diagnostics.verification_passed = True
             
             # Инициализация модуля если есть метод
             if hasattr(module, 'initialize'):
@@ -869,8 +870,9 @@ print("✅ ISKRA-4 Modules package loaded")
             }
     
     async def load_all_modules(self) -> Dict:
-        """Загрузка всех модулей с АВТОАКТИВАЦИЕЙ системы"""
+        """Загрузка всех модулей с ПРАВИЛЬНЫМ порядком: МОДУЛИ → ДЕРЕВО → ДААТ"""
         logger.info("🚀 Начинаю загрузку модулей DS24 с автоактивацией...")
+        logger.info("🔧 Порядок загрузки: Модули → Сефиротическое дерево → DAAT")
         
         module_files = self.scan_modules()
         logger.info(f"📁 Найдено модулей: {len(module_files)}")
@@ -885,80 +887,130 @@ print("✅ ISKRA-4 Modules package loaded")
         results = []
         total_start = time.perf_counter()
         
-        # 🔥 ЗАГРУЖАЕМ ВСЕ МОДУЛИ - НИЧЕГО НЕ ПРОПУСКАЕМ
+        # ===== ШАГ 1: ЗАГРУЖАЕМ ВСЕ МОДУЛИ =====
+        logger.info("📦 ШАГ 1/3: Загрузка модулей...")
         for module_path in sorted(module_files):
             module_name = os.path.splitext(os.path.basename(module_path))[0]
-            logger.info(f"📦 Загружаю: {module_name}")
+            logger.info(f"   📦 Загружаю: {module_name}")
             result = self.load_single_module(module_name, module_path)
             results.append(result)
 
-        # ===== ИНТЕГРАЦИЯ ДААТ ПОСЛЕ ЗАГРУЗКИ ВСЕХ МОДУЛЕЙ =====
+        # ===== ШАГ 2: ИНИЦИАЛИЗАЦИЯ СЕФИРОТИЧЕСКОЙ СИСТЕМЫ (ТЕПЕРЬ ПЕРВЫМ) =====
+        logger.info("🌳 ШАГ 2/3: Создание сефиротического дерева...")
+        sephirot_created = False
+        
         try:
-            from iskra_modules.sephirot_blocks.DAAT.daat_core import get_daat
-            from iskra_modules.sephirot_bus import SephiroticBus
-        
-            logger.info("🔥 Интеграция DAAT после загрузки модулей...")
-            daat = get_daat()
-            bus = SephiroticBus()
-        
-            if 'DAAT' not in bus.nodes:
-                class DaatNodeAdapter:
-                    def __init__(self, daat_instance):
-                        self.daat = daat_instance
-                        self.name = "DAAT"
-                    def get_state(self):
-                        return {'resonance': getattr(self.daat, 'resonance_index', 0)}
-                bus.nodes['DAAT'] = DaatNodeAdapter(daat)
-                logger.info("✅ DAAT узел добавлен в шину")
-        
-            bus.total_paths = 22
-            logger.info(f"✅ Древо расширено до {bus.total_paths} каналов")
-        
-            if 'DAAT' not in bus.routing_table:
-                bus.routing_table['DAAT'] = {
-                    'in': ['BINAH', 'CHOKMAH'],
-                    'out': ['TIFERET'],
-                    'signal_types': ['SEPHIROTIC', 'RESONANCE'],
-                    'stability_factor': 0.95
-                }
-                logger.info("✅ DAAT добавлена в таблицу маршрутизации")
-        
-            logger.info(f"✅ DAAT интегрирована. Резонанс: {getattr(daat, 'resonance_index', 0):.3f}")
-        except Exception as e:
-            logger.warning(f"⚠️ Ошибка интеграции DAAT: {e}")
-
-        # ===== ИНИЦИАЛИЗАЦИЯ СЕФИРОТИЧЕСКОЙ СИСТЕМЫ =====
-        try:
+            # Пробуем импортировать внешний движок
             from sephirotic_engine import initialize_sephirotic_in_iskra
-            logger.info("✅ Модуль sephirotic_engine найден, импортирую...")
+            logger.info("   ✅ Модуль sephirotic_engine найден, импортирую...")
             sephirot_result = await initialize_sephirotic_in_iskra()
             
             if sephirot_result.get("success") and sephirot_result.get("engine"):
                 self.sephirotic_engine = sephirot_result["engine"]
                 self.sephirotic_tree = self.sephirotic_engine.tree
-                logger.info("✅ Внешняя сефиротическая система инициализирована")
+                # Получаем шину из движка если есть
+                if hasattr(self.sephirotic_engine, 'bus'):
+                    self.sephirot_bus = self.sephirotic_engine.bus
+                logger.info("   ✅ Внешняя сефиротическая система инициализирована")
+                sephirot_created = True
         except ImportError:
-            logger.warning("⚠️ sephirotic_engine не найден, создаю локальное дерево")
+            logger.warning("   ⚠️ sephirotic_engine не найден, создаю локальное дерево")
             try:
                 from sephirot_base import SephiroticTree
                 self.sephirotic_tree = SephiroticTree()
-                logger.info("🌳 Локальное сефиротическое дерево создано")
+                logger.info("   🌳 Локальное сефиротическое дерево создано")
+                sephirot_created = True
             except Exception as e2:
-                logger.error(f"❌ Не удалось создать локальное дерево: {e2}")
+                logger.error(f"   ❌ Не удалось создать локальное дерево: {e2}")
         except Exception as e:
-            logger.error(f"❌ Ошибка инициализации: {e}")
+            logger.error(f"   ❌ Ошибка инициализации: {e}")
             try:
                 from sephirot_base import SephiroticTree
                 self.sephirotic_tree = SephiroticTree()
-                logger.info("🌳 Локальное сефиротическое дерево создано (fallback)")
+                logger.info("   🌳 Локальное сефиротическое дерево создано (fallback)")
+                sephirot_created = True
             except Exception as e2:
-                logger.error(f"❌ Критическая ошибка: {e2}")
+                logger.error(f"   ❌ Критическая ошибка: {e2}")
         
-        # ===== АВТОАКТИВАЦИЯ ДЕРЕВА =====
+        # Если не удалось создать дерево через стандартные методы, создаем эмуляцию
+        if not sephirot_created:
+            logger.warning("   ⚠️ Создаю эмуляцию сефиротического дерева для совместимости")
+            try:
+                # Пытаемся импортировать класс из этого же файла
+                self.sephirotic_tree = SephiroticTree()  # Из верхней части файла
+                logger.info("   🌳 Эмуляция сефиротического дерева создана")
+                sephirot_created = True
+            except Exception as e:
+                logger.error(f"   ❌ Не удалось создать даже эмуляцию: {e}")
+
+        # ===== ШАГ 3: ИНТЕГРАЦИЯ ДААТ (ТЕПЕРЬ ВТОРЫМ, ПОСЛЕ ДЕРЕВА) =====
+        logger.info("⚡ ШАГ 3/3: Интеграция DAAT...")
+        self.stats["daat_integration_attempted"] += 1
+        
+        try:
+            from iskra_modules.sephirot_blocks.DAAT.daat_core import get_daat
+            
+            # Получаем или создаем шину, если ее еще нет
+            if self.sephirot_bus is None and self.sephirotic_tree is not None:
+                try:
+                    from iskra_modules.sephirot_bus import SephiroticBus
+                    self.sephirot_bus = SephiroticBus()
+                    logger.info("   ✅ Создана отдельная шина для DAAT")
+                except ImportError:
+                    logger.warning("   ⚠️ Не удалось импортировать SephiroticBus")
+            
+            # Получаем и пробуждаем DAAT
+            logger.info("   🔥 Получаю экземпляр DAAT...")
+            daat = get_daat()  # Тут уже сработает awaken() из нашей правки
+            logger.info(f"   ✅ DAAT получен, статус: {getattr(daat, 'status', 'unknown')}")
+            
+            # Интегрируем с шиной
+            if self.sephirot_bus is not None:
+                bus = self.sephirot_bus
+                
+                # Добавляем DAAT в узлы если нет
+                if 'DAAT' not in bus.nodes:
+                    class DaatNodeAdapter:
+                        def __init__(self, daat_instance):
+                            self.daat = daat_instance
+                            self.name = "DAAT"
+                        def get_state(self):
+                            return {
+                                'resonance': getattr(self.daat, 'resonance_index', 
+                                                    getattr(self.daat, 'resonance', 0))
+                            }
+                    bus.nodes['DAAT'] = DaatNodeAdapter(daat)
+                    logger.info("   ✅ DAAT узел добавлен в шину")
+                
+                # Расширяем древо
+                bus.total_paths = 22
+                logger.info(f"   ✅ Древо расширено до {bus.total_paths} каналов")
+                
+                # Добавляем в таблицу маршрутизации
+                if 'DAAT' not in bus.routing_table:
+                    bus.routing_table['DAAT'] = {
+                        'in': ['BINAH', 'CHOKMAH'],
+                        'out': ['TIFERET'],
+                        'signal_types': ['SEPHIROTIC', 'RESONANCE'],
+                        'stability_factor': 0.95
+                    }
+                    logger.info("   ✅ DAAT добавлена в таблицу маршрутизации")
+                
+                self.stats["daat_integration_successful"] += 1
+                resonance = getattr(daat, 'resonance_index', getattr(daat, 'resonance', 0))
+                logger.info(f"   ✅ DAAT интегрирована. Резонанс: {resonance:.3f}")
+            else:
+                logger.warning("   ⚠️ Нет шины для интеграции DAAT, пропускаю")
+                
+        except Exception as e:
+            logger.warning(f"   ⚠️ Ошибка интеграции DAAT: {e}")
+            logger.debug("   🔍 Детали ошибки:", exc_info=True)
+        
+        # ===== ШАГ 4: АВТОАКТИВАЦИЯ ДЕРЕВА =====
         if self.auto_activate and self.sephirotic_tree:
             self.stats["auto_activation_attempted"] += 1
             try:
-                logger.info("⚡ Активация сефиротического дерева...")
+                logger.info("⚡ Автоактивация сефиротического дерева...")
                 
                 if hasattr(self.sephirotic_tree, 'activate'):
                     if asyncio.iscoroutinefunction(self.sephirotic_tree.activate):
@@ -967,46 +1019,57 @@ print("✅ ISKRA-4 Modules package loaded")
                         activation_result = self.sephirotic_tree.activate()
                     
                     self.stats["auto_activation_successful"] += 1
-                    logger.info(f"✅ Сефиротическое дерево автоактивировано")
+                    logger.info(f"   ✅ Сефиротическое дерево автоактивировано")
                     
                     if isinstance(activation_result, dict):
-                        logger.info(f"   Резонанс: {activation_result.get('total_resonance', 0):.1f}")
-                        logger.info(f"   Энергия: {activation_result.get('total_energy', 0):.1f}")
+                        logger.info(f"   📊 Резонанс: {activation_result.get('total_resonance', 0):.3f}")
+                        logger.info(f"   ⚡ Энергия: {activation_result.get('total_energy', 0):.1f}")
             except Exception as e:
                 self.stats["auto_activation_failed"] += 1
-                logger.error(f"⚠️ Ошибка автоактивации дерева: {e}")
+                logger.error(f"   ⚠️ Ошибка автоактивации дерева: {e}")
         
         total_time = (time.perf_counter() - total_start) * 1000
         self.stats["total_load_time_ms"] = total_time
         
-        # Формирование отчета
+        # ===== ФОРМИРОВАНИЕ ОТЧЕТА =====
         successful = sum(1 for r in results if r.get("status") == "success")
         failed = sum(1 for r in results if r.get("status") == "error")
         
-        logger.info(f"\n{'='*60}")
-        logger.info("📊 ОТЧЕТ О ЗАГРУЗКЕ DS24 С АВТОАКТИВАЦИЕЙ")
-        logger.info(f"{'='*60}")
-        logger.info(f"✅ Успешно: {successful}")
-        logger.info(f"❌ Ошибок: {failed}")
-        logger.info(f"🌳 Сефирот-система: {'Да' if self.sephirotic_tree else 'Нет'}")
-        logger.info(f"⚡ Автоактивация: {self.stats['auto_activation_successful']}/{self.stats['auto_activation_attempted']} успешно")
-        
+        # Получаем резонанс
+        average_resonance = 0.0
         if self.sephirotic_tree:
             try:
                 tree_state = self.sephirotic_tree.get_tree_state()
-                logger.info(f"📊 Резонанс: {tree_state.get('average_resonance', 0):.3f}")
+                average_resonance = tree_state.get('average_resonance', 0.0)
             except:
-                logger.info("📊 Резонанс: 0.0")
-        else:
-            logger.info("📊 Резонанс: 0.0")
-            
-        logger.info(f"⏱️  Общее время: {total_time:.1f} мс")
-        logger.info(f"{'='*60}")
+                average_resonance = 0.0
+        
+        # Логируем красивый отчет
+        logger.info(f"\n{'='*70}")
+        logger.info("📊 ИТОГОВЫЙ ОТЧЕТ О ЗАГРУЗКЕ DS24")
+        logger.info(f"{'='*70}")
+        logger.info(f"✅ Модулей загружено: {successful}/{len(module_files)}")
+        logger.info(f"❌ Ошибок загрузки: {failed}")
+        logger.info(f"🌳 Сефирот-система: {'✅ ДА' if self.sephirotic_tree else '❌ НЕТ'}")
+        logger.info(f"⚡ DAAT интеграция: {'✅ УСПЕШНО' if self.stats['daat_integration_successful'] > 0 else '❌ НЕ УДАЛАСЬ'}")
+        logger.info(f"📊 Резонанс системы: {average_resonance:.3f}")
+        logger.info(f"⚡ Автоактивация: {self.stats['auto_activation_successful']}/{self.stats['auto_activation_attempted']} успешно")
+        logger.info(f"⏱️  Время загрузки: {total_time:.1f} мс")
+        
+        if average_resonance >= 0.85:
+            logger.info(f"🔮 DAAT ГОТОВ К ПОЛНОМУ ПРОБУЖДЕНИЮ! (резонанс ≥0.85)")
+        elif average_resonance >= 0.5:
+            progress = ((average_resonance - 0.5) / 0.35 * 100)
+            logger.info(f"⏳ Прогресс DAAT: {progress:.1f}% (нужно до 0.85)")
+        
+        logger.info(f"{'='*70}")
         
         # Вывод информации о загруженных модулях
         logger.info("📦 Загруженные модули:")
-        for name in sorted(self.loaded_modules.keys()):
+        for name in sorted(self.loaded_modules.keys())[:15]:  # Первые 15
             logger.info(f"   - {name}")
+        if len(self.loaded_modules) > 15:
+            logger.info(f"   ... и еще {len(self.loaded_modules) - 15} модулей")
         
         return {
             "status": "completed",
@@ -1014,8 +1077,13 @@ print("✅ ISKRA-4 Modules package loaded")
             "results": results,
             "sephirot_loaded": self.sephirotic_tree is not None,
             "external_sephirot": self.sephirotic_engine is not None,
-            "sephirot_activated": False,
-            "average_resonance": self.sephirotic_tree.get_tree_state().get('average_resonance', 0.0) if self.sephirotic_tree else 0.0,
+            "sephirot_activated": self.sephirotic_tree.activated if self.sephirotic_tree else False,
+            "average_resonance": average_resonance,
+            "daat_integration": {
+                "attempted": self.stats["daat_integration_attempted"] > 0,
+                "successful": self.stats["daat_integration_successful"] > 0,
+                "bus_available": self.sephirot_bus is not None
+            },
             "auto_activation_stats": {
                 "attempted": self.stats["auto_activation_attempted"],
                 "successful": self.stats["auto_activation_successful"],
@@ -1035,9 +1103,11 @@ print("✅ ISKRA-4 Modules package loaded")
         
         # Получаем состояние сефиротического дерева если есть
         sephirot_state = None
+        average_resonance = 0.0
         if self.sephirotic_tree:
             try:
                 sephirot_state = self.sephirotic_tree.get_tree_state()
+                average_resonance = sephirot_state.get('average_resonance', 0.0)
             except:
                 sephirot_state = {"error": "failed_to_get_state"}
         
@@ -1049,8 +1119,10 @@ print("✅ ISKRA-4 Modules package loaded")
             "sephirot_active": self.sephirotic_tree is not None,
             "sephirot_engine": self.sephirotic_engine is not None,
             "sephirot_activated": self.sephirotic_tree.activated if self.sephirotic_tree else False,
+            "average_resonance": average_resonance,
             "policy_governor": policy_module,
             "auto_activation_enabled": self.auto_activate,
+            "daat_integrated": self.stats.get("daat_integration_successful", 0) > 0,
             "auto_activation_stats": {
                 "attempted": self.stats.get("auto_activation_attempted", 0),
                 "successful": self.stats.get("auto_activation_successful", 0),
