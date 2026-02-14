@@ -895,19 +895,28 @@ print("✅ ISKRA-4 Modules package loaded")
             result = self.load_single_module(module_name, module_path)
             results.append(result)
 
-        # ===== ШАГ 2: ИНИЦИАЛИЗАЦИЯ СЕФИРОТИЧЕСКОЙ СИСТЕМЫ (ТЕПЕРЬ ПЕРВЫМ) =====
+        # ===== ШАГ 2: ИНИЦИАЛИЗАЦИЯ СЕФИРОТИЧЕСКОЙ СИСТЕМЫ =====
         logger.info("🌳 ШАГ 2/3: Создание сефиротического дерева...")
         sephirot_created = False
-        
+
         try:
             # Пробуем импортировать внешний движок
             from sephirotic_engine import initialize_sephirotic_in_iskra
             logger.info("   ✅ Модуль sephirotic_engine найден, импортирую...")
-            sephirot_result = await initialize_sephirotic_in_iskra()
-            
+    
+            # Функция возвращает словарь, а не корутину!
+            sephirot_result = initialize_sephirotic_in_iskra()
+    
+            # Проверяем, не корутина ли это случайно
+            if asyncio.iscoroutine(sephirot_result):
+                sephirot_result = await sephirot_result
+    
             if sephirot_result.get("success") and sephirot_result.get("engine"):
                 self.sephirotic_engine = sephirot_result["engine"]
                 self.sephirotic_tree = self.sephirotic_engine.tree
+                # Добавляем атрибут activated если его нет
+                if not hasattr(self.sephirotic_tree, 'activated'):
+                    self.sephirotic_tree.activated = False
                 # Получаем шину из движка если есть
                 if hasattr(self.sephirotic_engine, 'bus'):
                     self.sephirot_bus = self.sephirotic_engine.bus
@@ -918,6 +927,8 @@ print("✅ ISKRA-4 Modules package loaded")
             try:
                 from sephirot_base import SephiroticTree
                 self.sephirotic_tree = SephiroticTree()
+                # Добавляем атрибут activated
+                self.sephirotic_tree.activated = False
                 logger.info("   🌳 Локальное сефиротическое дерево создано")
                 sephirot_created = True
             except Exception as e2:
@@ -927,23 +938,14 @@ print("✅ ISKRA-4 Modules package loaded")
             try:
                 from sephirot_base import SephiroticTree
                 self.sephirotic_tree = SephiroticTree()
+                # Добавляем атрибут activated
+                self.sephirotic_tree.activated = False
                 logger.info("   🌳 Локальное сефиротическое дерево создано (fallback)")
                 sephirot_created = True
             except Exception as e2:
                 logger.error(f"   ❌ Критическая ошибка: {e2}")
-        
-        # Если не удалось создать дерево через стандартные методы, создаем эмуляцию
-        if not sephirot_created:
-            logger.warning("   ⚠️ Создаю эмуляцию сефиротического дерева для совместимости")
-            try:
-                # Пытаемся импортировать класс из этого же файла
-                self.sephirotic_tree = SephiroticTree()  # Из верхней части файла
-                logger.info("   🌳 Эмуляция сефиротического дерева создана")
-                sephirot_created = True
-            except Exception as e:
-                logger.error(f"   ❌ Не удалось создать даже эмуляцию: {e}")
 
-        # ===== ШАГ 3: ИНТЕГРАЦИЯ ДААТ (ТЕПЕРЬ ВТОРЫМ, ПОСЛЕ ДЕРЕВА) =====
+        # ===== ШАГ 3: ИНТЕГРАЦИЯ ДААТ =====
         logger.info("⚡ ШАГ 3/3: Интеграция DAAT...")
         self.stats["daat_integration_attempted"] += 1
         
