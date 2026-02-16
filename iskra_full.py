@@ -132,15 +132,14 @@ print("🔥 ФОРСИРОВАННАЯ АКТИВАЦИЯ СЕФИРОТИЧЕС
 print("🔥"*50 + "\n")
 
 try:
-    # Импортируем ДО всего остального
-    from iskra_modules.sephirot_bus import SephiroticBus
+    # Используем ленивый импорт через хелпер
+    bus = get_sephirotic_bus()
+    
+    # SephiroticEngine пока импортируем напрямую
     from iskra_modules.sephirotic_engine import SephiroticEngine
-    
-    print("✅ SephirotBus и SephiroticEngine импортированы")
-    
-    # Создаём и активируем
-    bus = SephiroticBus()
     engine = SephiroticEngine()
+    
+    print("✅ SephirotBus и SephiroticEngine созданы")
     
     # Активируем полное дерево
     result = engine.activate_tree()
@@ -900,6 +899,9 @@ print("✅ ISKRA-4 Modules package loaded")
         logger.info("🌳 ШАГ 2/3: Создание сефиротического дерева...")
         sephirot_created = False
 
+        # 🔥 ПОЛУЧАЕМ КЛАСС ШИНЫ ЛЕНИВО (ДОБАВИТЬ ЭТУ СТРОКУ)
+        SephiroticBusClass = get_sephirotic_bus_class()
+
         try:
             # Пробуем импортировать внешний движок
             from sephirotic_engine import initialize_sephirotic_in_iskra
@@ -922,6 +924,21 @@ print("✅ ISKRA-4 Modules package loaded")
                 if hasattr(self.sephirotic_engine, 'bus'):
                     self.sephirot_bus = self.sephirotic_engine.bus
                     logger.info("   ✅ Шина получена из движка")
+                else:
+                    # 🔥 ЕСЛИ ШИНЫ НЕТ В ДВИЖКЕ - СОЗДАЁМ ЧЕРЕЗ ЛЕНИВЫЙ КЛАСС
+                    self.sephirot_bus = SephiroticBusClass()
+                    logger.info("   ✅ Шина создана через ленивый импорт")
+                    
+                    # Привязываем дерево к шине
+                    if hasattr(self.sephirot_bus, 'tree'):
+                        self.sephirot_bus.tree = self.sephirotic_tree
+                    
+                    # Добавляем все сефироты из дерева в шину
+                    if hasattr(self.sephirot_bus, 'nodes') and hasattr(self.sephirotic_tree, 'nodes'):
+                        for node_name, node in self.sephirotic_tree.nodes.items():
+                            self.sephirot_bus.nodes[node_name] = node
+                        logger.info(f"   ✅ Добавлено {len(self.sephirotic_tree.nodes)} сефирот в шину")
+                
                 logger.info("   ✅ Внешняя сефиротическая система инициализирована")
                 sephirot_created = True
         except ImportError:
@@ -931,6 +948,21 @@ print("✅ ISKRA-4 Modules package loaded")
                 self.sephirotic_tree = SephiroticTree()
                 # Добавляем атрибут activated
                 self.sephirotic_tree.activated = False
+                
+                # 🔥 СОЗДАЁМ ШИНУ ЧЕРЕЗ ЛЕНИВЫЙ КЛАСС ДЛЯ ЛОКАЛЬНОГО ДЕРЕВА
+                self.sephirot_bus = SephiroticBusClass()
+                logger.info("   ✅ Шина создана через ленивый импорт для локального дерева")
+                
+                # Привязываем дерево к шине
+                if hasattr(self.sephirot_bus, 'tree'):
+                    self.sephirot_bus.tree = self.sephirotic_tree
+                
+                # Добавляем все сефироты из дерева в шину
+                if hasattr(self.sephirot_bus, 'nodes') and hasattr(self.sephirotic_tree, 'nodes'):
+                    for node_name, node in self.sephirotic_tree.nodes.items():
+                        self.sephirot_bus.nodes[node_name] = node
+                    logger.info(f"   ✅ Добавлено {len(self.sephirotic_tree.nodes)} сефирот в локальную шину")
+                
                 logger.info("   🌳 Локальное сефиротическое дерево создано")
                 sephirot_created = True
             except Exception as e2:
@@ -942,6 +974,11 @@ print("✅ ISKRA-4 Modules package loaded")
                 self.sephirotic_tree = SephiroticTree()
                 # Добавляем атрибут activated
                 self.sephirotic_tree.activated = False
+                
+                # 🔥 СОЗДАЁМ ШИНУ ЧЕРЕЗ ЛЕНИВЫЙ КЛАСС ДЛЯ FALLBACK
+                self.sephirot_bus = SephiroticBusClass()
+                logger.info("   ✅ Шина создана через ленивый импорт (fallback)")
+                
                 logger.info("   🌳 Локальное сефиротическое дерево создано (fallback)")
                 sephirot_created = True
             except Exception as e2:
@@ -954,9 +991,9 @@ print("✅ ISKRA-4 Modules package loaded")
         # 🔥 ПРИНУДИТЕЛЬНО СОЗДАЕМ ШИНУ, ЕСЛИ ЕЕ НЕТ
         if self.sephirot_bus is None:
             try:
-                from iskra_modules.sephirot_bus import SephiroticBus
-                self.sephirot_bus = SephiroticBus()
-                logger.info("   ✅ SephirotBus принудительно создан")
+                # Используем ленивый класс вместо прямого импорта
+                self.sephirot_bus = SephiroticBusClass()
+                logger.info("   ✅ SephirotBus принудительно создан через ленивый импорт")
                 
                 # Инициализируем атрибуты шины
                 if not hasattr(self.sephirot_bus, 'nodes'):
