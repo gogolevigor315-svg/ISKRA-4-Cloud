@@ -124,42 +124,47 @@ except ImportError:
 
 print("✅ Flask app создан")
 
-# ===== ИНФЕРНАЛЬНЫЙ ПРОТОКОЛ: ПРИНУДИТЕЛЬНАЯ ИНТЕГРАЦИЯ ДААТ =====
+# ============================================================================
+# 🔥 КРИТИЧЕСКИЙ БЛОК: ФОРСИРОВАННАЯ АКТИВАЦИЯ СЕФИРОТИЧЕСКОГО ДЕРЕВА
+# ============================================================================
+print("\n" + "🔥"*50)
+print("🔥 ФОРСИРОВАННАЯ АКТИВАЦИЯ СЕФИРОТИЧЕСКОГО ДЕРЕВА")
+print("🔥"*50 + "\n")
+
 try:
-    from iskra_modules.sephirot_blocks.DAAT.daat_core import get_daat
+    # Импортируем ДО всего остального
     from iskra_modules.sephirot_bus import SephiroticBus
+    from iskra_modules.sephirotic_engine import SephiroticEngine
     
-    print("🔥 Принудительная интеграция DAAT...")
-    daat = get_daat()
+    print("✅ SephirotBus и SephiroticEngine импортированы")
+    
+    # Создаём и активируем
     bus = SephiroticBus()
+    engine = SephiroticEngine()
     
-    if 'DAAT' not in bus.nodes:
-        class DaatNodeAdapter:
-            def __init__(self, daat_instance):
-                self.daat = daat_instance
-                self.name = "DAAT"
-            def get_state(self):
-                return {'resonance': getattr(self.daat, 'resonance_index', 0)}
-        bus.nodes['DAAT'] = DaatNodeAdapter(daat)
-        print("✅ DAAT узел добавлен в шину")
+    # Активируем полное дерево
+    result = engine.activate_tree()
     
-    bus.total_paths = 22
-    print(f"✅ Древо расширено до {bus.total_paths} каналов")
-    
-    # Дополнительно: добавить в routing_table
-    if 'DAAT' not in bus.routing_table:
-        bus.routing_table['DAAT'] = {
-            'in': ['BINAH', 'CHOKMAH'],
-            'out': ['TIFERET'],
-            'signal_types': ['SEPHIROTIC', 'RESONANCE'],
-            'stability_factor': 0.95
-        }
-        print("✅ DAAT добавлена в таблицу маршрутизации")
-    
-    print(f"✅ DAAT интегрирована. Резонанс: {getattr(daat, 'resonance_index', 0):.3f}")
-    
+    if result and result.get("activated_nodes", 0) >= 11:
+        print(f"✅ ПОЛНОЕ ДЕРЕВО АКТИВИРОВАНО: {result.get('activated_nodes')} сефирот")
+        print(f"   Резонанс: {result.get('total_resonance', 0):.3f}")
+        print(f"   Энергия: {result.get('total_energy', 0):.1f}")
+        
+        # Сохраняем в глобальные переменные
+        _sephirot_bus = bus
+        _sephirotic_engine = engine
+        _tree_activated = True
+    else:
+        print("⚠️ Дерево активировано частично")
+        _tree_activated = False
+        
 except Exception as e:
-    print(f"⚠️ Ошибка интеграции DAAT: {e}")
+    print(f"❌ ОШИБКА АКТИВАЦИИ ДЕРЕВА: {e}")
+    import traceback
+    traceback.print_exc()
+    _tree_activated = False
+
+print("🔥"*50 + "\n")
 
 # ============================================================================
 # ДОБАВЬТЕ ЭТОТ КОД:
