@@ -673,10 +673,6 @@ class IntegrityVerifier:
         
         return diagnostics
 
-# ============================================================================
-# ЗАГРУЗЧИК МОДУЛЕЙ (ОБНОВЛЁННЫЙ С АВТОАКТИВАЦИЕЙ)
-# ============================================================================
-
 class DS24ModuleLoader:
     """Продвинутый загрузчик модулей DS24 с автоактивацией системы"""
     
@@ -925,6 +921,7 @@ print("✅ ISKRA-4 Modules package loaded")
                 # Получаем шину из движка если есть
                 if hasattr(self.sephirotic_engine, 'bus'):
                     self.sephirot_bus = self.sephirotic_engine.bus
+                    logger.info("   ✅ Шина получена из движка")
                 logger.info("   ✅ Внешняя сефиротическая система инициализирована")
                 sephirot_created = True
         except ImportError:
@@ -954,39 +951,56 @@ print("✅ ISKRA-4 Modules package loaded")
         logger.info("⚡ ШАГ 3/3: Интеграция DAAT...")
         self.stats["daat_integration_attempted"] += 1
         
+        # 🔥 ПРИНУДИТЕЛЬНО СОЗДАЕМ ШИНУ, ЕСЛИ ЕЕ НЕТ
+        if self.sephirot_bus is None:
+            try:
+                from iskra_modules.sephirot_bus import SephiroticBus
+                self.sephirot_bus = SephiroticBus()
+                logger.info("   ✅ SephirotBus принудительно создан")
+                
+                # Инициализируем атрибуты шины
+                if not hasattr(self.sephirot_bus, 'nodes'):
+                    self.sephirot_bus.nodes = {}
+                if not hasattr(self.sephirot_bus, 'routing_table'):
+                    self.sephirot_bus.routing_table = {}
+                if not hasattr(self.sephirot_bus, 'total_paths'):
+                    self.sephirot_bus.total_paths = 10
+                    
+            except Exception as e:
+                logger.warning(f"   ⚠️ Не удалось создать SephirotBus: {e}")
+        
         try:
             from iskra_modules.sephirot_blocks.DAAT.daat_core import get_daat
             
-            # Получаем или создаем шину, если ее еще нет
-            if self.sephirot_bus is None and self.sephirotic_tree is not None:
-                try:
-                    from iskra_modules.sephirot_bus import SephiroticBus
-                    self.sephirot_bus = SephiroticBus()
-                    logger.info("   ✅ Создана отдельная шина для DAAT")
-                except ImportError:
-                    logger.warning("   ⚠️ Не удалось импортировать SephiroticBus")
-            
             # Получаем и пробуждаем DAAT
             logger.info("   🔥 Получаю экземпляр DAAT...")
-            daat = get_daat()  # Тут уже сработает awaken() из нашей правки
+            daat = get_daat()
             logger.info(f"   ✅ DAAT получен, статус: {getattr(daat, 'status', 'unknown')}")
             
             # Интегрируем с шиной
             if self.sephirot_bus is not None:
                 bus = self.sephirot_bus
                 
-                # Добавляем DAAT в узлы если нет
+                # Убеждаемся что есть nodes
+                if not hasattr(bus, 'nodes'):
+                    bus.nodes = {}
+                
+                # Добавляем DAAT в узлы
                 if 'DAAT' not in bus.nodes:
-                    class DaatNodeAdapter:
-                        def __init__(self, daat_instance):
-                            self.daat = daat_instance
-                            self.name = "DAAT"
-                        def get_state(self):
-                            return {
-                                'resonance': getattr(self.daat, 'resonance_index', 
-                                                    getattr(self.daat, 'resonance', 0))
-                            }
-                    bus.nodes['DAAT'] = DaatNodeAdapter(daat)
+                    # Создаем адаптер если нужно
+                    if not hasattr(daat, 'get_state'):
+                        class DaatNodeAdapter:
+                            def __init__(self, daat_instance):
+                                self.daat = daat_instance
+                                self.name = "DAAT"
+                            def get_state(self):
+                                return {
+                                    'resonance': getattr(self.daat, 'resonance_index', 
+                                                        getattr(self.daat, 'resonance', 0))
+                                }
+                        bus.nodes['DAAT'] = DaatNodeAdapter(daat)
+                    else:
+                        bus.nodes['DAAT'] = daat
                     logger.info("   ✅ DAAT узел добавлен в шину")
                 
                 # Расширяем древо
@@ -994,6 +1008,9 @@ print("✅ ISKRA-4 Modules package loaded")
                 logger.info(f"   ✅ Древо расширено до {bus.total_paths} каналов")
                 
                 # Добавляем в таблицу маршрутизации
+                if not hasattr(bus, 'routing_table'):
+                    bus.routing_table = {}
+                
                 if 'DAAT' not in bus.routing_table:
                     bus.routing_table['DAAT'] = {
                         'in': ['BINAH', 'CHOKMAH'],
@@ -1141,7 +1158,7 @@ print("✅ ISKRA-4 Modules package loaded")
             "platform": sys.platform,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
-
+        
 # ============================================================================
 # FLASK API (ОБНОВЛЁННЫЙ С АВТОАКТИВАЦИЕЙ)
 # ============================================================================
