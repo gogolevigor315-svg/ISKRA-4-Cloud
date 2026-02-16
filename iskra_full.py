@@ -130,12 +130,12 @@ print("✅ Flask app создан")
 
 def get_sephirotic_bus():
     """Ленивый импорт экземпляра SephiroticBus"""
-    from iskra_modules.sephirot_bus import SephiroticBus
+    from iskra_modules.sephirot_blocks.sephirot_bus import SephiroticBus  # ← ИЗМЕНЕНО
     return SephiroticBus()
 
 def get_sephirotic_bus_class():
     """Ленивый импорт класса SephiroticBus"""
-    from iskra_modules.sephirot_bus import SephiroticBus
+    from iskra_modules.sephirot_blocks.sephirot_bus import SephiroticBus  # ← ИЗМЕНЕНО
     return SephiroticBus
 
 print("✅ Хелперы для ленивого импорта шины загружены")
