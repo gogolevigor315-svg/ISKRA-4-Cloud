@@ -1354,7 +1354,8 @@ if __name__ == "__main__":
     print(json.dumps(bus.get_detailed_status(), indent=2, ensure_ascii=False))
 
 # ===== АЛИАС ДЛЯ СОВМЕСТИМОСТИ =====
-SephiroticBus = SephirotBus
+# SephirotBus (без i) как алиас для SephiroticBus (с i)
+SephirotBus = SephiroticBus
 # ====================================
 
 # ===== СИНГЛТОН ДЛЯ ШИНЫ =====
@@ -1367,4 +1368,3 @@ def get_sephirot_bus(name: str = "SephiroticBus") -> SephiroticBus:
         _bus_instance = SephiroticBus(name)
         print("✅ Создан глобальный экземпляр SephiroticBus")
     return _bus_instance
-
