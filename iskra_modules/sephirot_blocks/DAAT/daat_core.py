@@ -960,6 +960,9 @@ async def demo_daat_pulse():
     await daat.shutdown()
     return daat
 
+# ===== ИСПРАВЛЕННЫЙ ПРОТОКОЛ: СИНГЛТОН С ПРОВЕРКОЙ ШИНЫ =====
+_auto_awaken_instance = None
+
 def get_daat(force_awaken=True):
     """Получить или создать экземпляр DAAT (СИНГЛТОН) с проверкой шины"""
     global _auto_awaken_instance
@@ -978,25 +981,25 @@ def get_daat(force_awaken=True):
     _auto_awaken_instance.frequency = 963
     _auto_awaken_instance.active = False
     
-    # Проверяем, загружена ли шина
-    import sys
-    if 'iskra_modules.sephirot_bus' in sys.modules:
-        print("   ✅ SephirotBus уже загружен, интеграция возможна")
-        try:
-            from iskra_modules.sephirot_bus import SephirotBus
-            bus = SephirotBus()
-            if hasattr(bus, 'nodes'):
-                bus.nodes['DAAT'] = _auto_awaken_instance
-                print("   ✅ DAAT добавлена в шину при создании")
-        except ImportError:
-            print("   ⚠️ Не удалось импортировать SephirotBus")
-    
-    # Пробуждаем БЕЗ создания нового цикла
+    # Пробуждаем
     if force_awaken:
         try:
             import asyncio
+            import sys
             
-            # Пытаемся получить текущий цикл
+            # Проверяем, загружена ли шина
+            if 'iskra_modules.sephirot_bus' in sys.modules:
+                print("   ✅ SephirotBus уже загружен, интеграция возможна")
+                try:
+                    from iskra_modules.sephirot_bus import SephirotBus
+                    bus = SephirotBus()
+                    if hasattr(bus, 'nodes'):
+                        bus.nodes['DAAT'] = _auto_awaken_instance
+                        print("   ✅ DAAT добавлена в шину при создании")
+                except ImportError as e:
+                    print(f"   ⚠️ Не удалось импортировать SephirotBus: {e}")
+            
+            # Пробуждаем БЕЗ создания нового цикла
             try:
                 loop = asyncio.get_running_loop()
                 # Если цикл уже запущен - создаем задачу
@@ -1042,6 +1045,8 @@ def get_daat(force_awaken=True):
             
         except Exception as e:
             print(f"⚠️ Ошибка при пробуждении: {e}")
+            import traceback
+            traceback.print_exc()
             # Форсируем пробуждение
             _auto_awaken_instance.status = "awake"
             _auto_awaken_instance.awakening_level = 0.3
@@ -1051,3 +1056,20 @@ def get_daat(force_awaken=True):
             print("   ⚠️ Использован fallback режим")
     
     return _auto_awaken_instance
+
+# Для обратной совместимости
+DaatCore.getInstance = staticmethod(get_daat)
+
+# НЕМЕДЛЕННОЕ ПРОБУЖДЕНИЕ ПРИ ЗАГРУЗКЕ МОДУЛЯ
+print("\n" + "🔮"*20)
+print("🔮 ЗАГРУЗКА DAAT CORE")
+print("🔮"*20)
+try:
+    _daat_instance = get_daat(force_awaken=True)
+    print(f"\n✅ DAAT Core v10.10.1 загружен")
+    print(f"   Статус: {_daat_instance.status}")
+    print(f"   Резонанс: {_daat_instance.resonance_index:.3f}")
+except Exception as e:
+    print(f"⚠️ Ошибка при загрузке DAAT: {e}")
+    _daat_instance = None
+print("🔮"*30 + "\n")
