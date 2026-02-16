@@ -1349,6 +1349,10 @@ if __name__ == "__main__":
     print("\n📊 Детальный статус шины:")
     print(json.dumps(bus.get_detailed_status(), indent=2, ensure_ascii=False))
 
+# ===== АЛИАС ДЛЯ СОВМЕСТИМОСТИ =====
+SephiroticBus = SephirotBus
+# ====================================
+
 # ===== СИНГЛТОН ДЛЯ ШИНЫ =====
 _bus_instance = None
 
@@ -1360,5 +1364,3 @@ def get_sephirot_bus(name: str = "SephiroticBus") -> SephiroticBus:
         print("✅ Создан глобальный экземпляр SephiroticBus")
     return _bus_instance
 
-# Обратная совместимость - теперь это функция, а не класс
-SephirotBus = get_sephirot_bus
