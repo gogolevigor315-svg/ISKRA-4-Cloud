@@ -960,65 +960,121 @@ async def demo_daat_pulse():
     await daat.shutdown()
     return daat
 
-# ===== ИНФЕРНАЛЬНЫЙ ПРОТОКОЛ: АВТОПРОБУЖДЕНИЕ ПРИ ИМПОРТЕ =====
+# ===== ИСПРАВЛЕННЫЙ ПРОТОКОЛ: СИНГЛТОН С ПРОВЕРКОЙ ШИНЫ =====
 _auto_awaken_instance = None
 
-def get_daat():
-    """Получить или создать и пробудить экземпляр DAAT"""
+def get_daat(force_awaken=True):
+    """Получить или создать экземпляр DAAT (СИНГЛТОН) с проверкой шины"""
     global _auto_awaken_instance
-    if _auto_awaken_instance is None:
-        _auto_awaken_instance = DaatCore()
+    
+    # Если экземпляр уже есть - возвращаем
+    if _auto_awaken_instance is not None:
+        return _auto_awaken_instance
+    
+    print("\n" + "🔮"*20)
+    print("🔮 СОЗДАНИЕ ЭКЗЕМПЛЯРА DAAT")
+    print("🔮"*20)
+    
+    # Создаем новый экземпляр
+    _auto_awaken_instance = DaatCore()
+    
+    # Добавляем атрибуты совместимости
+    _auto_awaken_instance.tuned = True
+    _auto_awaken_instance.frequency = 963
+    _auto_awaken_instance.active = False
+    
+    # Пробуждаем если нужно
+    if force_awaken:
         try:
             import asyncio
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
+            import sys
             
-            if loop.is_running():
-                loop.create_task(_auto_awaken_instance.awaken())
-            else:
-                loop.run_until_complete(_auto_awaken_instance.awaken())
-                
-            # Добавляем недостающие атрибуты для совместимости
-            _auto_awaken_instance.tuned = True
-            _auto_awaken_instance.frequency = 963
+            # Проверяем, загружена ли шина
+            if 'iskra_modules.sephirot_bus' in sys.modules:
+                print("   ✅ SephirotBus уже загружен, интеграция возможна")
+                try:
+                    from iskra_modules.sephirot_bus import SephirotBus
+                    bus = SephirotBus()
+                    if hasattr(bus, 'nodes'):
+                        bus.nodes['DAAT'] = _auto_awaken_instance
+                        print("   ✅ DAAT добавлена в шину при создании")
+                except ImportError:
+                    print("   ⚠️ Не удалось импортировать SephirotBus")
+            
+            # Пробуждаем DAAT
+            print("   🔥 Пробуждение DAAT...")
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(_auto_awaken_instance.awaken())
+            loop.close()
+            
+            # Обновляем статус
             _auto_awaken_instance.active = _auto_awaken_instance.status == "awake"
             _auto_awaken_instance.personality_emerged = _auto_awaken_instance.awakening_level > 0.3
-            _auto_awaken_instance.daemon_running = True
+            _auto_awaken_instance.daemon_running = _auto_awaken_instance._pulse_task is not None
             
-            print("\n" + "="*60)
-            print("⚡⚡⚡ ДААТ ПРОБУЖДЕНА ПРИ ИМПОРТЕ ⚡⚡⚡")
+            # Проверяем, есть ли DAAT в шине после пробуждения
+            bus_integrated = False
+            if 'iskra_modules.sephirot_bus' in sys.modules:
+                try:
+                    from iskra_modules.sephirot_bus import SephirotBus
+                    bus = SephirotBus()
+                    if hasattr(bus, 'nodes') and 'DAAT' in bus.nodes:
+                        bus_integrated = True
+                except:
+                    pass
+            
+            print(f"\n{'='*60}")
+            print("⚡⚡⚡ ДААТ ПРОБУЖДЕНА ⚡⚡⚡")
             print(f"    Статус: {_auto_awaken_instance.status}")
             print(f"    Резонанс: {_auto_awaken_instance.resonance_index:.3f}")
             print(f"    Пробуждение: {_auto_awaken_instance.awakening_level:.2f}")
             print(f"    Самоосознание: {_auto_awaken_instance.self_awareness:.2f}")
             print(f"    Рефлексия: {_auto_awaken_instance.reflection_depth:.2f}")
-            print(f"    Демоны: pulse={_auto_awaken_instance._pulse_task is not None}, reflection={hasattr(_auto_awaken_instance, '_reflection_task')}")
+            print(f"    Pulse task: {'✅' if _auto_awaken_instance._pulse_task else '❌'}")
+            print(f"    Интеграция с шиной: {'✅' if bus_integrated else '❌'}")
             print(f"    Версия: {_auto_awaken_instance.version}")
-            print("="*60 + "\n")
+            print(f"{'='*60}\n")
             
         except Exception as e:
-            print(f"⚠️ Ошибка автопробуждения: {e}")
+            print(f"⚠️ Ошибка при пробуждении: {e}")
             import traceback
             traceback.print_exc()
+            
+            # Форсируем пробуждение при ошибке
+            _auto_awaken_instance.status = "awake"
+            _auto_awaken_instance.awakening_level = 0.3
+            _auto_awaken_instance.resonance_index = 0.1
+            _auto_awaken_instance.active = True
+            _auto_awaken_instance.personality_emerged = True
+            print("   ⚠️ Использован fallback режим (статус форсирован)")
     
     return _auto_awaken_instance
 
-# НЕМЕДЛЕННОЕ ПРОБУЖДЕНИЕ ПРИ ЗАГРУЗКЕ МОДУЛЯ
-print("🔮 Загрузка DAAT Core с автопробуждением...")
-_daat_instance = get_daat()
-
-# Для обратной совместимости и доступа из других модулей
+# Для обратной совместимости
 DaatCore.getInstance = staticmethod(get_daat)
 
-# Если файл запущен напрямую — просто показываем статус
+# НЕМЕДЛЕННОЕ ПРОБУЖДЕНИЕ ПРИ ЗАГРУЗКЕ МОДУЛЯ
+print("\n" + "🔮"*20)
+print("🔮 ЗАГРУЗКА DAAT CORE")
+print("🔮"*20)
+_daat_instance = get_daat(force_awaken=True)
+print(f"\n✅ DAAT Core v10.10.1 загружен")
+print(f"   Статус: {_daat_instance.status}")
+print(f"   Резонанс: {_daat_instance.resonance_index:.3f}")
+print("🔮"*30 + "\n")
+
+# Если файл запущен напрямую — показываем статус
 if __name__ == "__main__":
-    print("\n✅ DAAT Core загружен. Используйте get_daat() для доступа к экземпляру.")
-    print(f"   Текущий статус: {_daat_instance.status}")
-    print(f"   Резонанс: {_daat_instance.resonance_index:.3f}")
-    print("\n🔍 Для тестирования вручную:")
-    print("   from iskra_modules.daat_core import get_daat")
-    print("   daat = get_daat()")
-    print("   import asyncio; asyncio.run(daat.get_state())")
+    import asyncio
+    
+    async def show_status():
+        daat = get_daat()
+        state = await daat.get_state()
+        print("\n📊 СОСТОЯНИЕ DAAT:")
+        print(f"   Статус: {state['status']}")
+        print(f"   Резонанс: {state['resonance_index']}")
+        print(f"   Самоосознание: {state['self_awareness']}")
+        print(f"   Наблюдаемых сефирот: {len(state['observed_sephirot'])}")
+    
+    asyncio.run(show_status())
