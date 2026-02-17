@@ -1292,6 +1292,26 @@ class SephiroticNode(ISephiraModule):
             "resonance_boost": depth * 0.015,
             "energy_cost": complexity * 0.01
         }
+
+    def __getattr__(self, name):
+        if name.startswith('_handle_'):
+            if not hasattr(self, '_default_handlers'):
+                self._default_handlers = {}
+            
+            if name not in self._default_handlers:
+                async def default_handler(signal_package: SignalPackage) -> Dict[str, Any]:
+                    self.logger.warning(f"Default handler used for {name}")
+                    return {
+                        "status": "default_handled",
+                        "handler": name,
+                        "message": f"Method {name} not implemented",
+                        "signal_type": signal_package.type.name if signal_package else "unknown"
+                    }
+                self._default_handlers[name] = default_handler
+            
+            return self._default_handlers[name]
+        
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
     
     # ================================================================
     # СИСТЕМА РЕЗОНАНСНОЙ ОБРАТНОЙ СВЯЗИ С УЧЁТОМ УГЛА
