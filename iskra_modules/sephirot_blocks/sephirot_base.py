@@ -1204,6 +1204,50 @@ class SephiroticNode(ISephiraModule):
             "energy_boost": 0.015,
             "resonance_boost": 0.008
         }
+
+    async def _handle_emotional(self, signal_package: SignalPackage) -> Dict[str, Any]:
+        """Обработка эмоциональных сигналов"""
+        self.logger.info(f"Обработка EMOTIONAL сигнала от {signal_package.source}")
+        
+        emotional_data = signal_package.payload.get("emotional_data", {})
+        
+        # Проверка на инициализацию
+        if not hasattr(self, '_is_initialized') or not self._is_initialized:
+            return {
+                "status": "node_not_initialized",
+                "sephira": self._name,
+                "action": "deferred",
+                "message": "Node not fully initialized, emotional signal deferred"
+            }
+        
+        processed = {
+            "action": "emotional_processing",
+            "sephira": self._name,
+            "emotion_type": emotional_data.get("type", "neutral"),
+            "intensity": emotional_data.get("intensity", 0.5),
+            "valence": emotional_data.get("valence", 0.0),  # от -1 (негатив) до +1 (позитив)
+            "current_stability_angle": self.stability_angle,
+            "stability_factor": self.stability_factor,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        # Модуляция параметров на основе эмоций
+        intensity = processed["intensity"]
+        valence = processed["valence"]
+        
+        # Эмоции влияют на резонанс и стабильность
+        self.resonance = min(1.0, self.resonance + valence * intensity * 0.02)
+        self.coherence = min(1.0, self.coherence + valence * intensity * 0.015)
+        self.energy = min(1.0, self.energy + intensity * 0.03)
+        
+        return {
+            "status": "emotional_processed",
+            "sephira": self._name,
+            "result": processed,
+            "resonance_change": valence * intensity * 0.02,
+            "coherence_change": valence * intensity * 0.015,
+            "energy_boost": intensity * 0.03
+        }
     
     # ================================================================
     # СИСТЕМА РЕЗОНАНСНОЙ ОБРАТНОЙ СВЯЗИ С УЧЁТОМ УГЛА
