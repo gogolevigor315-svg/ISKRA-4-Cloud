@@ -312,9 +312,9 @@ class SephiroticEngine:
             }
         }
         
-        self.logger.info(f"🚀 Движок '{name}' создан (версия 5.0.0 с RAS-CORE)")
-        self.logger.info(f"   Золотой угол устойчивости: {GOLDEN_STABILITY_ANGLE}°")
-        self.logger.info(f"   Цикл рефлексии: {REFLECTION_CYCLE_MS} мс")
+        print(f"🚀 Движок '{name}' создан (версия 5.0.0 с RAS-CORE)")
+        print(f"   Золотой угол устойчивости: {GOLDEN_STABILITY_ANGLE}°")
+        print(f"   Цикл рефлексии: {REFLECTION_CYCLE_MS} мс")
     
     def _setup_logger(self) -> logging.Logger:
         """Настройка логгера для мониторинга личности"""
