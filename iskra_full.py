@@ -152,7 +152,7 @@ try:
     from iskra_modules.sephirot_blocks.sephirotic_engine import SephiroticEngine
     engine = SephiroticEngine()
     
-    logger.info("✅ SephirotBus и SephiroticEngine созданы")
+    print("✅ SephirotBus и SephiroticEngine созданы")  # ← замени logger.info на print
     
     # Создаём дерево напрямую
     from iskra_modules.sephirot_blocks.sephirot_base import SephiroticTree
@@ -163,30 +163,30 @@ try:
     for method_name in ['activate', 'initialize', 'start', 'build', 'create_tree']:
         if hasattr(tree, method_name):
             method = getattr(tree, method_name)
-            logger.info(f"   Пробую метод {method_name}()...")
+            print(f"   Пробую метод {method_name}()...")  # ← замени на print
             try:
                 result = method()
                 if result:
-                    logger.info(f"   ✅ Метод {method_name}() сработал")
+                    print(f"   ✅ Метод {method_name}() сработал")  # ← замени на print
                     break
             except Exception as e:
-                logger.warning(f"   ⚠️ Метод {method_name}() упал: {e}")
+                print(f"   ⚠️ Метод {method_name}() упал: {e}")  # ← замени на print
                 continue
     
     if result and result.get("activated_nodes", 0) >= 11:
-        logger.info(f"✅ ПОЛНОЕ ДЕРЕВО АКТИВИРОВАНО: {result.get('activated_nodes')} сефирот")
-        logger.info(f"   Резонанс: {result.get('total_resonance', 0):.3f}")
+        print(f"✅ ПОЛНОЕ ДЕРЕВО АКТИВИРОВАНО: {result.get('activated_nodes')} сефирот")
+        print(f"   Резонанс: {result.get('total_resonance', 0):.3f}")
         _sephirot_bus = bus
         _sephirotic_engine = engine
         _tree_activated = True
     else:
-        logger.warning("⚠️ Дерево активировано частично или не активировано")
+        print("⚠️ Дерево активировано частично или не активировано")
         _tree_activated = False
 
 except Exception as e:
-    logger.error(f"❌ Критическая ошибка при активации дерева: {e}")
+    print(f"❌ Критическая ошибка при активации дерева: {e}")
     _tree_activated = False
-
+    
 print("🔥"*50 + "\n")
 
 # ============================================================================
