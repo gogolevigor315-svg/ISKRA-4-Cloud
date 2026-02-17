@@ -1248,6 +1248,50 @@ class SephiroticNode(ISephiraModule):
             "coherence_change": valence * intensity * 0.015,
             "energy_boost": intensity * 0.03
         }
+
+    async def _handle_cognitive(self, signal_package: SignalPackage) -> Dict[str, Any]:
+        """Обработка когнитивных сигналов"""
+        self.logger.info(f"Обработка COGNITIVE сигнала от {signal_package.source}")
+        
+        cognitive_data = signal_package.payload.get("cognitive_data", {})
+        
+        # Проверка на инициализацию
+        if not hasattr(self, '_is_initialized') or not self._is_initialized:
+            return {
+                "status": "node_not_initialized",
+                "sephira": self._name,
+                "action": "deferred",
+                "message": "Node not fully initialized, cognitive signal deferred"
+            }
+        
+        processed = {
+            "action": "cognitive_processing",
+            "sephira": self._name,
+            "cognitive_type": cognitive_data.get("type", "general"),
+            "complexity": cognitive_data.get("complexity", 0.5),
+            "depth": cognitive_data.get("depth", 0.5),
+            "current_coherence": self.coherence,
+            "current_stability_angle": self.stability_angle,
+            "stability_factor": self.stability_factor,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        # Модуляция параметров (когнитивные сигналы усиливают coherence и resonance)
+        complexity = processed["complexity"]
+        depth = processed["depth"]
+        
+        self.coherence = min(1.0, self.coherence + complexity * depth * 0.025)
+        self.resonance = min(1.0, self.resonance + depth * 0.015)
+        self.energy = min(1.0, self.energy - complexity * 0.01)  # когнитивная нагрузка немного расходует энергию
+        
+        return {
+            "status": "cognitive_processed",
+            "sephira": self._name,
+            "result": processed,
+            "coherence_boost": complexity * depth * 0.025,
+            "resonance_boost": depth * 0.015,
+            "energy_cost": complexity * 0.01
+        }
     
     # ================================================================
     # СИСТЕМА РЕЗОНАНСНОЙ ОБРАТНОЙ СВЯЗИ С УЧЁТОМ УГЛА
