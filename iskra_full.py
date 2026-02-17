@@ -151,8 +151,8 @@ try:
     # Используем ленивый импорт через хелпер
     bus = get_sephirotic_bus()
     
-    # SephiroticEngine пока импортируем напрямую
-    from iskra_modules.sephirotic_engine import SephiroticEngine
+    # SephiroticEngine с правильным путем
+    from iskra_modules.sephirot_blocks.sephirotic_engine import SephiroticEngine
     engine = SephiroticEngine()
     
     print("✅ SephirotBus и SephiroticEngine созданы")
