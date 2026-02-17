@@ -1129,6 +1129,44 @@ class SephiroticNode(ISephiraModule):
             "stability_boost": attention_level * 0.03
         }
     
+    async def _handle_neuro(self, signal_package: SignalPackage) -> Dict[str, Any]:
+        """Обработка нейро-сигналов"""
+        self.logger.info(f"Обработка NEURO сигнала от {signal_package.source}")
+        
+        neuro_data = signal_package.payload.get("neuro_data", {})
+        
+        # Проверка на инициализацию
+        if not hasattr(self, '_is_initialized') or not self._is_initialized:
+            return {
+                "status": "node_not_initialized",
+                "sephira": self._name,
+                "action": "deferred",
+                "message": "Node not fully initialized, neuro signal deferred"
+            }
+        
+        processed = {
+            "action": "neuro_processing",
+            "sephira": self._name,
+            "neuro_type": neuro_data.get("type", "general"),
+            "intensity": neuro_data.get("intensity", 0.5),
+            "features": neuro_data.get("features", []),
+            "current_stability_angle": self.stability_angle,
+            "stability_factor": self.stability_factor,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        # Модуляция параметров
+        self.energy = min(1.0, self.energy + 0.02)
+        self.resonance = min(1.0, self.resonance + 0.01)
+        
+        return {
+            "status": "neuro_processed",
+            "sephira": self._name,
+            "result": processed,
+            "energy_boost": 0.02,
+            "resonance_boost": 0.01
+        }
+    
     # ================================================================
     # СИСТЕМА РЕЗОНАНСНОЙ ОБРАТНОЙ СВЯЗИ С УЧЁТОМ УГЛА
     # ================================================================
