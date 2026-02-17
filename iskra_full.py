@@ -148,35 +148,43 @@ print("🔥 ФОРСИРОВАННАЯ АКТИВАЦИЯ СЕФИРОТИЧЕС
 print("🔥"*50 + "\n")
 
 try:
-    # Используем ленивый импорт через хелпер
     bus = get_sephirotic_bus()
-    
-    # SephiroticEngine с правильным путем
     from iskra_modules.sephirot_blocks.sephirotic_engine import SephiroticEngine
     engine = SephiroticEngine()
     
-    print("✅ SephirotBus и SephiroticEngine созданы")
+    logger.info("✅ SephirotBus и SephiroticEngine созданы")
     
-    # Активируем полное дерево
-    result = engine.activate_tree()
+    # Создаём дерево напрямую
+    from iskra_modules.sephirot_blocks.sephirot_base import SephiroticTree
+    tree = SephiroticTree()
+    
+    # Пробуем разные методы активации
+    result = None
+    for method_name in ['activate', 'initialize', 'start', 'build', 'create_tree']:
+        if hasattr(tree, method_name):
+            method = getattr(tree, method_name)
+            logger.info(f"   Пробую метод {method_name}()...")
+            try:
+                result = method()
+                if result:
+                    logger.info(f"   ✅ Метод {method_name}() сработал")
+                    break
+            except Exception as e:
+                logger.warning(f"   ⚠️ Метод {method_name}() упал: {e}")
+                continue
     
     if result and result.get("activated_nodes", 0) >= 11:
-        print(f"✅ ПОЛНОЕ ДЕРЕВО АКТИВИРОВАНО: {result.get('activated_nodes')} сефирот")
-        print(f"   Резонанс: {result.get('total_resonance', 0):.3f}")
-        print(f"   Энергия: {result.get('total_energy', 0):.1f}")
-        
-        # Сохраняем в глобальные переменные
+        logger.info(f"✅ ПОЛНОЕ ДЕРЕВО АКТИВИРОВАНО: {result.get('activated_nodes')} сефирот")
+        logger.info(f"   Резонанс: {result.get('total_resonance', 0):.3f}")
         _sephirot_bus = bus
         _sephirotic_engine = engine
         _tree_activated = True
     else:
-        print("⚠️ Дерево активировано частично")
+        logger.warning("⚠️ Дерево активировано частично или не активировано")
         _tree_activated = False
-        
+
 except Exception as e:
-    print(f"❌ ОШИБКА АКТИВАЦИИ ДЕРЕВА: {e}")
-    import traceback
-    traceback.print_exc()
+    logger.error(f"❌ Критическая ошибка при активации дерева: {e}")
     _tree_activated = False
 
 print("🔥"*50 + "\n")
