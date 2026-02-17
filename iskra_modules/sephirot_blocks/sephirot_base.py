@@ -723,17 +723,17 @@ class SephiroticNode(ISephiraModule):
     async def _start_background_tasks(self):
         """Запуск фоновых задач"""
         tasks = [
-            self._signal_processor(),
-            self._resonance_dynamics(),
-            self._energy_manager(),
-            self._metrics_collector(),
-            self._link_maintainer(),
-            self._health_monitor(),
-            self._angle_stabilizer()  # НОВАЯ ФОНОВАЯ ЗАДАЧА
+            self._signal_processor,      # ← без скобок!
+            self._resonance_dynamics,    # ← без скобок!
+            self._energy_manager,        # ← без скобок!
+            self._metrics_collector,     # ← без скобок!
+            self._link_maintainer,       # ← без скобок!
+            self._health_monitor,        # ← без скобок!
+            self._angle_stabilizer       # ← без скобок!
         ]
-        
+    
         for task_func in tasks:
-            task_obj = asyncio.create_task(task_func())
+            task_obj = asyncio.create_task(task_func())  # ← здесь вызываем
             self._background_tasks.add(task_obj)
             task_obj.add_done_callback(self._background_tasks.discard)
     
