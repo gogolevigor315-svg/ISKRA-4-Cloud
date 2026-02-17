@@ -657,30 +657,56 @@ class SephiroticNode(ISephiraModule):
         return logger
     
     def _initialize_signal_handlers(self) -> Dict[SignalType, Callable]:
-        """Инициализация обработчиков сигналов с новыми типами"""
-        handlers = {
-            SignalType.NEURO: self._handle_neuro,
-            SignalType.SEMIOTIC: self._handle_semiotic,
-            SignalType.EMOTIONAL: self._handle_emotional,
-            SignalType.COGNITIVE: self._handle_cognitive,
-            SignalType.INTENTION: self._handle_intention,
-            SignalType.HEARTBEAT: self._handle_heartbeat,
-            SignalType.RESONANCE: self._handle_resonance,
-            SignalType.COMMAND: self._handle_command,
-            SignalType.DATA: self._handle_data,
-            SignalType.ERROR: self._handle_error,
-            SignalType.SYNTHESIS: self._handle_synthesis,
-            SignalType.ENERGY: self._handle_energy,
-            SignalType.SYNC: self._handle_sync,
-            SignalType.METRIC: self._handle_metric,
-            SignalType.BROADCAST: self._handle_broadcast,
-            SignalType.FEEDBACK: self._handle_feedback,
-            SignalType.CONTROL: self._handle_control,
-            SignalType.SEPHIROTIC: self._handle_sephirotic,
-            SignalType.FOCUS: self._handle_focus,  # НОВЫЙ ОБРАБОТЧИК
-            SignalType.ATTENTION: self._handle_attention  # НОВЫЙ ОБРАБОТЧИК
+        """Безопасная инициализация обработчиков — не падает на отсутствующих методах"""
+        handlers = {}
+    
+        # Все возможные типы сигналов, которые могут быть
+        handler_map = {
+            SignalType.NEURO: "_handle_neuro",
+            SignalType.SEMIOTIC: "_handle_semiotic",
+            SignalType.EMOTIONAL: "_handle_emotional",
+            SignalType.COGNITIVE: "_handle_cognitive",
+            SignalType.INTENTION: "_handle_intention",
+            SignalType.HEARTBEAT: "_handle_heartbeat",
+            SignalType.RESONANCE: "_handle_resonance",
+            SignalType.COMMAND: "_handle_command",
+            SignalType.DATA: "_handle_data",
+            SignalType.ERROR: "_handle_error",
+            SignalType.SYNTHESIS: "_handle_synthesis",
+            SignalType.ENERGY: "_handle_energy",
+            SignalType.SYNC: "_handle_sync",
+            SignalType.METRIC: "_handle_metric",
+            SignalType.BROADCAST: "_handle_broadcast",
+            SignalType.FEEDBACK: "_handle_feedback",
+            SignalType.CONTROL: "_handle_control",
+            SignalType.SEPHIROTIC: "_handle_sephirotic",
+            SignalType.FOCUS: "_handle_focus",
+            SignalType.ATTENTION: "_handle_attention",
         }
+    
+        for signal_type, handler_name in handler_map.items():
+            if hasattr(self, handler_name):
+                handlers[signal_type] = getattr(self, handler_name)
+            else:
+                # Используем универсальный дефолтный обработчик
+                handlers[signal_type] = self._get_default_handler(handler_name)
+                self.logger.warning(f"Обработчик {handler_name} не найден → используем default")
+    
         return handlers
+
+def _get_default_handler(self, handler_name: str):
+    """Универсальная заглушка для отсутствующих _handle_* методов"""
+    async def default_handler(signal_package: SignalPackage) -> Dict[str, Any]:
+        self.logger.warning(f"Default handler triggered for {handler_name} "
+                          f"(сигнал от {getattr(signal_package, 'source', 'unknown')})")
+        return {
+            "status": "default_handled",
+            "handler": handler_name,
+            "message": f"Method {handler_name} not implemented yet",
+            "signal_type": signal_package.type.name if signal_package else "unknown",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    return default_handler
     
     async def _async_initialization(self):
         """Асинхронная инициализация узла"""
