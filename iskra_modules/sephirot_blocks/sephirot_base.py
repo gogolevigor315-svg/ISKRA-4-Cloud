@@ -1166,6 +1166,44 @@ class SephiroticNode(ISephiraModule):
             "energy_boost": 0.02,
             "resonance_boost": 0.01
         }
+
+    async def _handle_semiotic(self, signal_package: SignalPackage) -> Dict[str, Any]:
+        """Обработка семиотических сигналов"""
+        self.logger.info(f"Обработка SEMIOTIC сигнала от {signal_package.source}")
+        
+        semiotic_data = signal_package.payload.get("semiotic_data", {})
+        
+        # Проверка на инициализацию
+        if not hasattr(self, '_is_initialized') or not self._is_initialized:
+            return {
+                "status": "node_not_initialized",
+                "sephira": self._name,
+                "action": "deferred",
+                "message": "Node not fully initialized, semiotic signal deferred"
+            }
+        
+        processed = {
+            "action": "semiotic_processing",
+            "sephira": self._name,
+            "semiotic_type": semiotic_data.get("type", "general"),
+            "intensity": semiotic_data.get("intensity", 0.5),
+            "symbols": semiotic_data.get("symbols", []),
+            "current_stability_angle": self.stability_angle,
+            "stability_factor": self.stability_factor,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        # Модуляция параметров
+        self.energy = min(1.0, self.energy + 0.015)
+        self.resonance = min(1.0, self.resonance + 0.008)
+        
+        return {
+            "status": "semiotic_processed",
+            "sephira": self._name,
+            "result": processed,
+            "energy_boost": 0.015,
+            "resonance_boost": 0.008
+        }
     
     # ================================================================
     # СИСТЕМА РЕЗОНАНСНОЙ ОБРАТНОЙ СВЯЗИ С УЧЁТОМ УГЛА
