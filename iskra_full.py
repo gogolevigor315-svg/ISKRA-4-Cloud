@@ -152,13 +152,13 @@ try:
     bus = get_sephirotic_bus()
     from iskra_modules.sephirot_blocks.sephirotic_engine import SephiroticEngine
     engine = SephiroticEngine()
-   
+    
     print("✅ SephirotBus и SephiroticEngine созданы")
-   
+    
     # Создаём дерево напрямую
     from iskra_modules.sephirot_blocks.sephirot_base import SephiroticTree
     tree = SephiroticTree()
-   
+    
     # Пробуем разные методы активации
     result = None
     for method_name in ['activate', 'initialize', 'start', 'build', 'create_tree']:
@@ -166,12 +166,13 @@ try:
             method = getattr(tree, method_name)
             print(f"   Пробую метод {method_name}()...")
             try:
-                result = method()
-                # ЕСЛИ ЭТО КОРУТИНА - ЖДЁМ
-                if asyncio.iscoroutine(result):
+                tmp_result = method()
+                if asyncio.iscoroutine(tmp_result):
                     print(f"   ⏳ Метод {method_name}() асинхронный, ожидаем...")
                     import asyncio
-                    result = asyncio.run(result)
+                    result = asyncio.run(tmp_result)
+                else:
+                    result = tmp_result
                 
                 if result:
                     print(f"   ✅ Метод {method_name}() сработал")
@@ -179,15 +180,24 @@ try:
             except Exception as e:
                 print(f"   ⚠️ Метод {method_name}() упал: {e}")
                 continue
-   
-    if result and result.get("activated_nodes", 0) >= 11:
-        print(f"✅ ПОЛНОЕ ДЕРЕВО АКТИВИРОВАНО: {result.get('activated_nodes')} сефирот")
-        print(f" Резонанс: {result.get('total_resonance', 0):.3f}")
-        _sephirot_bus = bus
-        _sephirotic_engine = engine
-        _tree_activated = True
+
+    if result is not None:
+        activated_nodes = result.get("activated_nodes", 0)
+        total_resonance = result.get("total_resonance", 0.0)
+        
+        print(f"Результат активации: activated_nodes={activated_nodes}, resonance={total_resonance:.3f}")
+        
+        if activated_nodes >= 11:
+            print(f"✅ ПОЛНОЕ ДЕРЕВО АКТИВИРОВАНО: {activated_nodes} сефирот")
+            print(f"   Резонанс: {total_resonance:.3f}")
+            _sephirot_bus = bus
+            _sephirotic_engine = engine
+            _tree_activated = True
+        else:
+            print("⚠️ Дерево активировано частично (меньше 11 сефирот)")
+            _tree_activated = False
     else:
-        print("⚠️ Дерево активировано частично или не активировано")
+        print("⚠️ Метод активации вернул None — дерево не активировано")
         _tree_activated = False
 
 except Exception as e:
