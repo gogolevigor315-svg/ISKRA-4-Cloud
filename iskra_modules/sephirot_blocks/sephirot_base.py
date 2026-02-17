@@ -694,19 +694,19 @@ class SephiroticNode(ISephiraModule):
     
         return handlers
 
-def _get_default_handler(self, handler_name: str):
-    """Универсальная заглушка для отсутствующих _handle_* методов"""
-    async def default_handler(signal_package: SignalPackage) -> Dict[str, Any]:
-        self.logger.warning(f"Default handler triggered for {handler_name} "
-                          f"(сигнал от {getattr(signal_package, 'source', 'unknown')})")
-        return {
-            "status": "default_handled",
-            "handler": handler_name,
-            "message": f"Method {handler_name} not implemented yet",
-            "signal_type": signal_package.type.name if signal_package else "unknown",
-            "timestamp": datetime.utcnow().isoformat()
-        }
-    return default_handler
+    def _get_default_handler(self, handler_name: str):
+        """Универсальная заглушка для отсутствующих _handle_* методов"""
+        async def default_handler(signal_package: SignalPackage) -> Dict[str, Any]:
+            self.logger.warning(f"Default handler triggered for {handler_name} "
+                              f"(сигнал от {getattr(signal_package, 'source', 'unknown')})")
+            return {
+                "status": "default_handled",
+                "handler": handler_name,
+                "message": f"Method {handler_name} not implemented yet",
+                "signal_type": signal_package.type.name if signal_package else "unknown",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        return default_handler
     
     async def _async_initialization(self):
         """Асинхронная инициализация узла"""
