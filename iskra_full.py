@@ -6,6 +6,7 @@
 
 import os
 import sys
+import asyncio
 
 # ============================================================================
 # ПРОСТОЙ ЗАПУСК НА RENDER
@@ -151,31 +152,37 @@ try:
     bus = get_sephirotic_bus()
     from iskra_modules.sephirot_blocks.sephirotic_engine import SephiroticEngine
     engine = SephiroticEngine()
-    
-    print("✅ SephirotBus и SephiroticEngine созданы")  # ← замени logger.info на print
-    
+   
+    print("✅ SephirotBus и SephiroticEngine созданы")
+   
     # Создаём дерево напрямую
     from iskra_modules.sephirot_blocks.sephirot_base import SephiroticTree
     tree = SephiroticTree()
-    
+   
     # Пробуем разные методы активации
     result = None
     for method_name in ['activate', 'initialize', 'start', 'build', 'create_tree']:
         if hasattr(tree, method_name):
             method = getattr(tree, method_name)
-            print(f"   Пробую метод {method_name}()...")  # ← замени на print
+            print(f"   Пробую метод {method_name}()...")
             try:
                 result = method()
+                # ЕСЛИ ЭТО КОРУТИНА - ЖДЁМ
+                if asyncio.iscoroutine(result):
+                    print(f"   ⏳ Метод {method_name}() асинхронный, ожидаем...")
+                    import asyncio
+                    result = asyncio.run(result)
+                
                 if result:
-                    print(f"   ✅ Метод {method_name}() сработал")  # ← замени на print
+                    print(f"   ✅ Метод {method_name}() сработал")
                     break
             except Exception as e:
-                print(f"   ⚠️ Метод {method_name}() упал: {e}")  # ← замени на print
+                print(f"   ⚠️ Метод {method_name}() упал: {e}")
                 continue
-    
+   
     if result and result.get("activated_nodes", 0) >= 11:
         print(f"✅ ПОЛНОЕ ДЕРЕВО АКТИВИРОВАНО: {result.get('activated_nodes')} сефирот")
-        print(f"   Резонанс: {result.get('total_resonance', 0):.3f}")
+        print(f" Резонанс: {result.get('total_resonance', 0):.3f}")
         _sephirot_bus = bus
         _sephirotic_engine = engine
         _tree_activated = True
@@ -186,7 +193,7 @@ try:
 except Exception as e:
     print(f"❌ Критическая ошибка при активации дерева: {e}")
     _tree_activated = False
-    
+
 print("🔥"*50 + "\n")
 
 # ============================================================================
