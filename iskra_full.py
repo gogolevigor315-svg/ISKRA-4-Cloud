@@ -228,6 +228,17 @@ try:
         
         # Проверяем, есть ли уже DAAT в дереве
         if 'DAAT' not in tree.nodes:
+            # 🔥 СОЗДАЕМ EVENT LOOP ЕСЛИ НУЖНО 🔥
+            try:
+                loop = asyncio.get_running_loop()
+                print(f"   ✅ Event loop уже запущен")
+            except RuntimeError:
+                # Нет запущенного цикла - создаем новый
+                print(f"   ⏳ Создаю новый event loop...")
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                print(f"   ✅ Event loop создан")
+            
             # Создаем конфиг для DAAT
             from iskra_modules.sephirot_blocks.sephirot_base import SephiroticNode, Sephirot, SephiraConfig, GOLDEN_STABILITY_ANGLE
             
