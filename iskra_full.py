@@ -237,12 +237,25 @@ try:
                 daat_enum = Sephirot.DAAT
                 print(f"   ✅ Найден Sephirot.DAAT")
             else:
-                # Создаем временный enum
+                # Создаем полноценный enum с display_name
                 from enum import Enum
                 class TempSephirot(Enum):
                     DAAT = "DAAT"
+                    
+                    @property
+                    def display_name(self):
+                        return "DAAT"  # или "Знание", или "דעת"
+                    
+                    @property
+                    def name(self):
+                        return "DAAT"
+                        
+                    @property
+                    def value(self):
+                        return "DAAT"
+                
                 daat_enum = TempSephirot.DAAT
-                print(f"   ⚠️ Создан временный enum для DAAT")
+                print(f"   ⚠️ Создан временный enum для DAAT с display_name")
             
             # Создаем конфиг
             daat_config = SephiraConfig(
