@@ -287,20 +287,26 @@ try:
                 stability_angle=GOLDEN_STABILITY_ANGLE
             )
             
-            # Создаем узел DAAT
+            # Создаем узел DAAT (без автоматической инициализации)
             print(f"   ⏳ Создаю узел DAAT...")
             daat_node = SephiroticNode(daat_enum, bus, daat_config)
             
+            # ЯВНО запускаем инициализацию через start()
+            await daat_node.start()
+            print(f"   ✅ Узел DAAT запущен (статус: {daat_node.status.value})")
+            
             # Сохраняем ссылку на ядро DAAT в узле
-            daat_node.daat_core = daat_instance
+            if daat_instance:
+                daat_node.daat_core = daat_instance
+                print(f"   ✅ Ядро DAAT привязано к узлу")
             
             # Добавляем в дерево
             tree.nodes['DAAT'] = daat_node
-            print(f"   ✅ Узел DAAT создан и добавлен в дерево")
+            print(f"   ✅ Узел DAAT добавлен в дерево")
             
             # Интеграция с шиной (если есть)
             if hasattr(bus, 'nodes') and 'DAAT' not in bus.nodes:
-                bus.nodes['DAAT'] = daat_instance
+                bus.nodes['DAAT'] = daat_node
                 print(f"   ✅ DAAT добавлена в шину")
             
             # Пересчитываем активированные узлы
