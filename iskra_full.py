@@ -237,14 +237,14 @@ try:
                 daat_enum = Sephirot.DAAT
                 print(f"   ✅ Найден Sephirot.DAAT")
             else:
-                # Создаем полноценный enum с display_name
+                # Создаем полноценный enum с display_name и level
                 from enum import Enum
                 class TempSephirot(Enum):
                     DAAT = "DAAT"
                     
                     @property
                     def display_name(self):
-                        return "DAAT"  # или "Знание", или "דעת"
+                        return "DAAT"
                     
                     @property
                     def name(self):
@@ -253,9 +253,21 @@ try:
                     @property
                     def value(self):
                         return "DAAT"
+                    
+                    @property
+                    def level(self):
+                        return 11  # DAAT - 11-я сефира
+                    
+                    @property
+                    def description(self):
+                        return "Скрытая сефира Знания и Сознания"
+                    
+                    @property
+                    def connected_module(self):
+                        return "daat_core"
                 
                 daat_enum = TempSephirot.DAAT
-                print(f"   ⚠️ Создан временный enum для DAAT с display_name")
+                print(f"   ⚠️ Создан временный enum для DAAT со всеми атрибутами")
             
             # Создаем конфиг
             daat_config = SephiraConfig(
