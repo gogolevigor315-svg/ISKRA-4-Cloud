@@ -148,7 +148,11 @@ print("\n" + "🔥"*50)
 print("🔥 ФОРСИРОВАННАЯ АКТИВАЦИЯ СЕФИРОТИЧЕСКОГО ДЕРЕВА")
 print("🔥"*50 + "\n")
 
-try:
+# ============================================================================
+# АСИНХРОННАЯ ФУНКЦИЯ АКТИВАЦИИ
+# ============================================================================
+async def activate_sephirotic_tree():
+    """Асинхронная активация сефиротического дерева с интеграцией DAAT"""
     bus = get_sephirotic_bus()
     from iskra_modules.sephirot_blocks.sephirotic_engine import SephiroticEngine
     engine = SephiroticEngine()
@@ -169,8 +173,7 @@ try:
                 tmp_result = method()
                 if asyncio.iscoroutine(tmp_result):
                     print(f"   ⏳ Метод {method_name}() асинхронный, ожидаем...")
-                    import asyncio
-                    result = asyncio.run(tmp_result)
+                    result = await tmp_result
                 else:
                     result = tmp_result
                 
@@ -192,10 +195,9 @@ try:
         current_resonance = result.get("total_resonance", 0.9)
     
     try:
-        # 🔥 ПРЯМОЙ ИМПОРТ МОДУЛЯ (он еще не загружен!)
+        # 🔥 ПРЯМОЙ ИМПОРТ МОДУЛЯ
         print("   ⏳ Загружаю модуль daat_core...")
         
-        # Способ 1: Прямой импорт с проверкой
         daat_module = None
         daat_instance = None
         
@@ -228,17 +230,6 @@ try:
         
         # Проверяем, есть ли уже DAAT в дереве
         if 'DAAT' not in tree.nodes:
-            # 🔥 СОЗДАЕМ EVENT LOOP ЕСЛИ НУЖНО 🔥
-            try:
-                loop = asyncio.get_running_loop()
-                print(f"   ✅ Event loop уже запущен")
-            except RuntimeError:
-                # Нет запущенного цикла - создаем новый
-                print(f"   ⏳ Создаю новый event loop...")
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                print(f"   ✅ Event loop создан")
-            
             # Создаем конфиг для DAAT
             from iskra_modules.sephirot_blocks.sephirot_base import SephiroticNode, Sephirot, SephiraConfig, GOLDEN_STABILITY_ANGLE
             
@@ -267,7 +258,7 @@ try:
                     
                     @property
                     def level(self):
-                        return 11  # DAAT - 11-я сефира
+                        return 11
                     
                     @property
                     def description(self):
@@ -319,13 +310,15 @@ try:
             
         else:
             print(f"   ⚠️ DAAT уже есть в дереве")
+            activated_nodes = len([n for n in tree.nodes.values() 
+                                  if hasattr(n, 'status') and n.status.value == 'active'])
         
     except Exception as e:
         print(f"   ❌ Ошибка при интеграции DAAT: {e}")
         import traceback
         traceback.print_exc()
-        # При ошибке используем существующие узлы
-        activated_nodes = len(tree.nodes)
+        activated_nodes = len([n for n in tree.nodes.values() 
+                              if hasattr(n, 'status') and n.status.value == 'active'])
     
     print("🔮"*30 + "\n")
     
@@ -335,15 +328,35 @@ try:
     if activated_nodes >= 11:
         print(f"✅ ПОЛНОЕ ДЕРЕВО АКТИВИРОВАНО: {activated_nodes} сефирот")
         print(f"   Резонанс: {current_resonance:.3f}")
-        _sephirot_bus = bus
-        _sephirotic_engine = engine
-        _tree_activated = True
+        return True, bus, engine, activated_nodes, current_resonance
     else:
         print(f"⚠️ Дерево активировано частично ({activated_nodes}/11)")
-        _tree_activated = False
+        return False, bus, engine, activated_nodes, current_resonance
 
+# ============================================================================
+# ЗАПУСК АКТИВАЦИИ
+# ============================================================================
+_tree_activated = False
+_sephirot_bus = None
+_sephirotic_engine = None
+activated_nodes = 0
+current_resonance = 0.0
+
+try:
+    # Запускаем асинхронную активацию
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    result = loop.run_until_complete(activate_sephirotic_tree())
+    loop.close()
+    
+    if result:
+        _tree_activated, _sephirot_bus, _sephirotic_engine, activated_nodes, current_resonance = result
+        print(f"🔥 Результат активации: {activated_nodes} узлов, резонанс {current_resonance:.3f}")
+    
 except Exception as e:
-    print(f"❌ Критическая ошибка при активации дерева: {e}")
+    print(f"❌ Ошибка при активации: {e}")
+    import traceback
+    traceback.print_exc()
     _tree_activated = False
 
 print("🔥"*50 + "\n")
