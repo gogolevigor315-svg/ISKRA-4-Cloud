@@ -189,6 +189,12 @@ async def activate_sephirotic_tree():
     print("🔮 ИНТЕГРАЦИЯ DAAT В ДЕРЕВО")
     print("🔮"*30)
     
+    # 💥 СОХРАНЯЕМ СУЩЕСТВУЮЩИЕ УЗЛЫ ДО ВСЕГО
+    existing_nodes = dict(tree.nodes) if hasattr(tree, 'nodes') else {}
+    print(f"   📊 Существующих узлов до DAAT: {len(existing_nodes)}")
+    if existing_nodes:
+        print(f"   📋 Узлы: {list(existing_nodes.keys())}")
+    
     # Получаем резонанс из result или используем значение по умолчанию
     current_resonance = 0.9
     if result is not None:
@@ -228,8 +234,8 @@ async def activate_sephirotic_tree():
                     self.name = "DAAT"
             daat_instance = DaatStub()
         
-        # Проверяем, есть ли уже DAAT в дереве
-        if 'DAAT' not in tree.nodes:
+        # Проверяем, есть ли уже DAAT в сохраненных узлах
+        if 'DAAT' not in existing_nodes:
             # Создаем конфиг для DAAT
             from iskra_modules.sephirot_blocks.sephirot_base import SephiroticNode, Sephirot, SephiraConfig, GOLDEN_STABILITY_ANGLE
             
@@ -291,9 +297,10 @@ async def activate_sephirotic_tree():
                 daat_node.daat_core = daat_instance
                 print(f"   ✅ Ядро DAAT привязано к узлу")
             
-            # Добавляем в дерево
-            tree.nodes['DAAT'] = daat_node
-            print(f"   ✅ Узел DAAT добавлен в дерево")
+            # 💥 ВОССТАНАВЛИВАЕМ ВСЕ УЗЛЫ
+            tree.nodes = existing_nodes  # Возвращаем 10 узлов
+            tree.nodes['DAAT'] = daat_node  # Добавляем DAAT
+            print(f"   ✅ Восстановлено {len(existing_nodes)} узлов + DAAT")
             
             # Интеграция с шиной (если есть)
             if hasattr(bus, 'nodes') and 'DAAT' not in bus.nodes:
@@ -310,14 +317,14 @@ async def activate_sephirotic_tree():
             
         else:
             print(f"   ⚠️ DAAT уже есть в дереве")
-            activated_nodes = len([n for n in tree.nodes.values() 
+            activated_nodes = len([n for n in existing_nodes.values() 
                                   if hasattr(n, 'status') and n.status.value == 'active'])
         
     except Exception as e:
         print(f"   ❌ Ошибка при интеграции DAAT: {e}")
         import traceback
         traceback.print_exc()
-        activated_nodes = len([n for n in tree.nodes.values() 
+        activated_nodes = len([n for n in existing_nodes.values() 
                               if hasattr(n, 'status') and n.status.value == 'active'])
     
     print("🔮"*30 + "\n")
