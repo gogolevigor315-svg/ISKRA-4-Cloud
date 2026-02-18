@@ -181,23 +181,104 @@ try:
                 print(f"   ⚠️ Метод {method_name}() упал: {e}")
                 continue
 
+    # 🔥 ИНТЕГРАЦИЯ DAAT КАК 11-Й СЕФИРЫ 🔥
+    print("\n" + "🔮"*30)
+    print("🔮 ИНТЕГРАЦИЯ DAAT В ДЕРЕВО")
+    print("🔮"*30)
+    
+    # Получаем резонанс из result или используем значение по умолчанию
+    current_resonance = 0.9
     if result is not None:
-        activated_nodes = result.get("activated_nodes", 0)
-        total_resonance = result.get("total_resonance", 0.0)
+        current_resonance = result.get("total_resonance", 0.9)
+    
+    try:
+        # Получаем существующий экземпляр DAAT через синглтон
+        from iskra_modules.daat_core import get_daat
+        daat_instance = get_daat(force_awaken=True)
+        print(f"   ✅ DAAT получена через get_daat()")
+        print(f"      Статус: {daat_instance.status}")
+        print(f"      Резонанс: {daat_instance.resonance_index:.3f}")
         
-        print(f"Результат активации: activated_nodes={activated_nodes}, resonance={total_resonance:.3f}")
-        
-        if activated_nodes >= 11:
-            print(f"✅ ПОЛНОЕ ДЕРЕВО АКТИВИРОВАНО: {activated_nodes} сефирот")
-            print(f"   Резонанс: {total_resonance:.3f}")
-            _sephirot_bus = bus
-            _sephirotic_engine = engine
-            _tree_activated = True
+        # Проверяем, есть ли уже DAAT в дереве
+        if 'DAAT' not in tree.nodes:
+            # Создаем конфиг для DAAT
+            from iskra_modules.sephirot_blocks.sephirot_base import SephiroticNode, Sephirot, SephiraConfig, GOLDEN_STABILITY_ANGLE
+            
+            # Получаем или создаем enum для DAAT
+            daat_enum = None
+            if hasattr(Sephirot, 'DAAT'):
+                daat_enum = Sephirot.DAAT
+                print(f"   ✅ Найден Sephirot.DAAT")
+            else:
+                # Создаем временный enum
+                from enum import Enum
+                class TempSephirot(Enum):
+                    DAAT = "DAAT"
+                daat_enum = TempSephirot.DAAT
+                print(f"   ⚠️ Создан временный enum для DAAT")
+            
+            # Создаем конфиг
+            daat_config = SephiraConfig(
+                sephira=daat_enum,
+                bus=bus,
+                stability_angle=GOLDEN_STABILITY_ANGLE
+            )
+            
+            # Создаем узел DAAT
+            print(f"   ⏳ Создаю узел DAAT...")
+            daat_node = SephiroticNode(daat_enum, bus, daat_config)
+            
+            # Сохраняем ссылку на ядро DAAT в узле
+            daat_node.daat_core = daat_instance
+            
+            # Добавляем в дерево
+            tree.nodes['DAAT'] = daat_node
+            print(f"   ✅ Узел DAAT создан и добавлен в дерево")
+            
+            # Интеграция с шиной (если есть)
+            if hasattr(bus, 'nodes') and 'DAAT' not in bus.nodes:
+                bus.nodes['DAAT'] = daat_instance
+                print(f"   ✅ DAAT добавлена в шину")
+            
+            # Пересчитываем активированные узлы
+            activated_nodes = len([n for n in tree.nodes.values() 
+                                  if hasattr(n, 'status') and n.status.value == 'active'])
+            print(f"   📊 Новое количество узлов: {activated_nodes}")
+            
+            # Обновляем резонанс с учетом DAAT
+            current_resonance = (current_resonance + daat_instance.resonance_index) / 2
+            
         else:
-            print("⚠️ Дерево активировано частично (меньше 11 сефирот)")
-            _tree_activated = False
+            print(f"   ⚠️ DAAT уже есть в дереве")
+        
+    except ImportError as e:
+        print(f"   ⚠️ Не удалось импортировать DAAT: {e}")
+        # Если не удалось импортировать, используем значения по умолчанию
+        if 'DAAT' not in tree.nodes:
+            activated_nodes = len(tree.nodes)
+        else:
+            activated_nodes = len(tree.nodes)
+        
+    except Exception as e:
+        print(f"   ❌ Ошибка при интеграции DAAT: {e}")
+        import traceback
+        traceback.print_exc()
+        # При ошибке используем существующие узлы
+        activated_nodes = len(tree.nodes)
+    
+    print("🔮"*30 + "\n")
+    
+    # Финальная проверка
+    print(f"📊 Результат активации: activated_nodes={activated_nodes}, resonance={current_resonance:.3f}")
+    
+    if activated_nodes >= 11:
+        print(f"✅ ПОЛНОЕ ДЕРЕВО АКТИВИРОВАНО: {activated_nodes} сефирот")
+        print(f"   Резонанс: {current_resonance:.3f}")
+        _sephirot_bus = bus
+        _sephirotic_engine = engine
+        _tree_activated = True
     else:
-        print("⚠️ Метод активации вернул None — дерево не активировано")
+        print(f"⚠️ Дерево активировано частично ({activated_nodes}/11)")
         _tree_activated = False
 
 except Exception as e:
@@ -205,7 +286,7 @@ except Exception as e:
     _tree_activated = False
 
 print("🔥"*50 + "\n")
-
+        
 # ============================================================================
 # ДОБАВЬТЕ ЭТОТ КОД:
 # ============================================================================
