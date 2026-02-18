@@ -546,12 +546,15 @@ class SephiroticNode(ISephiraModule):
         # Запуск инициализации (отложенный - будет запущен явно через start())
         self._init_task = None
 
-    async def start(self):
-        """Явный асинхронный запуск инициализации узла"""
-        if self._init_task is None or self._init_task.done():
+    async def initialize_async(self):
+        """Асинхронный запуск инициализации узла"""
+        if self._init_task is None:
             self._init_task = asyncio.create_task(self._async_initialization())
-            # Даем немного времени на инициализацию
-            await asyncio.sleep(0.1)
+            self.logger.info(f"✅ Запущена инициализация узла {self._name}")
+        elif self._init_task.done() and self.status != NodeStatus.ACTIVE:
+            # Если задача завершена, но узел не active - перезапускаем
+            self._init_task = asyncio.create_task(self._async_initialization())
+            self.logger.warning(f"🔄 Перезапуск инициализации узла {self._name}")
         return self._init_task
     
     # ================================================================
@@ -756,20 +759,27 @@ class SephiroticNode(ISephiraModule):
     
     async def _start_background_tasks(self):
         """Запуск фоновых задач"""
+        self.logger.info(f"🚀 Запускаю фоновые задачи для {self._name}")
+    
         tasks = [
-            self._signal_processor,      # ← без скобок!
-            self._resonance_dynamics,    # ← без скобок!
-            self._energy_manager,        # ← без скобок!
-            self._metrics_collector,     # ← без скобок!
-            self._link_maintainer,       # ← без скобок!
-            self._health_monitor,        # ← без скобок!
-            self._angle_stabilizer       # ← без скобок!
+            self._signal_processor,
+            self._resonance_dynamics,
+            self._energy_manager,
+            self._metrics_collector,
+            self._link_maintainer,
+            self._health_monitor,
+            self._angle_stabilizer
         ]
     
+        self.logger.info(f"   📊 Всего задач: {len(tasks)}")
+    
         for task_func in tasks:
-            task_obj = asyncio.create_task(task_func())  # ← здесь вызываем
-            self._background_tasks.add(task_obj)
-            task_obj.add_done_callback(self._background_tasks.discard)
+            task = asyncio.create_task(task_func())
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
+            self.logger.info(f"   ✅ Задача {task_func.__name__} запущена")
+    
+        self.logger.info(f"   ✅ Все {len(tasks)} задач запущены для {self._name}")
     
     # ================================================================
     # НОВЫЕ МЕТОДЫ ДЛЯ РАБОТЫ С УГЛОМ УСТОЙЧИВОСТИ
