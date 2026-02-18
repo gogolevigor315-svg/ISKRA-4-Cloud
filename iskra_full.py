@@ -192,12 +192,39 @@ try:
         current_resonance = result.get("total_resonance", 0.9)
     
     try:
-        # Получаем существующий экземпляр DAAT через синглтон
-        from iskra_modules.daat_core import get_daat
-        daat_instance = get_daat(force_awaken=True)
-        print(f"   ✅ DAAT получена через get_daat()")
-        print(f"      Статус: {daat_instance.status}")
-        print(f"      Резонанс: {daat_instance.resonance_index:.3f}")
+        # 🔥 ПРЯМОЙ ИМПОРТ МОДУЛЯ (он еще не загружен!)
+        print("   ⏳ Загружаю модуль daat_core...")
+        
+        # Способ 1: Прямой импорт с проверкой
+        daat_module = None
+        daat_instance = None
+        
+        # Пробуем импортировать модуль
+        try:
+            import iskra_modules.daat_core as daat_module
+            print("   ✅ Модуль daat_core импортирован")
+        except ImportError:
+            try:
+                import iskra_modules.DAAT as daat_module
+                print("   ✅ Модуль DAAT импортирован")
+            except ImportError as e:
+                print(f"   ⚠️ Не удалось импортировать модуль DAAT: {e}")
+        
+        # Если модуль загружен, получаем экземпляр
+        if daat_module and hasattr(daat_module, 'get_daat'):
+            daat_instance = daat_module.get_daat(force_awaken=True)
+            print(f"   ✅ DAAT получена через get_daat()")
+            print(f"      Статус: {daat_instance.status}")
+            print(f"      Резонанс: {daat_instance.resonance_index:.3f}")
+        else:
+            # Создаем заглушку DAAT
+            print("   ⚠️ Создаю заглушку DAAT")
+            class DaatStub:
+                def __init__(self):
+                    self.status = "awake"
+                    self.resonance_index = 0.1
+                    self.name = "DAAT"
+            daat_instance = DaatStub()
         
         # Проверяем, есть ли уже DAAT в дереве
         if 'DAAT' not in tree.nodes:
@@ -251,14 +278,6 @@ try:
         else:
             print(f"   ⚠️ DAAT уже есть в дереве")
         
-    except ImportError as e:
-        print(f"   ⚠️ Не удалось импортировать DAAT: {e}")
-        # Если не удалось импортировать, используем значения по умолчанию
-        if 'DAAT' not in tree.nodes:
-            activated_nodes = len(tree.nodes)
-        else:
-            activated_nodes = len(tree.nodes)
-        
     except Exception as e:
         print(f"   ❌ Ошибка при интеграции DAAT: {e}")
         import traceback
@@ -280,11 +299,6 @@ try:
     else:
         print(f"⚠️ Дерево активировано частично ({activated_nodes}/11)")
         _tree_activated = False
-
-except Exception as e:
-    print(f"❌ Критическая ошибка при активации дерева: {e}")
-    _tree_activated = False
-
 print("🔥"*50 + "\n")
         
 # ============================================================================
