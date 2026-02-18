@@ -548,7 +548,7 @@ class SephiroticNode(ISephiraModule):
 
     async def start(self):
         """Явный асинхронный запуск инициализации узла"""
-        f self._init_task is None or self._init_task.done():
+        if self._init_task is None or self._init_task.done():
             self._init_task = asyncio.create_task(self._async_initialization())
             # Даем немного времени на инициализацию
             await asyncio.sleep(0.1)
