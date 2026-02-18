@@ -2063,30 +2063,121 @@ class SephiroticTree:
         
     async def initialize(self):
         """Инициализация всех сефирот и подключение RAS-CORE"""
-        if self.initialized:
-            return
+        print("\n" + "="*60)
+        print("🌳 НАЧАЛО ИНИЦИАЛИЗАЦИИ ДЕРЕВА")
+        print("="*60 + "\n")
+    
+        try:
+            # Шаг 1: Проверка состояния
+            print("📋 ШАГ 1: Проверка состояния")
+            if self.initialized:
+                print("   ✅ Дерево уже инициализировано")
+                return
+            print("   ✅ Начинаем инициализацию")
         
-        self.logger.info("Инициализация Сефиротического Древа с интеграцией RAS-CORE")
+            self.logger.info("Инициализация Сефиротического Древа с интеграцией RAS-CORE")
         
-        # Создаём все стандартные сефироты
-        for sephira in Sephirot:
-            if sephira != Sephirot.RAS_CORE:  # RAS-CORE добавляется отдельно
-                config = SephiraConfig(
-                    sephira=sephira,
-                    bus=self.bus,
-                    stability_angle=GOLDEN_STABILITY_ANGLE
-                )
-                node = SephiroticNode(sephira, self.bus, config)
-                self.nodes[sephira.name] = node
+            # Шаг 2: Создание сефирот
+            print("\n📋 ШАГ 2: Создание сефиротических узлов")
         
-        await self._establish_sephirotic_connections()
+            # Счетчики для статистики
+            created_nodes = 0
+            failed_nodes = 0
         
-        # Интеграция с RAS-CORE, если он передан
-        if self.ras_core:
-            await self._integrate_ras_core()
+            for sephira in Sephirot:
+                if sephira == Sephirot.RAS_CORE:
+                    print(f"\n   ⏭️  Пропускаем RAS-CORE (будет добавлен отдельно)")
+                    continue
+                
+                print(f"\n   🔹 Создаю узел: {sephira.name}")
+                try:
+                    # Создаем конфиг
+                    config = SephiraConfig(
+                        sephira=sephira,
+                        bus=self.bus,
+                        stability_angle=GOLDEN_STABILITY_ANGLE
+                    )
+                    print(f"      ✅ Конфиг создан")
+                
+                    # Создаем узел
+                    print(f"      ⏳ Вызываю SephiroticNode()...")
+                    node = SephiroticNode(sephira, self.bus, config)
+                    print(f"      ✅ Узел создан успешно")
+                
+                    # Сохраняем в словарь
+                    self.nodes[sephira.name] = node
+                    print(f"      ✅ Узел сохранен в self.nodes")
+                    created_nodes += 1
+                
+                except Exception as e:
+                    print(f"      ❌ ОШИБКА создания узла {sephira.name}: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    failed_nodes += 1
+                    # Не падаем, продолжаем с другими узлами
         
-        self.initialized = True
-        self.logger.info("Сефиротическое Древо инициализировано с интеграцией RAS-CORE")
+            print(f"\n📊 Статистика создания узлов:")
+            print(f"   ✅ Успешно создано: {created_nodes}")
+            print(f"   ❌ Ошибок: {failed_nodes}")
+        
+            # Шаг 3: Установка связей
+            print("\n📋 ШАГ 3: Установка сефиротических связей")
+            try:
+                print("   ⏳ Вызываю _establish_sephirotic_connections()...")
+                await self._establish_sephirotic_connections()
+                print("   ✅ Связи установлены")
+            except Exception as e:
+                print(f"   ❌ Ошибка при установке связей: {e}")
+                import traceback
+                traceback.print_exc()
+                # Не падаем, продолжаем
+        
+            # Шаг 4: Интеграция RAS-CORE
+            print("\n📋 ШАГ 4: Интеграция RAS-CORE")
+            if self.ras_core:
+                try:
+                    print("   ⏳ Вызываю _integrate_ras_core()...")
+                    await self._integrate_ras_core()
+                    print("   ✅ RAS-CORE интегрирован")
+                except Exception as e:
+                    print(f"   ❌ Ошибка при интеграции RAS-CORE: {e}")
+                    import traceback
+                    traceback.print_exc()
+            else:
+                print("   ⚠️ ras_core отсутствует, пропускаем интеграцию")
+        
+            # Шаг 5: Финальная проверка
+            print("\n📋 ШАГ 5: Финальная проверка")
+            self.initialized = True
+        
+            # Подсчет активных узлов
+            active_nodes = len(self.nodes)
+        
+            print(f"\n" + "="*60)
+            print(f"🎯 РЕЗУЛЬТАТ ИНИЦИАЛИЗАЦИИ:")
+            print(f"   ✅ Всего узлов в дереве: {active_nodes}")
+            print(f"   ✅ Узлы: {list(self.nodes.keys())}")
+            print("="*60 + "\n")
+        
+            self.logger.info(f"Сефиротическое Древо инициализировано с {active_nodes} узлами")
+        
+            # Возвращаем результат для блока форсированной активации
+            return {
+                "activated_nodes": active_nodes,
+                "total_resonance": 0.9  # Базовое значение
+            }
+        
+        except Exception as e:
+            print("\n" + "🔥"*60)
+            print(f"🔥 КРИТИЧЕСКАЯ ОШИБКА В ИНИЦИАЛИЗАЦИИ ДЕРЕВА:")
+            print(f"🔥 {e}")
+            print("🔥"*60)
+            import traceback
+            traceback.print_exc()
+            print("🔥"*60 + "\n")
+        
+            self.logger.error(f"Критическая ошибка инициализации дерева: {e}")
+            return None
     
     async def _establish_sephirotic_connections(self):
         """Установка канонических связей между сефиротами"""
