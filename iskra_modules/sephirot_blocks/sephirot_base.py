@@ -543,8 +543,16 @@ class SephiroticNode(ISephiraModule):
         # Системные компоненты
         self._initialize_system_components()
         
-        # Запуск инициализации
-        self._init_task = asyncio.create_task(self._async_initialization())
+        # Запуск инициализации (отложенный - будет запущен явно через start())
+        self._init_task = None
+
+    async def start(self):
+        """Явный асинхронный запуск инициализации узла"""
+        f self._init_task is None or self._init_task.done():
+            self._init_task = asyncio.create_task(self._async_initialization())
+            # Даем немного времени на инициализацию
+            await asyncio.sleep(0.1)
+        return self._init_task
     
     # ================================================================
     # РЕАЛИЗАЦИЯ ИНТЕРФЕЙСА ISephiraModule
