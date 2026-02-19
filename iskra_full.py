@@ -1761,26 +1761,88 @@ def activate_sephirot():
         }), 500
 
 @app.route('/sephirot/state')
-def sephirot_state():
+async def sephirot_state():  # ← async уже можно, подготовка к Quart
     """Состояние сефиротического дерева"""
-    if loader is None or loader.sephirotic_tree is None:
-        return jsonify({"error": "Сефиротическая система не доступна"}), 404
-    
-    tree_state = loader.sephirotic_tree.get_tree_state()
-    
-    # Добавляем информацию об автоактивации
-    enhanced_state = {
-        **tree_state,
-        "auto_activation": {
-            "enabled": getattr(loader, 'auto_activate', False),
-            "successful": getattr(loader, 'auto_activate', False) and tree_state.get("activated", False),
-            "stats": loader.stats.get("auto_activation_stats", {}) if hasattr(loader, 'stats') else {}
-        },
-        "can_activate_manually": True,
-        "activation_endpoint": "/sephirot/activate (POST)"
-    }
-    
-    return jsonify(enhanced_state)
+    tree = None
+    source = "unknown"
+
+    # 1. Самый надёжный и явный источник (ты его сохраняешь после активации)
+    if 'sephirot_tree_api' in globals() and globals()['sephirot_tree_api'] is not None:
+        tree = globals()['sephirot_tree_api']
+        source = "sephirot_tree_api (explicit export after activation)"
+
+    # 2. Движок (если есть)
+    elif '_sephirotic_engine' in globals() and globals()['_sephirotic_engine'] is not None:
+        engine = globals()['_sephirotic_engine']
+        if hasattr(engine, 'tree') and engine.tree is not None:
+            tree = engine.tree
+            source = "_sephirotic_engine.tree"
+
+    # 3. Loader (самый поздний fallback)
+    elif 'loader' in globals() and globals()['loader'] is not None:
+        loader_obj = globals()['loader']
+        if hasattr(loader_obj, 'sephirotic_tree') and loader_obj.sephirotic_tree is not None:
+            tree = loader_obj.sephirotic_tree
+            source = "loader.sephirotic_tree"
+
+    if tree is None:
+        return jsonify({
+            "error": "Сефиротическая система не инициализирована",
+            "checked_sources": ["sephirot_tree_api", "_sephirotic_engine", "loader"],
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }), 404
+
+    try:
+        state = {}
+        
+        # Пытаемся получить полное состояние
+        if hasattr(tree, 'get_tree_state'):
+            state = tree.get_tree_state()
+        elif hasattr(tree, 'get_state'):
+            state = tree.get_state()
+        elif hasattr(tree, 'state') and isinstance(tree.state, dict):
+            state = tree.state.copy()
+        else:
+            # Минимальное рабочее состояние
+            state = {
+                "nodes_count": len(getattr(tree, 'nodes', {})),
+                "activated": getattr(tree, 'activated', False),
+                "resonance": getattr(tree, 'average_resonance', 
+                                   getattr(tree, 'resonance', 0.0)),
+                "warning": "No get_tree_state / get_state method found"
+            }
+
+        # Принудительная синхронизация ключевых полей
+        if hasattr(tree, 'activated'):
+            state["activated"] = tree.activated
+
+        if "average_resonance" not in state and "resonance" in state:
+            state["average_resonance"] = state["resonance"]
+
+        # Всегда добавляем количество узлов
+        state["nodes_count"] = len(getattr(tree, 'nodes', {}))
+
+        # Финальный ответ
+        enhanced_state = {
+            **state,
+            "source": source,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "api_version": "1.0"  # можно потом менять
+        }
+
+        return jsonify(enhanced_state)
+
+    except Exception as e:
+        # Деградированный ответ — 200 OK
+        fallback = {
+            "error": f"Failed to get full state: {str(e)}",
+            "tree_exists": True,
+            "source": source,
+            "nodes_count": len(getattr(tree, 'nodes', {})),
+            "activated": getattr(tree, 'activated', "unknown"),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        return jsonify(fallback), 200
 
 @app.route('/sephirot/modules')
 def sephirot_modules():
