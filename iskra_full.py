@@ -288,8 +288,8 @@ async def activate_sephirotic_tree():
             print(f"   ⏳ Создаю узел DAAT...")
             daat_node = SephiroticNode(daat_enum, bus, daat_config)
             
-            # ЯВНО запускаем инициализацию через start()
-            await daat_node.start()
+            # ЯВНО запускаем инициализацию через initialize_async()
+            await daat_node.initialize_async()
             print(f"   ✅ Узел DAAT запущен (статус: {daat_node.status.value})")
             
             # Сохраняем ссылку на ядро DAAT в узле
