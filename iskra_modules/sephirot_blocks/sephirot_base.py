@@ -555,6 +555,14 @@ class SephiroticNode(ISephiraModule):
             # Если задача завершена, но узел не active - перезапускаем
             self._init_task = asyncio.create_task(self._async_initialization())
             self.logger.warning(f"🔄 Перезапуск инициализации узла {self._name}")
+    
+        # Ждем завершения инициализации (но не бесконечно)
+        try:
+            await asyncio.wait_for(self._init_task, timeout=5.0)
+            self.logger.info(f"✨ Инициализация узла {self._name} завершена, статус: {self.status.value}")
+        except asyncio.TimeoutError:
+            self.logger.warning(f"⏳ Инициализация узла {self._name} все еще выполняется (статус: {self.status.value})")
+    
         return self._init_task
     
     # ================================================================
