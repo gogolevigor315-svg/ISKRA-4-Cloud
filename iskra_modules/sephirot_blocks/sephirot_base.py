@@ -2129,6 +2129,10 @@ class SephiroticTree:
                     print(f"      ⏳ Вызываю SephiroticNode()...")
                     node = SephiroticNode(sephira, self.bus, config)
                     print(f"      ✅ Узел создан успешно")
+                    
+                    # 🔥 ЯВНО ЗАПУСКАЕМ ИНИЦИАЛИЗАЦИЮ УЗЛА
+                    await node.initialize_async()
+                    print(f"      ✅ Узел инициализирован (статус: {node.status.value})")
                 
                     # Сохраняем в словарь
                     self.nodes[sephira.name] = node
