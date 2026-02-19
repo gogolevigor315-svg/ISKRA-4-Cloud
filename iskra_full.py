@@ -379,7 +379,7 @@ try:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     result = loop.run_until_complete(activate_sephirotic_tree())
-    loop.close()
+    # loop.close()  # НЕ ЗАКРЫВАЕМ - фоновые задачи должны жить
     
     if result:
         _tree_activated, _sephirot_bus, _sephirotic_engine, activated_nodes, current_resonance = result
