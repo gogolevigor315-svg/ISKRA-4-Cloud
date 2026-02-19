@@ -345,6 +345,12 @@ async def activate_sephirotic_tree():
     if activated_nodes >= 11:
         print(f"✅ ПОЛНОЕ ДЕРЕВО АКТИВИРОВАНО: {activated_nodes} сефирот")
         print(f"   Резонанс: {current_resonance:.3f}")
+        
+        # Устанавливаем глобальный флаг для DS24
+        global _tree_activated
+        _tree_activated = True
+        print(f"   🔥 Глобальный флаг _tree_activated установлен в True")
+        
         return True, bus, engine, activated_nodes, current_resonance
     else:
         print(f"⚠️ Дерево активировано частично ({activated_nodes}/11)")
