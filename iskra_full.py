@@ -2789,19 +2789,33 @@ def system_health():
     })
 
 # ============================================================================
-# ПРИНУДИТЕЛЬНАЯ СИНХРОНИЗАЦИЯ ДЕРЕВА ДЛЯ API (ВСТАВЬ ЭТОТ БЛОК ЗДЕСЬ)
+# СОХРАНЕНИЕ ДЕРЕВА ДЛЯ API (ФИНАЛЬНАЯ ВЕРСИЯ)
 # ============================================================================
-if 'sephirot_tree_for_api' in locals() and sephirot_tree_for_api:
-    # Записываем прямо в globals()
-    globals()['sephirot_tree_api'] = sephirot_tree_for_api
+sephirot_tree_api = None
+source = "unknown"
+
+if _tree_activated and _sephirotic_engine and hasattr(_sephirotic_engine, 'tree'):
+    sephirot_tree_api = _sephirotic_engine.tree
+    source = "_sephirotic_engine.tree"
+    print(f"🌳 Дерево получено из движка (активировано: {_tree_activated})")
+
+elif _tree_activated and 'tree' in locals() and tree is not None:
+    sephirot_tree_api = tree
+    source = "local tree variable"
+    print(f"🌳 Дерево получено из локальной переменной")
+
+if sephirot_tree_api is not None:
+    # Принудительная запись во все возможные места
+    globals()['sephirot_tree_api'] = sephirot_tree_api
     
-    # Также записываем в модуль, где его ищет эндпоинт
     import sys
     this_module = sys.modules[__name__]
-    this_module.sephirot_tree_api = sephirot_tree_for_api
+    this_module.sephirot_tree_api = sephirot_tree_api
     
-    print(f"✅ Дерево принудительно сохранено в globals() и модуле")
-    print(f"   ID дерева: {id(sephirot_tree_for_api)}")
+    print(f"✅ Дерево успешно сохранено для API")
+    print(f"   Источник: {source}")
+    print(f"   ID дерева: {id(sephirot_tree_api)}")
+    print(f"   Узлов в дереве: {len(getattr(sephirot_tree_api, 'nodes', {}))}")
 else:
     print(f"⚠️ Дерево НЕ сохранено - API /sephirot/state будет недоступно")
 
