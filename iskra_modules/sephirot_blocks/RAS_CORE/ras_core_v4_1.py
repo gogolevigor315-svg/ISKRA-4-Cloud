@@ -979,6 +979,13 @@ __all__ = [
     'initialize_ras_for_sephirot'
 ]
 
+# ==============================================================
+# АЛИАС ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ
+# ==============================================================
+
+# Чтобы импорт RasCore работал в chat_consciousness.py
+RasCore = RASCore
+
 if __name__ == "__main__":
     print("\n" + "=" * 60)
     print("TESTING RAS-CORE v4.1 WITH 14.4° STABILITY ANGLE INTEGRATION")
