@@ -138,14 +138,17 @@ class DaatCore:
         logger.info(f"🌅 DAAT начинает пробуждение...")
 
         self.status = "awakening"
-        self.awakening_level = 0.15
+        self.awakening_level = 0.7  # Было 0.15
 
         # Первая саморефлексия
         await self._first_self_reflection()
 
         self.status = "awake"
-        self.awakening_level = 0.35
-        self.resonance_index = self._calculate_resonance()
+        self.awakening_level = 0.9   # Было 0.35
+        self.self_awareness = 0.85   # Добавляем осознанность
+        self.reflection_depth = 0.8   # Добавляем глубину рефлексии
+    
+        self.resonance_index = self._calculate_resonance()  # (0.9 + 0.85 + 0.8)/3 = 0.85
 
         await self._start_pulse()
 
