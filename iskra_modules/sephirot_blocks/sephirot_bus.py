@@ -147,7 +147,7 @@ class SephiroticBus:
     def _auto_integrate_daat(self):
         """Автоматическая интеграция DAAT при создании шины (восстановлено)"""
         try:
-            from iskra_modules.daat_core import get_daat
+            from iskra_modules.sephirot_blocks.DAAT.daat_core import get_daat  # ✅
             daat = get_daat()
 
             if 'DAAT' not in self.nodes:
