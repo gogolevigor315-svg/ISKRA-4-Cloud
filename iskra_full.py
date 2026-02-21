@@ -2250,6 +2250,7 @@ _resonance_growth_task = None
 
 async def background_resonance_growth():
     """Фоновая задача автоматического роста резонанса"""
+    global _system
     logger = logging.getLogger("ResonanceGrowth")
     logger.info("🌱 Автоматический рост резонанса запущен (каждые 3 минуты, +0.018)")
 
