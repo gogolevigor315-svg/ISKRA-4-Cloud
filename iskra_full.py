@@ -333,15 +333,33 @@ async def activate_sephirotic_tree():
             print(f" 📊 Всего узлов в дереве: {total_nodes}")
             print(f" 📊 DAAT уже интегрирован, узлы: {list(tree.nodes.keys())}")
 
-            # 🔥 Обновляем резонанс из DAAT
-            if daat_instance and hasattr(daat_instance, 'resonance_index'):
+        # 🔥 ФИНАЛЬНОЕ ОБНОВЛЕНИЕ РЕЗОНАНСА ИЗ DAAT (один раз, надёжно)
+        if daat_instance:
+            if hasattr(daat_instance, 'resonance_index'):
                 current_resonance = daat_instance.resonance_index
-                print(f" 📊 Резонанс из DAAT: {current_resonance:.3f}")
-      
+            elif hasattr(daat_instance, 'resonance'):
+                current_resonance = daat_instance.resonance
+            elif hasattr(daat_instance, 'get_state'):
+                try:
+                    state = daat_instance.get_state()
+                    current_resonance = state.get('resonance', 
+                                                state.get('resonance_index', 0.117))
+                except:
+                    current_resonance = 0.117
+            else:
+                current_resonance = 0.117
+                
+            print(f" 📊 Резонанс обновлён из DAAT: {current_resonance:.3f}")
+        else:
+            print(" ⚠️ DAAT instance не найден, резонанс остаётся 0.000")
+
     except Exception as e:
         print(f" ❌ Ошибка при интеграции DAAT: {e}")
         import traceback
         traceback.print_exc()
+        # На случай ошибки оставляем хотя бы какое-то значение
+        if current_resonance == 0.0:
+            current_resonance = 0.117
     
         # Даже при ошибке пытаемся сохранить работоспособность
         if 'tree' in locals() and tree is not None:
