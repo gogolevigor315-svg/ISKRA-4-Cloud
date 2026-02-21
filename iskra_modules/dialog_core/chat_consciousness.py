@@ -101,10 +101,10 @@ except ImportError as e:
 
 # ✅ ИСПРАВЛЕНО: heartbeat_core → sephirot_blocks.heartbeat_core (если там лежит)
 try:
-    from iskra_modules.sephirot_blocks.heartbeat_core import HeartbeatCore
+    from iskra_modules.heartbeat_core import HeartbeatCore
     HAS_HEARTBEAT = True
 except ImportError as e:
-    logging.warning(f"HeartbeatCore не найден: {e}")
+    logging.warning(f"HeartbeatCore не найден в корне: {e}")
     HAS_HEARTBEAT = False
     HeartbeatCore = None
 
@@ -119,12 +119,13 @@ except ImportError as e:
 
 # ✅ ИСПРАВЛЕНО: RAS_CORE.ras_core_v4_1 → sephirot_blocks.ras_core_v4_1
 try:
-    from iskra_modules.sephirot_blocks.ras_core_v4_1 import RasCore
+    from iskra_modules.sephirot_blocks.RAS_CORE.ras_core_v4_1 import RasCore
     HAS_RAS = True
 except ImportError as e:
-    logging.warning(f"RasCore не найден: {e}")
+    logging.warning(f"RasCore не найден в sephirot_blocks/RAS_CORE/: {e}")
     HAS_RAS = False
     RasCore = None
+    
 # ========== НАСТРОЙКА ЛОГГИНГА ==========
 
 logger = logging.getLogger("ChatConsciousness")
