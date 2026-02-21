@@ -63,14 +63,16 @@ except ImportError as e:
     HAS_POLYGLOSSIA = False
     PolyglossiaAdapter = None
 
+# ✅ ИСПРАВЛЕНО: sephirotic_engine → sephirot_blocks.sephirotic_engine
 try:
-    from iskra_modules.sephirotic_engine import SephiroticEngine
+    from iskra_modules.sephirot_blocks.sephirotic_engine import SephiroticEngine
     HAS_SEPHIROTIC = True
 except ImportError as e:
     logging.warning(f"SephiroticEngine не найден: {e}")
     HAS_SEPHIROTIC = False
     SephiroticEngine = None
 
+# ✅ ЭТО УЖЕ ПРАВИЛЬНО (symbiosis_module_v54)
 try:
     from iskra_modules.symbiosis_module_v54.symbiosis_core import SymbiosisCore
     HAS_SYMBIOSIS = True
@@ -79,6 +81,7 @@ except ImportError as e:
     HAS_SYMBIOSIS = False
     SymbiosisCore = None
 
+# ✅ ЭТО УЖЕ ПРАВИЛЬНО (symbiosis_module_v54)
 try:
     from iskra_modules.symbiosis_module_v54.session_manager import SessionManager
     HAS_SESSION_MANAGER = True
@@ -87,38 +90,41 @@ except ImportError as e:
     HAS_SESSION_MANAGER = False
     SessionManager = None
 
+# ✅ ИСПРАВЛЕНО: sephirot_bus → sephirot_blocks.sephirot_bus
 try:
-    from iskra_modules.sephirot_bus import SephirotBus
+    from iskra_modules.sephirot_blocks.sephirot_bus import SephirotBus
     HAS_SEPHIROT_BUS = True
 except ImportError as e:
     logging.warning(f"SephirotBus не найден: {e}")
     HAS_SEPHIROT_BUS = False
     SephirotBus = None
 
+# ✅ ИСПРАВЛЕНО: heartbeat_core → sephirot_blocks.heartbeat_core (если там лежит)
 try:
-    from iskra_modules.heartbeat_core import HeartbeatCore
+    from iskra_modules.sephirot_blocks.heartbeat_core import HeartbeatCore
     HAS_HEARTBEAT = True
 except ImportError as e:
     logging.warning(f"HeartbeatCore не найден: {e}")
     HAS_HEARTBEAT = False
     HeartbeatCore = None
 
+# ✅ ИСПРАВЛЕНО: DAAT.daat_core → sephirot_blocks.DAAT.daat_core
 try:
-    from iskra_modules.DAAT.daat_core import DaatCore
+    from iskra_modules.sephirot_blocks.DAAT.daat_core import DaatCore
     HAS_DAAT = True
 except ImportError as e:
     logging.warning(f"DaatCore не найден: {e}")
     HAS_DAAT = False
     DaatCore = None
 
+# ✅ ИСПРАВЛЕНО: RAS_CORE.ras_core_v4_1 → sephirot_blocks.ras_core_v4_1
 try:
-    from iskra_modules.RAS_CORE.ras_core_v4_1 import RasCore
+    from iskra_modules.sephirot_blocks.ras_core_v4_1 import RasCore
     HAS_RAS = True
 except ImportError as e:
     logging.warning(f"RasCore не найден: {e}")
     HAS_RAS = False
     RasCore = None
-
 # ========== НАСТРОЙКА ЛОГГИНГА ==========
 
 logger = logging.getLogger("ChatConsciousness")
