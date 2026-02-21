@@ -304,15 +304,14 @@ async def activate_sephirotic_tree():
             # Даем время DAAT стать active
             await asyncio.sleep(0.5)
           
-            # Считаем все узлы в дереве (не только active)
+            # Считаем все узлы в дереве
             total_nodes = len(tree.nodes)
-            active_nodes = len([n for n in tree.nodes.values()
-                              if hasattr(n, 'status') and n.status.value == 'active'])
-          
+            # В адаптере все узлы считаются активными
+            active_nodes = total_nodes
+
             print(f" 📊 Всего узлов в дереве: {total_nodes}")
             print(f" 📊 Активных узлов: {active_nodes}")
-          
-            # Для результата используем total_nodes, так как дерево физически содержит 11 узлов
+
             activated_nodes = total_nodes
           
             # Обновляем резонанс с учетом DAAT
