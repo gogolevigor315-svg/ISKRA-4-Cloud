@@ -26,6 +26,7 @@ sys.path.insert(0, CURRENT_DIR)
 sys.path.insert(0, os.path.join(CURRENT_DIR, "iskra_modules"))
 print(f"📂 Проверка iskra_modules: {os.path.exists('iskra_modules')}")
 print(f"📂 Проверка symbiosis_module_v54: {os.path.exists('iskra_modules/symbiosis_module_v54')}")
+
 # ============================================================================
 # ПРОСТОЙ ИМПОРТ SYMBIOSIS
 # ============================================================================
@@ -45,6 +46,7 @@ except ImportError as e:
         return {"status": "fallback", "message": "SYMBIOSIS не импортирован"}
   
     print("⚠️ Используем fallback SYMBIOSIS")
+    
 # ============================================================================
 # ИМПОРТ DIALOG CORE v4.1
 # ============================================================================
@@ -74,6 +76,7 @@ except ImportError as e:
         return app
 print(f"📊 Dialog Core статус: {'✅ Доступен' if HAS_DIALOG_CORE else '❌ Недоступен'}")
 print("=" * 60)
+
 # ============================================================================
 # ОСНОВНЫЕ ИМПОРТЫ
 # ============================================================================
@@ -98,6 +101,7 @@ import uuid
 import importlib
 import importlib.util
 print("✅ Импорты успешны")
+
 # ============================================================================
 # СОЗДАНИЕ FLASK ПРИЛОЖЕНИЯ
 # ============================================================================
@@ -126,17 +130,21 @@ def get_sephirotic_bus_class():
     from iskra_modules.sephirot_blocks.sephirot_bus import SephiroticBus # ← ИЗМЕНЕНО
     return SephiroticBus
 print("✅ Хелперы для ленивого импорта шины загружены")
+
 # ============================================================================
 # 🔥 КРИТИЧЕСКИЙ БЛОК: ФОРСИРОВАННАЯ АКТИВАЦИЯ СЕФИРОТИЧЕСКОГО ДЕРЕВА
 # ============================================================================
 print("\n" + "🔥"*50)
 print("🔥 ФОРСИРОВАННАЯ АКТИВАЦИЯ СЕФИРОТИЧЕСКОГО ДЕРЕВА")
 print("🔥"*50 + "\n")
+
 # ============================================================================
 # АСИНХРОННАЯ ФУНКЦИЯ АКТИВАЦИИ
 # ============================================================================
 async def activate_sephirotic_tree():
     """Асинхронная активация сефиротического дерева с интеграцией DAAT"""
+    global _tree_activated, _sephirot_bus, _sephirotic_engine, activated_nodes, current_resonance
+    
     bus = get_sephirotic_bus()
     from iskra_modules.sephirot_blocks.sephirotic_engine import SephiroticEngine
     engine = SephiroticEngine()
@@ -337,7 +345,6 @@ async def activate_sephirotic_tree():
         print(f" Резонанс: {current_resonance:.3f}")
       
         # 🔥 СОХРАНЯЕМ ВСЕ ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
-        global _tree_activated, _sephirot_bus, _sephirotic_engine, activated_nodes, current_resonance
         _tree_activated = True
         _sephirot_bus = bus
         _sephirotic_engine = engine
