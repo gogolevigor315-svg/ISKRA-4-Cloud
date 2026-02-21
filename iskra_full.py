@@ -327,17 +327,42 @@ async def activate_sephirotic_tree():
           
         else:
             print(f" ⚠️ DAAT уже есть в дереве")
-            activated_nodes = len([n for n in existing_nodes.values()
-                                  if hasattr(n, 'status') and n.status.value == 'active'])
+            # Считаем все узлы в дереве
+            total_nodes = len(tree.nodes)
+            activated_nodes = total_nodes
+            print(f" 📊 Всего узлов в дереве: {total_nodes}")
+            print(f" 📊 DAAT уже интегрирован, узлы: {list(tree.nodes.keys())}")
+
+            # 🔥 Обновляем резонанс из DAAT
+            if daat_instance and hasattr(daat_instance, 'resonance_index'):
+                current_resonance = daat_instance.resonance_index
+                print(f" 📊 Резонанс из DAAT: {current_resonance:.3f}")
       
     except Exception as e:
         print(f" ❌ Ошибка при интеграции DAAT: {e}")
         import traceback
         traceback.print_exc()
-        activated_nodes = len([n for n in existing_nodes.values()
-                              if hasattr(n, 'status') and n.status.value == 'active'])
+    
+        # Даже при ошибке пытаемся сохранить работоспособность
+        if 'tree' in locals() and tree is not None:
+            total_nodes = len(tree.nodes)
+            activated_nodes = total_nodes
+            print(f" 📊 Всего узлов в дереве (после ошибки): {total_nodes}")
+        elif 'existing_nodes' in locals():
+            # Если дерева нет, используем existing_nodes
+            activated_nodes = len(existing_nodes)
+            print(f" 📊 Использую existing_nodes: {activated_nodes}")
+        else:
+            # Худший случай
+            activated_nodes = 0
+            print(f" ⚠️ Нет информации об узлах, ставлю 0")
+    
+        # Пытаемся сохранить резонанс из DAAT если он есть
+        if 'daat_instance' in locals() and daat_instance and hasattr(daat_instance, 'resonance_index'):
+            current_resonance = daat_instance.resonance_index
+            print(f" 📊 Резонанс из DAAT (после ошибки): {current_resonance:.3f}")
   
-    print("🔮"*30 + "\n")
+        print("🔮"*30 + "\n")
   
     # Финальная проверка и сохранение глобальных переменных
     if activated_nodes >= 11:
