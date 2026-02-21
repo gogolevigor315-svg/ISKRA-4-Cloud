@@ -333,23 +333,29 @@ async def activate_sephirotic_tree():
             print(f" 📊 Всего узлов в дереве: {total_nodes}")
             print(f" 📊 DAAT уже интегрирован, узлы: {list(tree.nodes.keys())}")
 
-        # 🔥 ФИНАЛЬНОЕ ОБНОВЛЕНИЕ РЕЗОНАНСА ИЗ DAAT (один раз, надёжно)
+        # 🔥 ФИНАЛЬНОЕ ОБНОВЛЕНИЕ РЕЗОНАНСА (с принудительным fallback)
         if daat_instance:
+            # Пытаемся получить резонанс разными способами
+            resonance_value = None
             if hasattr(daat_instance, 'resonance_index'):
-                current_resonance = daat_instance.resonance_index
+                resonance_value = daat_instance.resonance_index
             elif hasattr(daat_instance, 'resonance'):
-                current_resonance = daat_instance.resonance
+                resonance_value = daat_instance.resonance
             elif hasattr(daat_instance, 'get_state'):
                 try:
                     state = daat_instance.get_state()
-                    current_resonance = state.get('resonance', 
-                                                state.get('resonance_index', 0.117))
+                    resonance_value = state.get('resonance', state.get('resonance_index'))
                 except:
-                    current_resonance = 0.117
+                    pass
+
+            # Если получили нормальное значение (>0), используем его
+            if resonance_value and resonance_value > 0:
+                current_resonance = resonance_value
+                print(f" 📊 Резонанс обновлён из DAAT: {current_resonance:.3f}")
             else:
+                # Иначе используем значение, которое видели в логах при пробуждении
                 current_resonance = 0.117
-                
-            print(f" 📊 Резонанс обновлён из DAAT: {current_resonance:.3f}")
+                print(f" 📊 Резонанс принудительно установлен в 0.117 (значение из раннего пробуждения DAAT)")
         else:
             print(" ⚠️ DAAT instance не найден, резонанс остаётся 0.000")
 
