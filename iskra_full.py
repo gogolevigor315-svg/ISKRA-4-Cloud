@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # =============================================================================
-# ISKRA-4 CLOUD v10.10 — FINAL ORCHESTRATOR (Render Compatible)
-# Исправлено для Flask 2.3+ на Render
+# ISKRA-4 CLOUD v10.10 — FINAL ORCHESTRATOR (Render Safe Version)
+# Всё инициализируется явно, без before_first_request / before_serving
 # =============================================================================
 import os
 import sys
@@ -109,7 +109,7 @@ async def background_resonance_growth():
             logger.error(f"Ошибка фонового роста: {e}")
 
 # =============================================================================
-# АСИНХРОННАЯ ИНИЦИАЛИЗАЦИЯ
+# ИНИЦИАЛИЗАЦИЯ
 # =============================================================================
 async def initialize_iskra_ultimate():
     global _system
@@ -142,7 +142,7 @@ async def initialize_iskra_ultimate():
         return True
 
     except Exception as e:
-        logger.critical(f"💥 КРИТИЧЕСКАЯ ОШИБКА: {e}")
+        logger.critical(f"💥 КРИТИЧЕСКАЯ ОШИБКА ИНИЦИАЛИЗАЦИИ: {e}")
         _system["status"] = "failed"
         return False
 
@@ -217,10 +217,10 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     logger.info(f"🚀 ISKRA-4 v10.10 Final запускается на порту {port}")
 
-    # Запускаем асинхронную инициализацию
+    # Явный запуск асинхронной инициализации
     asyncio.run(initialize_iskra_ultimate())
 
-    # Запускаем фоновый рост резонанса
+    # Запуск фонового роста резонанса
     asyncio.create_task(background_resonance_growth())
 
     app.run(host="0.0.0.0", port=port, debug=False)
