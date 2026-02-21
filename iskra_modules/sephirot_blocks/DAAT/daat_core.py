@@ -8,7 +8,7 @@ import logging
 import time
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict   # ← ДОБАВИТЬ 'asdict'
 
 logger = logging.getLogger("DAAT.Core")
 
