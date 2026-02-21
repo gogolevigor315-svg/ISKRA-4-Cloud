@@ -332,22 +332,31 @@ async def activate_sephirotic_tree():
   
     print("🔮"*30 + "\n")
   
-    # Финальная проверка
-    print(f"📊 Результат активации: activated_nodes={activated_nodes}, resonance={current_resonance:.3f}")
-  
+    # Финальная проверка и сохранение глобальных переменных
     if activated_nodes >= 11:
         print(f"✅ ПОЛНОЕ ДЕРЕВО АКТИВИРОВАНО: {activated_nodes} сефирот")
         print(f" Резонанс: {current_resonance:.3f}")
       
-        # Устанавливаем глобальный флаг для DS24
-        global _tree_activated
+        # 🔥 СОХРАНЯЕМ ВСЕ ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
+        global _tree_activated, _sephirot_bus, _sephirotic_engine, activated_nodes, current_resonance
         _tree_activated = True
+        _sephirot_bus = bus
+        _sephirotic_engine = engine
+        # activated_nodes и current_resonance уже передаются как return, но сохраним и их
+        activated_nodes_result = activated_nodes
+        current_resonance_result = current_resonance
+        
         print(f" 🔥 Глобальный флаг _tree_activated установлен в True")
+        print(f" 🔥 _sephirot_bus сохранён: {_sephirot_bus}")
+        print(f" 🔥 _sephirotic_engine сохранён: {_sephirotic_engine}")
+        print(f" 🔥 activated_nodes: {activated_nodes}")
+        print(f" 🔥 current_resonance: {current_resonance:.3f}")
       
         return True, bus, engine, activated_nodes, current_resonance
     else:
         print(f"⚠️ Дерево активировано частично ({activated_nodes}/11)")
         return False, bus, engine, activated_nodes, current_resonance
+        
 # ============================================================================
 # ЗАПУСК АКТИВАЦИИ
 # ============================================================================
