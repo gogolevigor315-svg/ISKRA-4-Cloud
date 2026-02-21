@@ -92,7 +92,7 @@ except ImportError as e:
 
 # ✅ ИСПРАВЛЕНО: sephirot_bus → sephirot_blocks.sephirot_bus
 try:
-    from iskra_modules.sephirot_blocks.sephirot_bus import SephirotBus
+    from iskra_modules.sephirot_blocks.sephirot_bus import SephiroticBus
     HAS_SEPHIROT_BUS = True
 except ImportError as e:
     logging.warning(f"SephirotBus не найден: {e}")
