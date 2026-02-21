@@ -355,3 +355,13 @@ class SephiroticEngine:
         }
 
 logger.info("🧠 Sephirotic Engine v10.10 Ultra Deep загружен")
+
+# =============================================================================
+# ФАБРИКА ДЛЯ СОВМЕСТИМОСТИ С ISKRA_FULL.PY
+# =============================================================================
+async def create_personality_engine(name: str = "ISKRA-4-Personality-Core"):
+    """Фабрика для создания движка личности (для совместимости с iskra_full.py)"""
+    engine = SephiroticEngine(name)
+    return engine
+
+logger.info("🧠 Sephirotic Engine v10.10 Ultra Deep + фабрика загружена")
