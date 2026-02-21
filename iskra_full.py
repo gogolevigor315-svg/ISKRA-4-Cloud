@@ -144,6 +144,7 @@ print("🔥"*50 + "\n")
 async def activate_sephirotic_tree():
     """Асинхронная активация сефиротического дерева с интеграцией DAAT"""
     global _tree_activated, _sephirot_bus, _sephirotic_engine, activated_nodes, current_resonance
+    global _system
     
     bus = get_sephirotic_bus()
     from iskra_modules.sephirot_blocks.sephirotic_engine import SephiroticEngine
@@ -399,7 +400,6 @@ async def activate_sephirotic_tree():
             _sephirotic_engine = engine
         
             # ✅ СИНХРОНИЗАЦИЯ РЕЗОНАНСА С СИСТЕМОЙ
-            global _system
             if '_system' in globals() and _system is not None:
                 _system["average_resonance"] = current_resonance
                 print(f" 🔄 Системный резонанс синхронизирован: {_system['average_resonance']:.3f}")
@@ -419,7 +419,6 @@ async def activate_sephirotic_tree():
             print(f"⚠️ Дерево активировано частично ({activated_nodes}/11)")
         
             # ✅ ТОЖЕ СИНХРОНИЗИРУЕМ (на всякий случай)
-            global _system
             if '_system' in globals() and _system is not None:
                 _system["average_resonance"] = current_resonance
                 print(f" 🔄 Системный резонанс (частично) синхронизирован: {_system['average_resonance']:.3f}")
