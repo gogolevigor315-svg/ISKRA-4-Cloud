@@ -390,41 +390,41 @@ async def activate_sephirotic_tree():
   
         # Финальная проверка и сохранение глобальных переменных
         if activated_nodes >= 11:
-        print(f"✅ ПОЛНОЕ ДЕРЕВО АКТИВИРОВАНО: {activated_nodes} сефирот")
-        print(f" Резонанс: {current_resonance:.3f}")
+            print(f"✅ ПОЛНОЕ ДЕРЕВО АКТИВИРОВАНО: {activated_nodes} сефирот")
+            print(f" Резонанс: {current_resonance:.3f}")
       
-        # 🔥 СОХРАНЯЕМ ВСЕ ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
-        _tree_activated = True
-        _sephirot_bus = bus
-        _sephirotic_engine = engine
+            # 🔥 СОХРАНЯЕМ ВСЕ ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
+            _tree_activated = True
+            _sephirot_bus = bus
+            _sephirotic_engine = engine
         
-        # ✅ СИНХРОНИЗАЦИЯ РЕЗОНАНСА С СИСТЕМОЙ
-        global _system
-        if '_system' in globals() and _system is not None:
-            _system["average_resonance"] = current_resonance
-            print(f" 🔄 Системный резонанс синхронизирован: {_system['average_resonance']:.3f}")
+            # ✅ СИНХРОНИЗАЦИЯ РЕЗОНАНСА С СИСТЕМОЙ
+            global _system
+            if '_system' in globals() and _system is not None:
+                _system["average_resonance"] = current_resonance
+                print(f" 🔄 Системный резонанс синхронизирован: {_system['average_resonance']:.3f}")
         
-        # activated_nodes и current_resonance уже передаются как return, но сохраним и их
-        activated_nodes_result = activated_nodes
-        current_resonance_result = current_resonance
+            # activated_nodes и current_resonance уже передаются как return, но сохраним и их
+            activated_nodes_result = activated_nodes
+            current_resonance_result = current_resonance
         
-        print(f" 🔥 Глобальный флаг _tree_activated установлен в True")
-        print(f" 🔥 _sephirot_bus сохранён: {_sephirot_bus}")
-        print(f" 🔥 _sephirotic_engine сохранён: {_sephirotic_engine}")
-        print(f" 🔥 activated_nodes: {activated_nodes}")
-        print(f" 🔥 current_resonance: {current_resonance:.3f}")
+            print(f" 🔥 Глобальный флаг _tree_activated установлен в True")
+            print(f" 🔥 _sephirot_bus сохранён: {_sephirot_bus}")
+            print(f" 🔥 _sephirotic_engine сохранён: {_sephirotic_engine}")
+            print(f" 🔥 activated_nodes: {activated_nodes}")
+            print(f" 🔥 current_resonance: {current_resonance:.3f}")
       
-        return True, bus, engine, activated_nodes, current_resonance
-    else:
-        print(f"⚠️ Дерево активировано частично ({activated_nodes}/11)")
+            return True, bus, engine, activated_nodes, current_resonance
+        else:
+            print(f"⚠️ Дерево активировано частично ({activated_nodes}/11)")
         
-        # ✅ ТОЖЕ СИНХРОНИЗИРУЕМ (на всякий случай)
-        global _system
-        if '_system' in globals() and _system is not None:
-            _system["average_resonance"] = current_resonance
-            print(f" 🔄 Системный резонанс (частично) синхронизирован: {_system['average_resonance']:.3f}")
+            # ✅ ТОЖЕ СИНХРОНИЗИРУЕМ (на всякий случай)
+            global _system
+            if '_system' in globals() and _system is not None:
+                _system["average_resonance"] = current_resonance
+                print(f" 🔄 Системный резонанс (частично) синхронизирован: {_system['average_resonance']:.3f}")
             
-        return False, bus, engine, activated_nodes, current_resonance
+            return False, bus, engine, activated_nodes, current_resonance
         
 # ============================================================================
 # ЗАПУСК АКТИВАЦИИ
