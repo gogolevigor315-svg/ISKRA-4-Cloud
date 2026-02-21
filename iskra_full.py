@@ -190,23 +190,33 @@ async def activate_sephirotic_tree():
         daat_module = None
         daat_instance = None
       
-        # Пробуем импортировать модуль
+        # Пробуем импортировать модуль из правильного пути
         try:
-            import iskra_modules.daat_core as daat_module
-            print(" ✅ Модуль daat_core импортирован")
-        except ImportError:
-            try:
-                import iskra_modules.DAAT as daat_module
-                print(" ✅ Модуль DAAT импортирован")
-            except ImportError as e:
-                print(f" ⚠️ Не удалось импортировать модуль DAAT: {e}")
-      
-        # Если модуль загружен, получаем экземпляр
-        if daat_module and hasattr(daat_module, 'get_daat'):
-            daat_instance = daat_module.get_daat(force_awaken=True)
-            print(f" ✅ DAAT получена через get_daat()")
+            # Сначала пробуем правильный путь (sephirot_blocks)
+            from iskra_modules.sephirot_blocks.DAAT.daat_core import get_daat, DaatCore
+            daat_instance = get_daat(force_awaken=True)
+            print(f" ✅ DAAT загружен из sephirot_blocks.DAAT")
             print(f" Статус: {daat_instance.status}")
             print(f" Резонанс: {daat_instance.resonance_index:.3f}")
+            daat_module = True  # флаг что модуль загружен
+        except ImportError as e1:
+            try:
+                # Fallback на старый путь
+                import iskra_modules.daat_core as daat_module
+                if hasattr(daat_module, 'get_daat'):
+                    daat_instance = daat_module.get_daat(force_awaken=True)
+                    print(f" ✅ DAAT загружен из daat_core (fallback)")
+                else:
+                    raise ImportError("Нет функции get_daat")
+            except ImportError as e2:
+                print(f" ⚠️ Не удалось импортировать DAAT: {e2}")
+                daat_instance = None
+                daat_module = None
+      
+        # Если модуль загружен, получаем экземпляр
+        if daat_instance:
+            print(f" Статус: {daat_instance.status if hasattr(daat_instance, 'status') else 'unknown'}")
+            print(f" Резонанс: {daat_instance.resonance_index if hasattr(daat_instance, 'resonance_index') else 0.1:.3f}")
         else:
             # Создаем заглушку DAAT
             print(" ⚠️ Создаю заглушку DAAT")
