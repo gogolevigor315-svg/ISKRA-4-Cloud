@@ -250,7 +250,7 @@ class AsyncHTTPClient:
 class RealEventBusIntegration:
     """Интеграция с системной шиной событий с асинхронностью"""
     
-    def __init__(self, sephirot_bus: SephirotBus):
+    def __init__(self, sephirot_bus: SephiroticBus):
         self.bus = sephirot_bus
         self.subscriptions = {}
         self.http_client = AsyncHTTPClient()
