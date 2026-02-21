@@ -2275,8 +2275,27 @@ def start_resonance_growth():
         logger.info("🌱 Рост резонанса уже запущен")
         return False
 
-    _resonance_growth_task = asyncio.create_task(background_resonance_growth())
-    logger.info("🚀 Автоматический рост резонанса запущен")
+    # Пытаемся получить текущий цикл или создаём новый
+    try:
+        loop = asyncio.get_running_loop()
+        _resonance_growth_task = loop.create_task(background_resonance_growth())
+        logger.info("🚀 Автоматический рост резонанса запущен (в существующем цикле)")
+    except RuntimeError:
+        # Нет запущенного цикла - создаём новый поток с циклом
+        logger.info("🔄 Нет активного цикла, создаём отдельный поток...")
+        
+        def run_async_task():
+            new_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(new_loop)
+            global _resonance_growth_task
+            _resonance_growth_task = new_loop.create_task(background_resonance_growth())
+            new_loop.run_forever()
+        
+        import threading
+        thread = threading.Thread(target=run_async_task, daemon=True)
+        thread.start()
+        logger.info("🚀 Автоматический рост резонанса запущен (в отдельном потоке)")
+    
     return True
 
 def stop_resonance_growth():
@@ -2330,7 +2349,9 @@ print("🚀 ЗАПУСК АВТОМАТИЧЕСКОГО РОСТА РЕЗОНА�
 print("="*70)
 
 # Запускаем рост сразу после инициализации системы
-start_resonance_growth()
+# start_resonance_growth()  # Раскомментируй для автозапуска
+print("📌 Для запуска роста резонанса используйте: POST /resonance/auto/start")
+print("📌 Текущий резонанс: 0.117, цель: 0.85")
 
 print("✅ Автоматический рост резонанса активирован")
 print("="*70 + "\n")
