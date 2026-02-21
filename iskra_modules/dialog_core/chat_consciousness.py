@@ -95,9 +95,9 @@ try:
     from iskra_modules.sephirot_blocks.sephirot_bus import SephiroticBus
     HAS_SEPHIROT_BUS = True
 except ImportError as e:
-    logging.warning(f"SephirotBus не найден: {e}")
+    logging.warning(f"SephiroticBus не найден: {e}")  # ← исправил
     HAS_SEPHIROT_BUS = False
-    SephirotBus = None
+    SephiroticBus = None  # ← исправил
 
 # ✅ ИСПРАВЛЕНО: heartbeat_core → sephirot_blocks.heartbeat_core (если там лежит)
 try:
