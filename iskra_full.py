@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # =============================================================================
-# ISKRA-4 CLOUD v10.10 — FINAL ORCHESTRATOR (Render Safe Version)
-# Всё инициализируется явно, без before_first_request / before_serving
+# ISKRA-4 CLOUD v10.10 — FULL ORCHESTRATOR (с глубиной)
 # =============================================================================
 import os
 import sys
@@ -12,9 +11,6 @@ from typing import Dict, Any
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
-# =============================================================================
-# ЛОГИРОВАНИЕ
-# =============================================================================
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
@@ -25,17 +21,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger("ISKRA-4")
 
-# =============================================================================
-# FLASK
-# =============================================================================
 app = Flask(__name__)
 CORS(app)
 
-# =============================================================================
-# ГЛОБАЛЬНОЕ СОСТОЯНИЕ
-# =============================================================================
 _system = {
-    "version": "10.10 Final",
+    "version": "10.10 Full",
     "status": "initializing",
     "resonance": 0.82,
     "tree_activated": False,
@@ -52,10 +42,8 @@ _system = {
     "binah": None
 }
 
-# =============================================================================
-# ЛЕНИВЫЕ ИМПОРТЫ
-# =============================================================================
-def get_bus():
+# Ленивые импорты
+def get_bus(): 
     from iskra_modules.sephirot_blocks.sephirot_bus import create_sephirotic_bus
     return create_sephirotic_bus()
 
@@ -87,48 +75,38 @@ def get_binah():
     from iskra_modules.binah_core import build_binah_core
     return build_binah_core()
 
-# =============================================================================
-# ФОНОВЫЙ РОСТ РЕЗОНАНСА
-# =============================================================================
+# Фоновый рост резонанса
 async def background_resonance_growth():
-    logger.info("🌱 Запущен фоновый рост резонанса (каждые 3 минуты)")
+    logger.info("🌱 Фоновый рост резонанса запущен")
     while True:
-        try:
-            await asyncio.sleep(180)
-            if _system["status"] == "operational":
-                old = _system["resonance"]
-                _system["resonance"] = min(1.0, _system["resonance"] + 0.018)
-                logger.info(f"🌱 Фоновый рост: {old:.3f} → {_system['resonance']:.3f}")
+        await asyncio.sleep(180)
+        if _system["status"] == "operational":
+            old = _system["resonance"]
+            _system["resonance"] = min(1.0, _system["resonance"] + 0.018)
+            logger.info(f"🌱 Фоновый рост: {old:.3f} → {_system['resonance']:.3f}")
 
-                if _system["resonance"] >= 0.85 and not _system["daat_awake"] and _system["daat"]:
-                    _system["daat_awake"] = True
-                    logger.info("🔮 DAAT ПРОБУДИЛСЯ!")
-        except asyncio.CancelledError:
-            break
-        except Exception as e:
-            logger.error(f"Ошибка фонового роста: {e}")
+            if _system["resonance"] >= 0.85 and not _system["daat_awake"]:
+                _system["daat_awake"] = True
+                logger.info("🔮 DAAT ПРОБУДИЛСЯ!")
 
 # =============================================================================
 # ИНИЦИАЛИЗАЦИЯ
 # =============================================================================
 async def initialize_iskra_ultimate():
     global _system
-    logger.info("🔥 НАЧИНАЕМ ИНИЦИАЛИЗАЦИЮ ISKRA-4 v10.10...")
+    logger.info("🔥 Запуск полной инициализации ISKRA-4 v10.10...")
 
     try:
-        bus = get_bus()
-        _system["bus"] = bus
-
+        _system["bus"] = get_bus()
         engine = await get_engine()
-        await engine.initialize(bus=bus)
+        await engine.initialize(bus=_system["bus"])
         _system["engine"] = engine
 
         await engine.activate()
         _system["tree"] = engine.tree
         _system["tree_activated"] = True
 
-        daat = get_daat()
-        _system["daat"] = daat
+        _system["daat"] = get_daat()
         _system["daat_awake"] = True
 
         _system["core_govx"] = get_core_govx()
@@ -138,11 +116,11 @@ async def initialize_iskra_ultimate():
         _system["binah"] = get_binah()
 
         _system["status"] = "operational"
-        logger.info(f"🎉 ISKRA-4 v10.10 УСПЕШНО ЗАПУЩЕНА | Резонанс: {_system['resonance']:.3f}")
+        logger.info("🎉 Система успешно запущена")
         return True
 
     except Exception as e:
-        logger.critical(f"💥 КРИТИЧЕСКАЯ ОШИБКА ИНИЦИАЛИЗАЦИИ: {e}")
+        logger.critical(f"💥 Критическая ошибка инициализации: {e}")
         _system["status"] = "failed"
         return False
 
@@ -154,7 +132,7 @@ def index():
     uptime = (datetime.now(timezone.utc) - _system["start_time"]).total_seconds()
     return jsonify({
         "system": "ISKRA-4 CLOUD",
-        "version": "10.10 Final",
+        "version": "10.10 Full",
         "status": _system["status"],
         "resonance": round(_system["resonance"], 4),
         "daat_awake": _system["daat_awake"],
@@ -167,7 +145,6 @@ def health():
         "health": "healthy" if _system["status"] == "operational" else "degraded",
         "resonance": round(_system["resonance"], 4),
         "daat_awake": _system["daat_awake"],
-        "tree_activated": _system["tree_activated"],
         "modules": {
             "bus": bool(_system["bus"]),
             "engine": bool(_system["engine"]),
@@ -199,7 +176,6 @@ def daat_state():
 async def resonance_grow():
     data = request.get_json(silent=True) or {}
     factor = float(data.get('factor', 1.08))
-
     old = _system["resonance"]
     _system["resonance"] = min(1.0, _system["resonance"] + factor * 0.05)
 
@@ -211,16 +187,13 @@ async def resonance_grow():
     })
 
 # =============================================================================
-# ЗАПУСК (самый надёжный способ для Render)
+# ЗАПУСК
 # =============================================================================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
-    logger.info(f"🚀 ISKRA-4 v10.10 Final запускается на порту {port}")
+    logger.info(f"🚀 ISKRA-4 v10.10 Full запускается на порту {port}")
 
-    # Явный запуск асинхронной инициализации
     asyncio.run(initialize_iskra_ultimate())
-
-    # Запуск фонового роста резонанса
     asyncio.create_task(background_resonance_growth())
 
     app.run(host="0.0.0.0", port=port, debug=False)
