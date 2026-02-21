@@ -153,4 +153,66 @@ class QuantumLink:
 # =============================================================================
 # ... (SignalPackage, AdaptiveQueue, SephiroticNode, SephiroticTree, SephiroticEngine и т.д. остаются в текущем чистом виде)
 
+
+# =============================================================================
+# SephiroticTree - Адаптер для обратной совместимости с iskra_full.py
+# =============================================================================
+
+class SephiroticTree:
+    """
+    Дерево сефирот (адаптер для обратной совместимости)
+    Обеспечивает API для iskra_full.py который требует этот класс
+    """
+    
+    def __init__(self):
+        self.nodes = {
+            'KETER': {'resonance': 0.85, 'energy': 0.9, 'stability_angle': GOLDEN_STABILITY_ANGLE},
+            'CHOKMAH': {'resonance': 0.82, 'energy': 0.85, 'stability_angle': GOLDEN_STABILITY_ANGLE},
+            'BINAH': {'resonance': 0.83, 'energy': 0.87, 'stability_angle': GOLDEN_STABILITY_ANGLE},
+            'DAAT': {'resonance': 0.0, 'energy': 0.5, 'awake': False, 'stability_angle': GOLDEN_STABILITY_ANGLE},
+            'CHESED': {'resonance': 0.81, 'energy': 0.83, 'stability_angle': GOLDEN_STABILITY_ANGLE},
+            'GEVURAH': {'resonance': 0.80, 'energy': 0.82, 'stability_angle': GOLDEN_STABILITY_ANGLE},
+            'TIPHERET': {'resonance': 0.84, 'energy': 0.88, 'stability_angle': GOLDEN_STABILITY_ANGLE},
+            'NETZACH': {'resonance': 0.79, 'energy': 0.81, 'stability_angle': GOLDEN_STABILITY_ANGLE},
+            'HOD': {'resonance': 0.78, 'energy': 0.80, 'stability_angle': GOLDEN_STABILITY_ANGLE},
+            'YESOD': {'resonance': 0.77, 'energy': 0.79, 'stability_angle': GOLDEN_STABILITY_ANGLE},
+            'MALKUTH': {'resonance': 0.76, 'energy': 0.78, 'stability_angle': GOLDEN_STABILITY_ANGLE}
+        }
+        self.resonance = 0.82
+        self.activated = True
+        
+    def get_state(self) -> Dict[str, Any]:
+        """
+        Возвращает состояние дерева для API
+        Используется в /sephirot/state эндпоинте
+        """
+        return {
+            "nodes": self.nodes,
+            "resonance": self.resonance,
+            "activated": self.activated,
+            "node_count": len(self.nodes),
+            "timestamp": datetime.utcnow().isoformat(),
+            "tree_type": "compatibility_layer_v10.10",
+            "stability_angle": GOLDEN_STABILITY_ANGLE
+        }
+    
+    def activate(self) -> Dict[str, Any]:
+        """Активация дерева"""
+        self.activated = True
+        self.resonance = 0.82
+        return {
+            "status": "activated",
+            "resonance": self.resonance,
+            "message": "🌳 SephiroticTree активирован (режим совместимости)"
+        }
+    
+    def get_node(self, node_name: str) -> Optional[Dict[str, Any]]:
+        """Получить узел по имени"""
+        return self.nodes.get(node_name.upper())
+    
+    def update_resonance(self, delta: float = 0.01) -> float:
+        """Обновить общий резонанс дерева"""
+        self.resonance = min(1.0, max(0.0, self.resonance + delta))
+        return self.resonance
+
 logger.info("🌳 Sephirot-Base v10.10 Ultra Deep (QuantumLink полностью восстановлен) загружен")             
