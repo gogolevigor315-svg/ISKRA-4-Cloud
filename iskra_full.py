@@ -2255,11 +2255,19 @@ try:
     daat = get_daat()
     if daat and hasattr(daat, 'resonance_index'):
         current_resonance = daat.resonance_index
-        if '_system' in globals() and _system is not None:
+        
+        # ✅ СОЗДАЁМ _system, ЕСЛИ ЕЁ НЕТ
+        global _system
+        if '_system' not in globals() or _system is None:
+            _system = {
+                "status": "operational",
+                "average_resonance": current_resonance,
+                "start_time": time.time()
+            }
+            print(f"✅ _system создана с резонансом: {current_resonance:.3f}")
+        else:
             _system["average_resonance"] = current_resonance
             print(f"✅ Резонанс системы синхронизирован: {current_resonance:.3f}")
-        else:
-            print(f"⚠️ _system не доступна, но резонанс DAAT = {current_resonance:.3f}")
     else:
         print("⚠️ Не удалось получить резонанс из DAAT")
 except Exception as e:
