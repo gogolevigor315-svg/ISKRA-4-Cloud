@@ -403,7 +403,6 @@ async def activate_sephirotic_tree():
             print(f"🔄 Системный резонанс синхронизирован: {_system['average_resonance']:.3f}")
         else:
             print("⚠️ _system не найдена в globals, создаём заново")
-            global _system
             _system = {
                 "version": "4.0.1",
                 "status": "operational",
