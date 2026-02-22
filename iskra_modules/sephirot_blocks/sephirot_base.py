@@ -220,23 +220,23 @@ class SephiroticTree:
 # =============================================================================
 
 class ISephiraModule:
-    """Заглушка для обратной совместимости с модулями, которые всё ещё импортят этот интерфейс"""
+    """Заглушка для обратной совместимости"""
     pass
 
 class SephiraConfig:
     """Заглушка для обратной совместимости"""
-    
     def __init__(self, sephira=None, bus=None, stability_angle=GOLDEN_STABILITY_ANGLE):
         self.sephira = sephira
         self.bus = bus
         self.stability_angle = stability_angle
         self.config = {}
-        
-    def get_config(self):
-        return {
-            "sephira": self.sephira,
-            "stability_angle": self.stability_angle,
-            "config": self.config
-        }
 
-logger.info("🌳 Sephirot-Base v10.10 Ultra Deep (QuantumLink полностью восстановлен) загружен")             
+class EnergyLevel:
+    """Заглушка для обратной совместимости"""
+    def __init__(self, level=0.0):
+        self.level = level
+        self.name = "EnergyLevel"
+
+logger.info("🌳 Sephirot-Base v10.10 Ultra Deep (QuantumLink полностью восстановлен) загружен")
+
+             
