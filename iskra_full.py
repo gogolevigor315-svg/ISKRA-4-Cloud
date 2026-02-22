@@ -2243,131 +2243,28 @@ else:
     print(f"⚠️ Дерево НЕ сохранено - API /sephirot/state будет недоступно")
 
 # ============================================================================
-# 🔥 АВТОМАТИЧЕСКИЙ РОСТ РЕЗОНАНСА (улучшенная версия)
-# ============================================================================
-
-_resonance_growth_task = None
-
-async def background_resonance_growth():
-    """Фоновая задача автоматического роста резонанса"""
-    global _system
-    logger = logging.getLogger("ResonanceGrowth")
-    logger.info("🌱 Автоматический рост резонанса запущен (каждые 3 минуты, +0.018)")
-
-    while True:
-        try:
-            await asyncio.sleep(180)  # 3 минуты
-
-            if _system.get("status") != "operational":
-                continue
-
-            old = _system["average_resonance"]
-            
-            if old < 0.85:
-                new_res = min(0.85, old + 0.018)
-                _system["average_resonance"] = new_res
-                
-                logger.info(f"📈 Рост резонанса: {old:.3f} → {new_res:.3f}")
-
-                if old < 0.85 and new_res >= 0.85:
-                    logger.info("🔮🔮🔮 РЕЗОНАНС ДОСТИГ 0.85! DAAT ГОТОВ К ПОЛНОМУ ПРОБУЖДЕНИЮ! 🔮🔮🔮")
-                    # Здесь можно добавить дополнительные действия при достижении порога
-            else:
-                logger.debug(f"🌱 Резонанс уже на цели ({old:.3f})")
-
-        except asyncio.CancelledError:
-            logger.info("🌱 Задача роста резонанса остановлена")
-            break
-        except Exception as e:
-            logger.error(f"❌ Ошибка в росте резонанса: {e}")
-
-def start_resonance_growth():
-    """Запуск фонового роста резонанса"""
-    global _resonance_growth_task
-
-    if _resonance_growth_task and not _resonance_growth_task.done():
-        logger.info("🌱 Рост резонанса уже запущен")
-        return False
-
-    # Пытаемся получить текущий цикл или создаём новый
-    try:
-        loop = asyncio.get_running_loop()
-        _resonance_growth_task = loop.create_task(background_resonance_growth())
-        logger.info("🚀 Автоматический рост резонанса запущен (в существующем цикле)")
-    except RuntimeError:
-        # Нет запущенного цикла - создаём новый поток с циклом
-        logger.info("🔄 Нет активного цикла, создаём отдельный поток...")
-        
-        def run_async_task():
-            new_loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(new_loop)
-            global _resonance_growth_task
-            _resonance_growth_task = new_loop.create_task(background_resonance_growth())
-            new_loop.run_forever()
-        
-        import threading
-        thread = threading.Thread(target=run_async_task, daemon=True)
-        thread.start()
-        logger.info("🚀 Автоматический рост резонанса запущен (в отдельном потоке)")
-    
-    return True
-
-def stop_resonance_growth():
-    """Остановка роста резонанса"""
-    global _resonance_growth_task
-
-    if _resonance_growth_task and not _resonance_growth_task.done():
-        _resonance_growth_task.cancel()
-        logger.info("⏹️ Рост резонанса остановлен")
-        return True
-    return False
-
-# ============================================================================
-# ЭНДПОИНТЫ УПРАВЛЕНИЯ РОСТОМ
-# ============================================================================
-@app.route('/resonance/auto/start', methods=['POST'])
-def resonance_auto_start():
-    success = start_resonance_growth()
-    return jsonify({
-        "status": "started" if success else "already_running",
-        "current_resonance": round(_system["average_resonance"], 4),
-        "target": 0.85,
-        "step": 0.018,
-        "interval": "180 секунд (3 минуты)"
-    })
-
-@app.route('/resonance/auto/stop', methods=['POST'])
-def resonance_auto_stop():
-    success = stop_resonance_growth()
-    return jsonify({
-        "status": "stopped" if success else "not_running",
-        "current_resonance": round(_system["average_resonance"], 4)
-    })
-
-@app.route('/resonance/auto/status', methods=['GET'])
-def resonance_auto_status():
-    return jsonify({
-        "active": _resonance_growth_task is not None and not _resonance_growth_task.done(),
-        "current_resonance": round(_system["average_resonance"], 4),
-        "target": 0.85,
-        "progress_percent": min(100, int((_system["average_resonance"] / 0.85) * 100)),
-        "daat_ready": _system["average_resonance"] >= 0.85,
-        "tree_activated": _tree_activated
-    })
-
-# ============================================================================
-# АВТОЗАПУСК ПРИ СТАРТЕ СИСТЕМЫ
+# ФИНАЛЬНАЯ СИНХРОНИЗАЦИЯ РЕЗОНАНСА
 # ============================================================================
 print("\n" + "="*70)
-print("🚀 ЗАПУСК АВТОМАТИЧЕСКОГО РОСТА РЕЗОНАНСА")
+print("🔧 ФИНАЛЬНАЯ СИНХРОНИЗАЦИЯ РЕЗОНАНСА")
 print("="*70)
 
-# Запускаем рост сразу после инициализации системы
-start_resonance_growth()  # Автозапуск роста резонанса
-print("📌 Для запуска роста резонанса используйте: POST /resonance/auto/start")
-print("📌 Текущий резонанс: 0.117, цель: 0.85")
+# Принудительно устанавливаем резонанс системы в значение из DAAT (0.85)
+try:
+    from iskra_modules.sephirot_blocks.DAAT.daat_core import get_daat
+    daat = get_daat()
+    if daat and hasattr(daat, 'resonance_index'):
+        current_resonance = daat.resonance_index
+        if '_system' in globals() and _system is not None:
+            _system["average_resonance"] = current_resonance
+            print(f"✅ Резонанс системы синхронизирован: {current_resonance:.3f}")
+        else:
+            print(f"⚠️ _system не доступна, но резонанс DAAT = {current_resonance:.3f}")
+    else:
+        print("⚠️ Не удалось получить резонанс из DAAT")
+except Exception as e:
+    print(f"⚠️ Ошибка синхронизации: {e}")
 
-print("✅ Автоматический рост резонанса активирован")
 print("="*70 + "\n")
 
 # ============================================================================
