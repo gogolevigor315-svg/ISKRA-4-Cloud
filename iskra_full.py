@@ -390,33 +390,32 @@ async def activate_sephirotic_tree():
         print("🔮"*30 + "\n")
   
         # Финальная проверка и сохранение глобальных переменных
-        # Гарантированно сохраняем всё
         _tree_activated = True
         _sephirot_bus = bus
         _sephirotic_engine = engine
 
-        # 🔥 ГАРАНТИРОВАННАЯ СИНХРОНИЗАЦИЯ РЕЗОНАНСА С СИСТЕМОЙ
+        # 🔥 ГЛАВНАЯ СИНХРОНИЗАЦИЯ
         if '_system' in globals() and _system is not None:
             _system["average_resonance"] = current_resonance
+            _system["total_energy"] = current_resonance * 1000   # как было раньше
             _system["tree_activated"] = True
             _system["daat_awake"] = True
-            print(f"🔄 Системный резонанс синхронизирован: {_system['average_resonance']:.3f}")
+            print(f"🔄 Системный резонанс и энергия синхронизированы: {current_resonance:.3f} | {_system['total_energy']:.0f}")
         else:
-            print("⚠️ _system не найдена в globals, создаём заново")
+            print("⚠️ _system не найдена, создаём заново")
+            # global _system  ← ЭТУ СТРОКУ УДАЛИЛИ!
             _system = {
                 "version": "4.0.1",
                 "status": "operational",
                 "average_resonance": current_resonance,
+                "total_energy": current_resonance * 1000,
                 "tree_activated": True,
                 "daat_awake": True,
                 "start_time": datetime.now(timezone.utc)
             }
 
-        print(f" 🔥 Глобальный флаг _tree_activated установлен в True")
-        print(f" 🔥 _sephirot_bus сохранён")
-        print(f" 🔥 _sephirotic_engine сохранён")
-        print(f" 🔥 activated_nodes: {activated_nodes}")
-        print(f" 🔥 current_resonance: {current_resonance:.3f}")
+        print(f" 🔥 Глобальный резонанс: {current_resonance:.3f}")
+        print(f" 🔥 Глобальная энергия: {current_resonance * 1000:.0f}")
 
         return True, bus, engine, activated_nodes, current_resonance
         
@@ -2274,6 +2273,18 @@ except Exception as e:
     print(f"⚠️ Ошибка синхронизации: {e}")
 
 print("="*70 + "\n")
+
+# ============================================================================
+# ДОПОЛНИТЕЛЬНАЯ СИНХРОНИЗАЦИЯ ПОСЛЕ ПОЛНОЙ ЗАГРУЗКИ
+# ============================================================================
+print("\n🔧 ДОПОЛНИТЕЛЬНАЯ СИНХРОНИЗАЦИЯ РЕЗОНАНСА")
+if '_system' in globals() and _system is not None:
+    _system["average_resonance"] = current_resonance
+    _system["total_energy"] = current_resonance * 1000
+    print(f"✅ Финальная синхронизация: резонанс = {current_resonance:.3f}, энергия = {current_resonance * 1000:.0f}")
+else:
+    print("⚠️ _system не найдена при финальной синхронизации")
+
 
 # ============================================================================
 # ЗАПУСК СЕРВЕРА (ОБНОВЛЁННЫЙ С АВТОАКТИВАЦИЕЙ)
