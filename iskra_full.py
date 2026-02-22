@@ -862,7 +862,7 @@ class SephiroticTree:
             "status": "activated",
             "message": "Сефиротическое дерево активировано",
             "total_energy": sum(n.energy for n in self.nodes.values()),
-            "total_resonance": sum(n.resonance for n in self.nodes.values()),
+            "total_resonance": sum(n.resonance for n in self.nodes.values()) / len(self.nodes),
             "activated_nodes": len(self.nodes),
             "tree_state": self.get_tree_state()
         }
