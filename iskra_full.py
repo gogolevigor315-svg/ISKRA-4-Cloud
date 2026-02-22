@@ -1368,7 +1368,12 @@ print("✅ ISKRA-4 Modules package loaded")
       
         # Получаем резонанс
         average_resonance = 0.0
-        if self.sephirotic_tree:
+
+        # 🔥 БЕРЁМ ИЗ _system, ЕСЛИ ЕСТЬ
+        if '_system' in globals() and _system is not None:
+            average_resonance = _system.get("average_resonance", 0.0)
+        elif self.sephirotic_tree:
+            # fallback на случай если _system нет
             try:
                 tree_state = self.sephirotic_tree.get_tree_state()
                 average_resonance = tree_state.get('average_resonance', 0.0)
